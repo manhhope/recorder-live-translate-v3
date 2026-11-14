@@ -31,7 +31,7 @@ impl DeeplKeys {
     }
 
     pub fn has(&self) -> bool {
-        matches!(self.secrets.get(SecretKind::DeepL), Ok(Some(v)) if !v.is_empty())
+        self.secrets.exists(SecretKind::DeepL).unwrap_or(false)
     }
 
     pub fn clear(&self) -> Result<(), String> {

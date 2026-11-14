@@ -6,7 +6,9 @@
 
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+use zeroize::Zeroize;
 
 /// Service Keychain rieng cua v3 (khac service cua ban .NET).
 pub const KEYCHAIN_SERVICE: &str = "com.recorder.livetranslate.v3";
@@ -56,6 +58,12 @@ impl SecretKind {
 #[derive(Clone, PartialEq, Eq)]
 pub struct SecretValue(String);
 
+impl Drop for SecretValue {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
+
 impl SecretValue {
     pub fn new(value: impl Into<String>) -> Self {
         SecretValue(value.into())
@@ -103,6 +111,92 @@ pub trait SecretStore: Send + Sync {
     fn get(&self, kind: SecretKind) -> Result<Option<SecretValue>, SecretError>;
     /// Xoa; xoa khoa chua ton tai van la Ok.
     fn delete(&self, kind: SecretKind) -> Result<(), SecretError>;
+    /// Khoa co ton tai khong. Mac dinh doc gia tri; Keychain ghi de bang truy van chi-thuoc-tinh
+    /// (khong doc du lieu nen KHONG hien hop thoai xin quyen).
+    fn exists(&self, kind: SecretKind) -> Result<bool, SecretError> {
+        Ok(self.get(kind)?.is_some_and(|v| !v.is_empty()))
+    }
+}
+
+/// Thoi gian nho loi backend (vd nguoi dung bam Deny) de khong hoi lai moi lan goi.
+pub const ERROR_COOLDOWN: Duration = Duration::from_secs(30);
+
+#[derive(Default)]
+struct CacheState {
+    values: HashMap<SecretKind, Option<SecretValue>>,
+    presence: HashMap<SecretKind, bool>,
+    errors: HashMap<SecretKind, (Instant, SecretError)>,
+}
+
+/// Boc mot `SecretStore` bang cache trong bo nho: moi khoa chi goi backend toi da MOT lan moi lan chay app
+/// (doc luoi, khi can dung). `set`/`delete` cap nhat cache. Gia tri bi zeroize khi roi cache.
+/// Giu khoa Mutex trong luc goi backend de hai luong khong cung gay hai hop thoai.
+pub struct CachedSecretStore {
+    inner: Arc<dyn SecretStore>,
+    state: Mutex<CacheState>,
+}
+
+impl CachedSecretStore {
+    pub fn new(inner: Arc<dyn SecretStore>) -> Self {
+        Self { inner, state: Mutex::new(CacheState::default()) }
+    }
+}
+
+impl fmt::Debug for CachedSecretStore {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CachedSecretStore(values redacted)")
+    }
+}
+
+impl SecretStore for CachedSecretStore {
+    fn set(&self, kind: SecretKind, value: &SecretValue) -> Result<(), SecretError> {
+        let mut st = self.state.lock().unwrap();
+        self.inner.set(kind, value)?;
+        st.errors.remove(&kind);
+        st.presence.insert(kind, true);
+        st.values.insert(kind, Some(value.clone()));
+        Ok(())
+    }
+    fn get(&self, kind: SecretKind) -> Result<Option<SecretValue>, SecretError> {
+        let mut st = self.state.lock().unwrap();
+        if let Some(v) = st.values.get(&kind) {
+            return Ok(v.clone());
+        }
+        if let Some((at, e)) = st.errors.get(&kind) {
+            if at.elapsed() < ERROR_COOLDOWN {
+                return Err(e.clone());
+            }
+        }
+        match self.inner.get(kind) {
+            Ok(v) => {
+                st.errors.remove(&kind);
+                st.presence.insert(kind, v.as_ref().is_some_and(|x| !x.is_empty()));
+                st.values.insert(kind, v.clone());
+                Ok(v)
+            }
+            Err(e) => {
+                st.errors.insert(kind, (Instant::now(), e.clone()));
+                Err(e)
+            }
+        }
+    }
+    fn delete(&self, kind: SecretKind) -> Result<(), SecretError> {
+        let mut st = self.state.lock().unwrap();
+        self.inner.delete(kind)?;
+        st.errors.remove(&kind);
+        st.presence.insert(kind, false);
+        st.values.insert(kind, None);
+        Ok(())
+    }
+    fn exists(&self, kind: SecretKind) -> Result<bool, SecretError> {
+        let mut st = self.state.lock().unwrap();
+        if let Some(p) = st.presence.get(&kind) {
+            return Ok(*p);
+        }
+        let p = self.inner.exists(kind)?;
+        st.presence.insert(kind, p);
+        Ok(p)
+    }
 }
 
 /// Ban in-memory dung cho test.
@@ -185,6 +279,21 @@ mod keychain {
             match self.entry(kind)?.get_password() {
                 Ok(p) => Ok(Some(SecretValue::new(p))),
                 Err(keyring::Error::NoEntry) => Ok(None),
+                Err(e) => Err(SecretError::Backend(e.to_string())),
+            }
+        }
+        fn exists(&self, kind: SecretKind) -> Result<bool, SecretError> {
+            use security_framework::item::{ItemClass, ItemSearchOptions};
+            // Chi hoi thuoc tinh (khong load du lieu) => khong cham ACL cua muc => khong co hop thoai.
+            match ItemSearchOptions::new()
+                .class(ItemClass::generic_password())
+                .service(&self.service)
+                .account(kind.account())
+                .load_attributes(true)
+                .search()
+            {
+                Ok(found) => Ok(!found.is_empty()),
+                Err(e) if e.code() == -25300 => Ok(false), // errSecItemNotFound
                 Err(e) => Err(SecretError::Backend(e.to_string())),
             }
         }
@@ -271,6 +380,115 @@ mod tests {
     #[test]
     fn service_is_v3_specific() {
         assert_eq!(KEYCHAIN_SERVICE, "com.recorder.livetranslate.v3");
+    }
+
+    /// Backend gia dem so lan goi, dung de chung minh moi khoa chi cham backend mot lan.
+    struct Counting {
+        inner: InMemorySecretStore,
+        gets: std::sync::atomic::AtomicUsize,
+        exists_calls: std::sync::atomic::AtomicUsize,
+        fail: std::sync::atomic::AtomicBool,
+    }
+    impl Counting {
+        fn new() -> Arc<Self> {
+            Arc::new(Self {
+                inner: InMemorySecretStore::new(),
+                gets: Default::default(),
+                exists_calls: Default::default(),
+                fail: Default::default(),
+            })
+        }
+        fn gets(&self) -> usize {
+            self.gets.load(std::sync::atomic::Ordering::SeqCst)
+        }
+    }
+    impl SecretStore for Counting {
+        fn set(&self, k: SecretKind, v: &SecretValue) -> Result<(), SecretError> {
+            self.inner.set(k, v)
+        }
+        fn get(&self, k: SecretKind) -> Result<Option<SecretValue>, SecretError> {
+            self.gets.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if self.fail.load(std::sync::atomic::Ordering::SeqCst) {
+                return Err(SecretError::Backend("denied".into()));
+            }
+            self.inner.get(k)
+        }
+        fn delete(&self, k: SecretKind) -> Result<(), SecretError> {
+            self.inner.delete(k)
+        }
+        fn exists(&self, k: SecretKind) -> Result<bool, SecretError> {
+            self.exists_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(self.inner.get(k)?.is_some())
+        }
+    }
+
+    #[test]
+    fn cache_reads_backend_once_per_key_even_when_called_many_times() {
+        let b = Counting::new();
+        b.inner.set(SecretKind::Soniox, &SecretValue::new("S-FAKE")).unwrap();
+        let c = CachedSecretStore::new(b.clone());
+        for _ in 0..10 {
+            assert_eq!(c.get(SecretKind::Soniox).unwrap().unwrap().expose(), "S-FAKE");
+        }
+        assert_eq!(b.gets(), 1);
+        // khoa khac van doc rieng dung mot lan; khoa vang mat cung duoc nho
+        for _ in 0..5 {
+            assert_eq!(c.get(SecretKind::Gemini).unwrap(), None);
+        }
+        assert_eq!(b.gets(), 2);
+    }
+
+    #[test]
+    fn exists_does_not_read_value_and_is_cached() {
+        let b = Counting::new();
+        b.inner.set(SecretKind::DeepL, &SecretValue::new("D-FAKE")).unwrap();
+        let c = CachedSecretStore::new(b.clone());
+        for _ in 0..5 {
+            assert!(c.exists(SecretKind::DeepL).unwrap());
+        }
+        assert_eq!(b.gets(), 0, "exists khong duoc doc gia tri");
+        assert_eq!(b.exists_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn set_and_delete_update_cache_without_extra_backend_reads() {
+        let b = Counting::new();
+        let c = CachedSecretStore::new(b.clone());
+        c.set(SecretKind::OpenAi, &SecretValue::new("O-FAKE")).unwrap();
+        assert_eq!(c.get(SecretKind::OpenAi).unwrap().unwrap().expose(), "O-FAKE");
+        assert!(c.exists(SecretKind::OpenAi).unwrap());
+        c.delete(SecretKind::OpenAi).unwrap();
+        assert_eq!(c.get(SecretKind::OpenAi).unwrap(), None);
+        assert!(!c.exists(SecretKind::OpenAi).unwrap());
+        assert_eq!(b.gets(), 0);
+    }
+
+    #[test]
+    fn backend_error_is_remembered_briefly_so_denied_prompt_does_not_repeat() {
+        let b = Counting::new();
+        b.fail.store(true, std::sync::atomic::Ordering::SeqCst);
+        let c = CachedSecretStore::new(b.clone());
+        for _ in 0..5 {
+            assert!(c.get(SecretKind::Soniox).is_err());
+        }
+        assert_eq!(b.gets(), 1);
+    }
+
+    #[test]
+    fn concurrent_gets_hit_backend_once() {
+        let b = Counting::new();
+        b.inner.set(SecretKind::Soniox, &SecretValue::new("S-FAKE")).unwrap();
+        let c = Arc::new(CachedSecretStore::new(b.clone()));
+        let hs: Vec<_> = (0..8)
+            .map(|_| {
+                let c = c.clone();
+                std::thread::spawn(move || c.get(SecretKind::Soniox).unwrap().is_some())
+            })
+            .collect();
+        for h in hs {
+            assert!(h.join().unwrap());
+        }
+        assert_eq!(b.gets(), 1);
     }
 
     #[cfg(target_os = "macos")]

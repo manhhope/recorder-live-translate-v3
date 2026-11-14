@@ -305,7 +305,7 @@ impl SessionService {
     }
 
     pub fn has_key(&self) -> bool {
-        matches!(self.secrets.get(SecretKind::Soniox), Ok(Some(v)) if !v.is_empty())
+        self.secrets.exists(SecretKind::Soniox).unwrap_or(false)
     }
 
     pub fn clear_key(&self) -> Result<(), String> {

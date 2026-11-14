@@ -5,5 +5,9 @@ edition.workspace = true
 license.workspace = true
 description = "Luu khoa API (Soniox, Gemini, OpenAI) trong Keychain macOS; trait SecretStore + ban in-memory; gia tri khoa luon bi che khi Debug"
 
+[dependencies]
+zeroize = "1"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3", default-features = false, features = ["apple-native"] }
+security-framework = "3"

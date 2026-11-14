@@ -228,12 +228,16 @@ impl GoogleDrive {
     }
 
     pub fn connection(&self) -> Connection {
-        if self.client_id().is_none() {
+        // Chi hoi su ton tai (khong doc gia tri) de man Cai dat khong gay hop thoai Keychain.
+        let has_id = self.secrets.exists(SecretKind::DriveClientId).unwrap_or(false)
+            || std::env::var(ENV_CLIENT_ID).ok().is_some_and(|v| !v.trim().is_empty());
+        if !has_id {
             return Connection::NotConfigured;
         }
-        match self.secrets.get(SecretKind::DriveRefreshToken) {
-            Ok(Some(v)) if !v.is_empty() => Connection::Connected,
-            _ => Connection::Disconnected,
+        if self.secrets.exists(SecretKind::DriveRefreshToken).unwrap_or(false) {
+            Connection::Connected
+        } else {
+            Connection::Disconnected
         }
     }
 

@@ -158,7 +158,7 @@ impl AiService {
     fn has_key(&self, kind: ProviderKind) -> bool {
         match secret_kind(kind) {
             None => true,
-            Some(sk) => matches!(self.secrets.get(sk), Ok(Some(v)) if !v.is_empty()),
+            Some(sk) => self.secrets.exists(sk).unwrap_or(false),
         }
     }
 

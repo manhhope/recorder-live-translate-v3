@@ -29,16 +29,19 @@ pub const AI_COMMANDS: &[&str] = &[
     "ai_delete_conversation",
 ];
 
-/// Kho khoa that: Keychain tren macOS; noi khac chua co ban that (M3 chi chay macOS) nen dung ban trong bo nho.
+/// Kho khoa dung chung toan app: MOT cache duy nhat boc Keychain (macOS) nen moi khoa chi hoi Keychain toi da
+/// mot lan moi lan chay app, du nhieu module cung goi. Noi khac chua co ban that nen dung ban trong bo nho.
 pub fn secret_store() -> Arc<dyn rlt_secrets::SecretStore> {
-    #[cfg(target_os = "macos")]
-    {
-        Arc::new(rlt_secrets::KeychainSecretStore::new())
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        Arc::new(rlt_secrets::InMemorySecretStore::new())
-    }
+    static STORE: std::sync::OnceLock<Arc<dyn rlt_secrets::SecretStore>> = std::sync::OnceLock::new();
+    STORE
+        .get_or_init(|| {
+            #[cfg(target_os = "macos")]
+            let inner: Arc<dyn rlt_secrets::SecretStore> = Arc::new(rlt_secrets::KeychainSecretStore::new());
+            #[cfg(not(target_os = "macos"))]
+            let inner: Arc<dyn rlt_secrets::SecretStore> = Arc::new(rlt_secrets::InMemorySecretStore::new());
+            Arc::new(rlt_secrets::CachedSecretStore::new(inner))
+        })
+        .clone()
 }
 
 pub struct AiState {
