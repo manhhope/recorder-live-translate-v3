@@ -1,0 +1,9 @@
+[package]
+name = "rlt-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Lop luu tru SQLite + FTS5 (rusqlite bundled) cho phien, doan bien ban, ghi chu/anh (ADR-6)"
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
