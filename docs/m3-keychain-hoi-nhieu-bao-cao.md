@@ -89,4 +89,5 @@ Chữ ký ổn định để "Always Allow" giữ qua các bản build (chủ ch
 
 ## 6. Build .app
 
-Xem cuối file (phần Kết quả build) sau khi build xong.
+Build trong bản sao `/tmp/rlt-keychain` (`git archive HEAD` ở commit 7393e53, `npm run build` rồi `cargo tauri build --bundles app`): thành công, `Finished 1 bundle`, 22.30 MiB.
+Đã đặt lên `~/Desktop/Recorder Live Translate.app`, thay bản cũ. Chữ ký vẫn ad-hoc (`Signature=adhoc`, `Identifier=rlt_app`), nên đến khi chủ ký bằng chứng chỉ cục bộ (mục 5) thì "Always Allow" vẫn mất qua mỗi bản build. Chưa mở app (không có phiên đồ họa).
