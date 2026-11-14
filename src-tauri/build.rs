@@ -48,6 +48,7 @@ pub const APP_COMMANDS: &[&str] = &[
     "subtitle_open",
     "subtitle_close",
     "subtitle_get",
+    "subtitle_lines",
     "subtitle_font_step",
     "subtitle_set_mode",
     "subtitle_set_opacity",

@@ -15,6 +15,8 @@ export interface MockSeed {
   details: Record<string, unknown>;
   // Lenh -> ma loi se bi tu choi (chuoi ngan nhu Rust). Doi duoc trong luc chay bang __rlt.fail.
   fail: Record<string, string>;
+  // Ban chup dong chu cua popup phu de (lenh subtitle_lines): cac dong da co truoc khi popup mo.
+  subtitleLines?: unknown[];
 }
 
 export function installTauriMock(seed: MockSeed): void {
@@ -52,6 +54,7 @@ export function installTauriMock(seed: MockSeed): void {
   };
   const rlt: any = { calls: [] as { cmd: string; args: any }[], unhandled: [] as string[], state, fail: { ...seed.fail } };
   w.__rlt = rlt;
+  rlt.subtitleLines = clone(seed.subtitleLines ?? []);
 
   rlt.emit = (event: unknown) => {
     const ev = event as any;
@@ -153,6 +156,9 @@ export function installTauriMock(seed: MockSeed): void {
     core_version: () => "0.1.0",
     quick_ax_status: () => true,
     shortcuts_status: () => ["quick_translate", "inline_translate", "ask_ai", "region_capture"].map((action, i) => ({ action, accelerator: ["CmdOrCtrl+Shift+T", "CmdOrCtrl+Shift+I", "CmdOrCtrl+Shift+A", "CmdOrCtrl+Shift+R"][i], enabled: true, registered: true, error_key: null, error_detail: null })),
+    subtitle_font_step: () => undefined,
+    subtitle_set_opacity: () => undefined,
+    subtitle_lines: () => clone(rlt.subtitleLines ?? []),
     subtitle_get: () => ({ display_mode: "bilingual", font_size_pt: 24, source_color: "#FFFFFF", translation_color: "#FFD60A", opacity_percent: 80, hidden_from_capture: false }),
     drive_connection_status: () => ({ state: "disconnected" }),
     deepl_has_key: () => false,

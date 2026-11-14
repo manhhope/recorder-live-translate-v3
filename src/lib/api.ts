@@ -7,9 +7,12 @@ export type SessionStateName = "idle" | "recording" | "paused" | "stopping";
 export type StatusCode = "permission" | "auth" | "quota" | "network" | "timeout";
 
 export interface LineDto { captionLineId: number; seq: number; offsetMs: number; sourceLang: string; sourceText: string; translatedText: string | null }
+export type { PartialDto } from "./live.ts";
+import type { PartialDto } from "./live.ts";
 export type UiEvent =
   | { kind: "state"; state: SessionStateName }
   | { kind: "line"; line: LineDto }
+  | { kind: "partial"; partial: PartialDto | null }
   | { kind: "level"; level: number }
   | { kind: "status"; code: StatusCode | null }
   | { kind: "stopped"; sessionId: string; lines: number; durationMs: number; drained: boolean };
@@ -147,6 +150,7 @@ export const shortcutSetEnabled = (action: ShortcutAction, enabled: boolean) => 
 
 export const subtitleOpen = () => invoke<void>("subtitle_open");
 export const subtitleClose = () => invoke<void>("subtitle_close");
+export const subtitleLines = () => invoke<LineDto[]>("subtitle_lines");
 export const subtitleGet = () => invoke<SubtitleSettings>("subtitle_get");
 export const subtitleFontStep = (delta: number) => invoke<SubtitleSettings>("subtitle_font_step", { delta });
 export const subtitleSetMode = (mode: DisplayMode) => invoke<SubtitleSettings>("subtitle_set_mode", { mode });

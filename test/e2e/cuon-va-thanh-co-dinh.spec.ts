@@ -101,7 +101,7 @@ for (const loc of ["en", "pt-PT"] as const) {
       await page.goto("/subtitle.html"); // lop Tauri gia (init script) van con sau khi doi trang
       await expect(page.locator(".tools")).toBeVisible();
       const long = (n: number) => Array.from({ length: 30 }, (_, i) => `Sentence ${n}.${i} of the subtitle text`).join(" ");
-      const emit = (n: number) => page.evaluate(([p]) => (window as any).__rlt.emitEvent("subtitle://line", { source: p, translation: p + " (pt)" }), [long(n)]);
+      const emit = (n: number) => page.evaluate(([p, n]) => (window as any).__rlt.emitEvent("subtitle://line", { captionLineId: n, seq: n, offsetMs: 0, sourceLang: "en", sourceText: p, translatedText: p + " (pt)" }), [long(n), n] as [string, number]);
       await emit(1);
       await expect.poll(async () => (await metrics(page, ".text")).gap).toBeLessThanOrEqual(2);
       const m = await metrics(page, ".text");

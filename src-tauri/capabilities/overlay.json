@@ -8,6 +8,7 @@
     "core:event:allow-unlisten",
     "core:window:allow-start-dragging",
     "allow-subtitle-get",
+    "allow-subtitle-lines",
     "allow-subtitle-font-step",
     "allow-subtitle-set-mode",
     "allow-subtitle-set-opacity",

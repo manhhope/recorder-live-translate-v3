@@ -83,6 +83,7 @@ fn main() {
             subtitle::subtitle_open,
             subtitle::subtitle_close,
             subtitle::subtitle_get,
+            subtitle::subtitle_lines,
             subtitle::subtitle_font_step,
             subtitle::subtitle_set_mode,
             subtitle::subtitle_set_opacity,

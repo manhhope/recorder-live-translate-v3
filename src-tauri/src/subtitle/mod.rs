@@ -1,9 +1,12 @@
 //! Cửa sổ phụ đề nổi (M2-07; US-05, 11, 12, 13, 14). Dùng NSPanel không kích hoạt qua `rlt_platform::panel`,
 //! KHÔNG gọi `set_activation_policy` toàn app (rasoat-adr-desktop-app.md). Logic thuần nằm ở `settings`, `positions`.
 
+pub mod feed;
 pub mod positions;
 pub mod settings;
 
+use crate::session::service::{LineDto, UiEvent};
+use feed::LineFeed;
 use positions::PositionBook;
 use rlt_platform::panel_geometry::{monitor_key, MonitorInfo, Rect};
 use settings::{ColorError, DisplayMode, SubtitleSettings, Which};
@@ -17,6 +20,8 @@ pub const EVENT: &str = "subtitle://settings";
 pub struct SubtitleState {
     settings: Mutex<SubtitleSettings>,
     book: Mutex<PositionBook>,
+    feed: Mutex<LineFeed>,
+    hover: Mutex<bool>,
     dir: PathBuf,
 }
 
@@ -25,6 +30,8 @@ impl SubtitleState {
         Self {
             settings: Mutex::new(SubtitleSettings::load(&dir.join("subtitle-settings.json"))),
             book: Mutex::new(PositionBook::load(&dir.join("subtitle-positions.json"))),
+            feed: Mutex::new(LineFeed::default()),
+            hover: Mutex::new(false),
             dir,
         }
     }
@@ -33,6 +40,45 @@ impl SubtitleState {
             eprintln!("subtitle: khong luu duoc thiet lap: {e}");
         }
     }
+}
+
+/// Gọi cho mỗi `UiEvent` của phiên ghi (từ `session_start`): phiên mới thì xoá bộ đệm; dòng chữ thì giữ lại và phát
+/// `subtitle://line` cho mọi cửa sổ (popup phụ đề nghe cùng luồng với cửa sổ chính).
+pub fn tee(app: &AppHandle, ev: &UiEvent) {
+    let st = app.state::<SubtitleState>();
+    if let UiEvent::Line { line } = ev {
+        st.feed.lock().unwrap_or_else(|e| e.into_inner()).upsert(line.clone());
+        let _ = app.emit(feed::LINE_EVENT, line);
+    }
+}
+
+/// Phiên ghi mới bắt đầu: bỏ các dòng của phiên trước.
+pub fn reset_feed(app: &AppHandle) {
+    app.state::<SubtitleState>().feed.lock().unwrap_or_else(|e| e.into_inner()).clear();
+}
+
+#[tauri::command]
+pub fn subtitle_lines(app: AppHandle) -> Vec<LineDto> {
+    app.state::<SubtitleState>().feed.lock().unwrap_or_else(|e| e.into_inner()).snapshot()
+}
+
+/// NSPanel không nhận focus có thể không nhận mouseenter/leave của trang; theo dõi con trỏ từ Rust và phát
+/// `subtitle://hover` (true/false) mỗi khi trạng thái đổi. Dừng khi cửa sổ đóng.
+fn track_hover(app: AppHandle) {
+    std::thread::spawn(move || {
+        let mut last: Option<bool> = None;
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(80));
+            let Some(w) = app.get_webview_window(LABEL) else { break };
+            let (Ok(c), Ok(p), Ok(s)) = (app.cursor_position(), w.outer_position(), w.outer_size()) else { continue };
+            let inside = feed::cursor_inside(c.x, c.y, p.x as f64, p.y as f64, s.width as f64, s.height as f64);
+            if last != Some(inside) {
+                last = Some(inside);
+                *app.state::<SubtitleState>().hover.lock().unwrap_or_else(|e| e.into_inner()) = inside;
+                let _ = app.emit(feed::HOVER_EVENT, inside);
+            }
+        }
+    });
 }
 
 /// Danh sách màn theo toạ độ logic (điểm), gốc trên-trái như Tauri báo.
@@ -92,6 +138,7 @@ pub fn open(app: &AppHandle) -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
     apply_panel(&w, cfg.hidden_from_capture);
+    track_hover(app.clone());
     let handle = app.clone();
     w.on_window_event(move |ev| {
         if matches!(ev, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
