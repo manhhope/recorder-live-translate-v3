@@ -12,7 +12,7 @@ pub mod shortcuts;
 use deeplink::DeepLinkAction;
 use lifecycle::{decide_quit, on_close_requested, should_hold_awake, CloseDecision, QuitDecision, KEEP_AWAKE_DEFAULT};
 use rlt_platform::power::{system_keeper, PowerKeeper};
-use shortcuts::{ShortcutAction, ShortcutBackend, ShortcutError, ShortcutRegistry, ShortcutStatus};
+use shortcuts::{Dispatch, ShortcutAction, ShortcutBackend, ShortcutError, ShortcutRegistry, ShortcutStatus};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -41,13 +41,7 @@ impl ShortcutBackend for TauriBackend {
             .global_shortcut()
             .on_shortcut(accelerator, move |_app, _shortcut, event| {
                 if event.state() == ShortcutState::Pressed {
-                    // M3 Quick Translate: hai phim tat nay xu ly trong `quick`, khong qua cua so main.
-                    match action {
-                        ShortcutAction::QuickTranslate => return crate::quick::toggle(&app),
-                        ShortcutAction::InlineTranslate => return crate::quick::inline_run(&app),
-                        _ => {}
-                    }
-                    let _ = app.emit_to("main", EV_SHORTCUT, action.as_str());
+                    run_action(&app, action);
                 }
             })
             .map_err(|e| e.to_string())
@@ -55,6 +49,36 @@ impl ShortcutBackend for TauriBackend {
 
     fn unregister(&mut self, accelerator: &str) -> Result<(), String> {
         self.app.global_shortcut().unregister(accelerator).map_err(|e| e.to_string())
+    }
+}
+
+/// Thực thi hành động của một phím. Bảng "phím nào gọi gì" nằm ở `ShortcutAction::dispatch` (có test).
+fn run_action(app: &AppHandle, action: ShortcutAction) {
+    match action.dispatch() {
+        Dispatch::QuickToggle => crate::quick::toggle(app),
+        Dispatch::InlineRun => crate::quick::inline_run(app),
+        Dispatch::AskAiOpen => {
+            show_main(app);
+            let _ = app.emit_to("main", EV_DEEPLINK, &DeepLinkAction::AskAi);
+            let _ = app.emit_to("main", EV_SHORTCUT, action.as_str());
+        }
+        Dispatch::RegionCaptureBegin => {
+            if let Err(code) = crate::capture::capture_begin(app.clone()) {
+                notice(app, "shell.shortcut.err.capture", Some(code));
+            }
+            let _ = app.emit_to("main", EV_SHORTCUT, action.as_str());
+        }
+        Dispatch::SubtitleToggle => {
+            if app.get_webview_window(crate::subtitle::LABEL).is_some() {
+                crate::subtitle::subtitle_close(app.clone());
+            } else if let Err(e) = crate::subtitle::subtitle_open(app.clone()) {
+                notice(app, "shell.shortcut.err.subtitle", Some(e));
+            }
+            let _ = app.emit_to("main", EV_SHORTCUT, action.as_str());
+        }
+        Dispatch::EmitToMain => {
+            let _ = app.emit_to("main", EV_SHORTCUT, action.as_str());
+        }
     }
 }
 
@@ -77,19 +101,14 @@ impl ShellState {
 
     fn save_shortcuts(&self) {
         let snap = self.shortcuts.lock().unwrap().snapshot();
-        match serde_json::to_vec_pretty(&snap) {
-            Ok(bytes) => {
-                if let Err(e) = std::fs::write(self.dir.join(SHORTCUTS_FILE), bytes) {
-                    eprintln!("shell: khong luu duoc phim tat: {e}");
-                }
-            }
-            Err(e) => eprintln!("shell: khong tuan tu hoa duoc phim tat: {e}"),
+        if let Err(e) = shortcuts::save_to(&self.dir.join(SHORTCUTS_FILE), &snap) {
+            eprintln!("shell: khong luu duoc phim tat: {e}");
         }
     }
 }
 
-fn load_shortcuts(dir: &std::path::Path) -> Vec<(ShortcutAction, String, bool)> {
-    std::fs::read(dir.join(SHORTCUTS_FILE)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+fn load_shortcuts(dir: &std::path::Path) -> shortcuts::SavedShortcuts {
+    shortcuts::load_from(&dir.join(SHORTCUTS_FILE))
 }
 
 fn state(app: &AppHandle) -> tauri::State<'_, ShellState> {
@@ -340,6 +359,41 @@ pub fn shell_set_locale(app: AppHandle, locale: String) -> Result<(), String> {
 #[tauri::command]
 pub fn shortcuts_status(app: AppHandle) -> Vec<ShortcutStatus> {
     state(&app).shortcuts.lock().unwrap().status()
+}
+
+/// Cùng dữ liệu với `shortcuts_status`; tên mới cho màn Cài đặt (giữ tên cũ để không vỡ chỗ đang gọi).
+#[tauri::command]
+pub fn shortcuts_list(app: AppHandle) -> Vec<ShortcutStatus> {
+    state(&app).shortcuts.lock().unwrap().status()
+}
+
+/// Về phím mặc định: một hành động (`action = Some`) hoặc tất cả (`None`). Đăng ký lại ngay và lưu bền.
+#[tauri::command]
+pub fn shortcut_reset(app: AppHandle, action: Option<ShortcutAction>) -> Result<Vec<ShortcutStatus>, String> {
+    let st = state(&app);
+    let res = {
+        let mut reg = st.shortcuts.lock().unwrap();
+        match action {
+            Some(a) => reg.reset(a),
+            None => {
+                let all = reg.reset_all();
+                all.into_iter().find_map(|(_, r)| r.err()).map_or(Ok(()), Err)
+            }
+        }
+    };
+    // Reset tất cả vẫn lưu trạng thái thực tế (phím nào bị chiếm sẽ mang cờ lỗi trong `status`).
+    match res {
+        Ok(()) => {
+            st.save_shortcuts();
+            Ok(st.shortcuts.lock().unwrap().status())
+        }
+        Err(e) => {
+            if action.is_none() {
+                st.save_shortcuts();
+            }
+            Err(err_text(&app, &e))
+        }
+    }
 }
 
 /// AC-50.2, AC-50.3: đổi phím; lỗi thì phím cũ còn nguyên và phím mới không được lưu.

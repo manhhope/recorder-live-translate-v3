@@ -37,6 +37,8 @@ pub const APP_COMMANDS: &[&str] = &[
     "shell_set_keep_awake",
     "shell_set_locale",
     "shortcuts_status",
+    "shortcuts_list",
+    "shortcut_reset",
     "shortcut_rebind",
     "shortcut_set_enabled",
     "autostart_get",

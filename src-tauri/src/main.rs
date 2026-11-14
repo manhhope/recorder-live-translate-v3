@@ -68,6 +68,8 @@ fn main() {
             shell::shell_set_keep_awake,
             shell::shell_set_locale,
             shell::shortcuts_status,
+            shell::shortcuts_list,
+            shell::shortcut_reset,
             shell::shortcut_rebind,
             shell::shortcut_set_enabled,
             shell::autostart_get,

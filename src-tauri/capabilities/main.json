@@ -16,6 +16,8 @@
     "allow-shell-set-keep-awake",
     "allow-shell-set-locale",
     "allow-shortcuts-status",
+    "allow-shortcuts-list",
+    "allow-shortcut-reset",
     "allow-shortcut-rebind",
     "allow-shortcut-set-enabled",
     "allow-autostart-get",

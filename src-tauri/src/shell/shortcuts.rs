@@ -17,15 +17,49 @@ pub enum ShortcutAction {
     InlineTranslate,
     AskAi,
     RegionCapture,
+    /// Mở/đóng cửa sổ phụ đề nổi (M2-07).
+    SubtitleToggle,
+    /// Bắt đầu/dừng ghi: chỉ giao diện chính mới có tham số phiên, nên chạy qua sự kiện `shell://shortcut`.
+    RecordToggle,
+}
+
+/// Cách một phím được xử lý khi bấm. Bảng này là nguồn duy nhất cho "phím nào gọi gì" (có test).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dispatch {
+    /// `quick::toggle`.
+    QuickToggle,
+    /// `quick::inline_run`.
+    InlineRun,
+    /// Đưa cửa sổ chính lên và phát `shell://deeplink` {action: ask_ai}.
+    AskAiOpen,
+    /// `capture::capture_begin` (lớp phủ chọn vùng).
+    RegionCaptureBegin,
+    /// Mở nếu chưa có, đóng nếu đang mở (`subtitle`).
+    SubtitleToggle,
+    /// Chỉ phát `shell://shortcut` cho cửa sổ chính.
+    EmitToMain,
 }
 
 impl ShortcutAction {
-    pub const ALL: [ShortcutAction; 4] = [
+    pub const ALL: [ShortcutAction; 6] = [
         ShortcutAction::QuickTranslate,
         ShortcutAction::InlineTranslate,
         ShortcutAction::AskAi,
         ShortcutAction::RegionCapture,
+        ShortcutAction::SubtitleToggle,
+        ShortcutAction::RecordToggle,
     ];
+
+    pub fn dispatch(self) -> Dispatch {
+        match self {
+            ShortcutAction::QuickTranslate => Dispatch::QuickToggle,
+            ShortcutAction::InlineTranslate => Dispatch::InlineRun,
+            ShortcutAction::AskAi => Dispatch::AskAiOpen,
+            ShortcutAction::RegionCapture => Dispatch::RegionCaptureBegin,
+            ShortcutAction::SubtitleToggle => Dispatch::SubtitleToggle,
+            ShortcutAction::RecordToggle => Dispatch::EmitToMain,
+        }
+    }
 
     pub fn as_str(self) -> &'static str {
         match self {
@@ -33,6 +67,8 @@ impl ShortcutAction {
             ShortcutAction::InlineTranslate => "inline_translate",
             ShortcutAction::AskAi => "ask_ai",
             ShortcutAction::RegionCapture => "region_capture",
+            ShortcutAction::SubtitleToggle => "subtitle_toggle",
+            ShortcutAction::RecordToggle => "record_toggle",
         }
     }
 
@@ -43,6 +79,8 @@ impl ShortcutAction {
             ShortcutAction::InlineTranslate => "CommandOrControl+Shift+I",
             ShortcutAction::AskAi => "CommandOrControl+Shift+A",
             ShortcutAction::RegionCapture => "CommandOrControl+Shift+S",
+            ShortcutAction::SubtitleToggle => "CommandOrControl+Alt+L",
+            ShortcutAction::RecordToggle => "CommandOrControl+Alt+R",
         }
     }
 }
@@ -133,6 +171,33 @@ fn valid_key(k: &str) -> bool {
     )
 }
 
+pub type SavedShortcuts = Vec<(ShortcutAction, String, bool)>;
+
+/// Đọc cấu hình đã lưu, chịu lỗi từng mục: mục có hành động lạ (bản cũ/mới hơn) hoặc sai kiểu bị bỏ,
+/// các mục còn lại vẫn dùng được. Tệp hỏng hoàn toàn thì trả rỗng (dùng mặc định).
+pub fn parse_saved(bytes: &[u8]) -> SavedShortcuts {
+    let Ok(serde_json::Value::Array(items)) = serde_json::from_slice::<serde_json::Value>(bytes) else {
+        return Vec::new();
+    };
+    items.into_iter().filter_map(|v| serde_json::from_value::<(ShortcutAction, String, bool)>(v).ok()).collect()
+}
+
+pub fn encode_saved(snap: &[(ShortcutAction, String, bool)]) -> Result<Vec<u8>, String> {
+    serde_json::to_vec_pretty(snap).map_err(|e| e.to_string())
+}
+
+/// Ghi nguyên tử (tệp tạm rồi đổi tên) để mất điện/thoát giữa chừng không để lại tệp cụt.
+pub fn save_to(path: &std::path::Path, snap: &[(ShortcutAction, String, bool)]) -> Result<(), String> {
+    let bytes = encode_saved(snap)?;
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, bytes).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+
+pub fn load_from(path: &std::path::Path) -> SavedShortcuts {
+    std::fs::read(path).map(|b| parse_saved(&b)).unwrap_or_default()
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ShortcutStatus {
     pub action: ShortcutAction,
@@ -170,6 +235,13 @@ impl<B: ShortcutBackend> ShortcutRegistry<B> {
                 .unwrap_or_else(|| (a.default_accelerator().to_string(), true));
             // Phím đã lưu mà hỏng/trùng thì rơi về mặc định thay vì giữ giá trị xấu.
             let accel = if canonical(&accel).is_ok() { accel } else { a.default_accelerator().to_string() };
+            // Tệp cấu hình sửa tay có thể gán hai hành động cùng một phím: hành động đứng sau về mặc định.
+            let taken = |x: &str| {
+                bindings.iter().any(|(_, b): (&ShortcutAction, &Binding)| {
+                    b.enabled && enabled && canonical(&b.accelerator) == canonical(x)
+                })
+            };
+            let accel = if taken(&accel) { a.default_accelerator().to_string() } else { accel };
             bindings.insert(a, Binding { accelerator: accel, enabled, registered: false, error: None });
         }
         Self { backend, bindings }
@@ -246,7 +318,8 @@ impl<B: ShortcutBackend> ShortcutRegistry<B> {
     /// AC-50.4: công tắc từng phím. Bật mà không đăng ký được thì vẫn giữ trạng thái tắt.
     pub fn set_enabled(&mut self, a: ShortcutAction, enabled: bool) -> Result<(), ShortcutError> {
         let cur = self.bindings.get(&a).cloned().ok_or(ShortcutError::Unknown)?;
-        if cur.enabled == enabled {
+        // Đang bật mà chưa đăng ký được (lỗi lúc khởi động) thì bật lại = thử đăng ký lại.
+        if cur.enabled == enabled && (!enabled || cur.registered) {
             return Ok(());
         }
         if enabled {
@@ -267,6 +340,30 @@ impl<B: ShortcutBackend> ShortcutRegistry<B> {
             slot.error = None;
         }
         Ok(())
+    }
+
+    /// Về phím mặc định của một hành động và bật lại. Lỗi (mặc định bị chiếm/trùng) thì trạng thái cũ giữ nguyên.
+    pub fn reset(&mut self, a: ShortcutAction) -> Result<(), ShortcutError> {
+        let before = self.bindings.get(&a).cloned().ok_or(ShortcutError::Unknown)?;
+        self.rebind(a, a.default_accelerator())?;
+        if let Err(e) = self.set_enabled(a, true) {
+            // Đưa phím về như cũ để không để lại trạng thái nửa vời.
+            let _ = self.rebind(a, &before.accelerator);
+            return Err(e);
+        }
+        Ok(())
+    }
+
+    /// Về mặc định cho MỌI hành động: trả hết phím, đặt lại bảng, đăng ký lại. Trả kết quả từng phím.
+    pub fn reset_all(&mut self) -> Vec<(ShortcutAction, Result<(), ShortcutError>)> {
+        self.release_all();
+        for a in ShortcutAction::ALL {
+            self.bindings.insert(
+                a,
+                Binding { accelerator: a.default_accelerator().to_string(), enabled: true, registered: false, error: None },
+            );
+        }
+        self.register_all()
     }
 
     /// AC-50.5: trả mọi phím cho hệ điều hành khi thoát.
@@ -361,11 +458,11 @@ mod tests {
     }
 
     #[test]
-    fn register_all_registers_the_four_defaults() {
+    fn register_all_registers_every_default() {
         let mut r = reg();
         let res = r.register_all();
         assert!(res.iter().all(|(_, x)| x.is_ok()));
-        assert_eq!(r.backend().registered.len(), 4);
+        assert_eq!(r.backend().registered.len(), ShortcutAction::ALL.len());
         assert!(r.status().iter().all(|s| s.registered && s.error_key.is_none()));
     }
 
@@ -379,7 +476,7 @@ mod tests {
         let q = st.iter().find(|s| s.action == ShortcutAction::QuickTranslate).unwrap();
         assert!(!q.registered);
         assert_eq!(q.error_key.as_deref(), Some("shell.shortcut.err.unavailable"));
-        assert_eq!(st.iter().filter(|s| s.registered).count(), 3, "3 phim con lai van dang ky");
+        assert_eq!(st.iter().filter(|s| s.registered).count(), ShortcutAction::ALL.len() - 1, "cac phim con lai van dang ky");
     }
 
     #[test]
@@ -508,5 +605,174 @@ mod tests {
         d.sort();
         d.dedup();
         assert_eq!(c.len(), d.len());
+    }
+
+    // ---- M3 phím tắt: bảng ánh xạ, lưu/đọc, đăng ký lại, reset ----------------------------------------
+
+    #[test]
+    fn every_action_has_a_distinct_name_default_and_a_dispatch() {
+        let mut names: Vec<_> = ShortcutAction::ALL.iter().map(|a| a.as_str()).collect();
+        names.sort();
+        names.dedup();
+        assert_eq!(names.len(), ShortcutAction::ALL.len());
+        // Bảng ánh xạ phím -> hành động (đổi bảng này là đổi hành vi thật, nên khóa bằng test).
+        let table: Vec<_> = ShortcutAction::ALL.iter().map(|a| (a.as_str(), a.default_accelerator(), a.dispatch())).collect();
+        assert_eq!(
+            table,
+            vec![
+                ("quick_translate", "CommandOrControl+Shift+T", Dispatch::QuickToggle),
+                ("inline_translate", "CommandOrControl+Shift+I", Dispatch::InlineRun),
+                ("ask_ai", "CommandOrControl+Shift+A", Dispatch::AskAiOpen),
+                ("region_capture", "CommandOrControl+Shift+S", Dispatch::RegionCaptureBegin),
+                ("subtitle_toggle", "CommandOrControl+Alt+L", Dispatch::SubtitleToggle),
+                ("record_toggle", "CommandOrControl+Alt+R", Dispatch::EmitToMain),
+            ]
+        );
+    }
+
+    #[test]
+    fn registered_key_is_bound_to_its_own_action() {
+        let mut r = reg();
+        r.register_all();
+        for a in ShortcutAction::ALL {
+            assert_eq!(r.backend().registered[&canonical(a.default_accelerator()).unwrap()], a);
+        }
+        r.rebind(ShortcutAction::RegionCapture, "Cmd+Alt+9").unwrap();
+        assert_eq!(r.backend().registered["alt+cmd+9"], ShortcutAction::RegionCapture, "phim moi goi dung hanh dong");
+    }
+
+    #[test]
+    fn duplicate_between_new_actions_is_detected() {
+        let mut r = reg();
+        r.register_all();
+        assert_eq!(
+            r.rebind(ShortcutAction::RecordToggle, "Cmd+Option+L"),
+            Err(ShortcutError::ConflictInternal(ShortcutAction::SubtitleToggle))
+        );
+        // Cmd và Ctrl là hai phím bổ trợ khác nhau: không trùng.
+        assert!(r.rebind(ShortcutAction::RecordToggle, "Ctrl+Alt+L").is_ok());
+    }
+
+    #[test]
+    fn saved_duplicate_keys_fall_back_to_default_for_the_later_action() {
+        let init = vec![
+            (ShortcutAction::QuickTranslate, "Cmd+Alt+9".to_string(), true),
+            (ShortcutAction::AskAi, "Cmd+Alt+9".to_string(), true),
+        ];
+        let mut r = ShortcutRegistry::new(Fake::default(), &init);
+        assert!(r.register_all().iter().all(|(_, x)| x.is_ok()));
+        let st = r.status();
+        let ask = st.iter().find(|s| s.action == ShortcutAction::AskAi).unwrap();
+        assert_eq!(ask.accelerator, "CommandOrControl+Shift+A");
+    }
+
+    #[test]
+    fn config_roundtrips_through_json_bytes() {
+        let mut r = reg();
+        r.register_all();
+        r.rebind(ShortcutAction::AskAi, "Cmd+Alt+K").unwrap();
+        r.set_enabled(ShortcutAction::RegionCapture, false).unwrap();
+        let bytes = encode_saved(&r.snapshot()).unwrap();
+        assert_eq!(parse_saved(&bytes), r.snapshot());
+    }
+
+    #[test]
+    fn parse_saved_skips_unknown_actions_but_keeps_the_rest() {
+        let json = br#"[["ask_ai","Cmd+Alt+K",true],["hanh_dong_la","Cmd+Alt+1",true],["quick_translate",5,true]]"#;
+        let got = parse_saved(json);
+        assert_eq!(got, vec![(ShortcutAction::AskAi, "Cmd+Alt+K".to_string(), true)]);
+        assert!(parse_saved(b"not json").is_empty());
+        assert!(parse_saved(b"{}").is_empty());
+    }
+
+    #[test]
+    fn old_four_action_file_still_loads_and_new_actions_get_defaults() {
+        let old = br#"[["quick_translate","Cmd+Shift+T",true],["inline_translate","Cmd+Shift+I",true],["ask_ai","Cmd+Shift+A",true],["region_capture","Cmd+Shift+S",false]]"#;
+        let r = ShortcutRegistry::new(Fake::default(), &parse_saved(old));
+        let st = r.status();
+        assert!(!st.iter().find(|s| s.action == ShortcutAction::RegionCapture).unwrap().enabled);
+        assert_eq!(st.iter().find(|s| s.action == ShortcutAction::RecordToggle).unwrap().accelerator, "CommandOrControl+Alt+R");
+    }
+
+    #[test]
+    fn save_then_load_from_disk_and_reregister_after_restart() {
+        let dir = std::env::temp_dir().join(format!("rlt-shortcuts-{}-{:?}", std::process::id(), std::thread::current().id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("shortcuts.json");
+        assert!(load_from(&path).is_empty(), "chua co tep: dung mac dinh");
+
+        // Phiên 1: đổi phím rồi lưu.
+        let mut r1 = reg();
+        r1.register_all();
+        r1.rebind(ShortcutAction::InlineTranslate, "Ctrl+Alt+Space").unwrap();
+        save_to(&path, &r1.snapshot()).unwrap();
+        assert!(!dir.join("shortcuts.json.tmp").exists(), "khong de tep tam");
+
+        // Phiên 2 (khởi động lại): nạp từ đĩa, đăng ký lại, phím đã đổi chạy, phím cũ không.
+        let mut r2 = ShortcutRegistry::new(Fake::default(), &load_from(&path));
+        assert!(r2.register_all().iter().all(|(_, x)| x.is_ok()));
+        assert!(r2.backend().registered.contains_key("alt+ctrl+space"));
+        assert!(!r2.backend().registered.contains_key("cmd+shift+i"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn rebind_applies_immediately_and_survives_a_second_rebind() {
+        let mut r = reg();
+        r.register_all();
+        r.rebind(ShortcutAction::QuickTranslate, "Cmd+Alt+1").unwrap();
+        r.rebind(ShortcutAction::QuickTranslate, "Cmd+Alt+2").unwrap();
+        let keys: Vec<_> = r.backend().registered.keys().cloned().collect();
+        assert!(keys.contains(&"alt+cmd+2".to_string()));
+        assert!(!keys.contains(&"alt+cmd+1".to_string()) && !keys.contains(&"cmd+shift+t".to_string()));
+        assert_eq!(r.backend().registered.len(), ShortcutAction::ALL.len(), "khong ro ri phim cu");
+    }
+
+    #[test]
+    fn enabling_again_retries_a_key_that_failed_at_startup() {
+        let mut r = ShortcutRegistry::new(Fake { taken_by_others: vec!["cmd+shift+t".into()], ..Default::default() }, &[]);
+        r.register_all();
+        assert!(!r.status()[0].registered);
+        // app khác nhả phím, người dùng bấm bật lại
+        r.backend.taken_by_others.clear();
+        r.set_enabled(ShortcutAction::QuickTranslate, true).unwrap();
+        assert!(r.status()[0].registered && r.status()[0].error_key.is_none());
+        assert!(r.backend().registered.contains_key("cmd+shift+t"));
+    }
+
+    #[test]
+    fn reset_restores_default_and_reenables() {
+        let mut r = reg();
+        r.register_all();
+        r.rebind(ShortcutAction::AskAi, "Cmd+Alt+K").unwrap();
+        r.set_enabled(ShortcutAction::AskAi, false).unwrap();
+        r.reset(ShortcutAction::AskAi).unwrap();
+        let s = r.status().into_iter().find(|s| s.action == ShortcutAction::AskAi).unwrap();
+        assert_eq!((s.accelerator.as_str(), s.enabled, s.registered), ("CommandOrControl+Shift+A", true, true));
+        assert!(!r.backend().registered.contains_key("alt+cmd+k"));
+    }
+
+    #[test]
+    fn reset_fails_cleanly_when_default_is_taken_by_another_action() {
+        let mut r = reg();
+        r.register_all();
+        r.rebind(ShortcutAction::AskAi, "Cmd+Alt+K").unwrap();
+        r.rebind(ShortcutAction::RegionCapture, "Cmd+Shift+A").unwrap(); // chiếm mặc định của AskAi
+        let before = r.snapshot();
+        assert_eq!(r.reset(ShortcutAction::AskAi), Err(ShortcutError::ConflictInternal(ShortcutAction::RegionCapture)));
+        assert_eq!(r.snapshot(), before);
+        assert!(r.backend().registered.contains_key("alt+cmd+k"));
+    }
+
+    #[test]
+    fn reset_all_returns_to_defaults_even_after_swaps() {
+        let mut r = reg();
+        r.register_all();
+        r.rebind(ShortcutAction::AskAi, "Cmd+Alt+K").unwrap();
+        r.rebind(ShortcutAction::RegionCapture, "Cmd+Shift+A").unwrap();
+        r.set_enabled(ShortcutAction::QuickTranslate, false).unwrap();
+        assert!(r.reset_all().iter().all(|(_, x)| x.is_ok()));
+        assert!(r.status().iter().all(|s| s.enabled && s.registered && s.accelerator == s.action.default_accelerator()));
+        assert_eq!(r.backend().registered.len(), ShortcutAction::ALL.len());
     }
 }
