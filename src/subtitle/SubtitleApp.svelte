@@ -5,14 +5,18 @@
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { Follow } from "../lib/follow.svelte.ts";
-  import { backgroundCss, colorError, mergeSnapshot, MODES, rowsForLines, toolbarVisible, upsertLine, type DisplayMode, type SubtitleSettings } from "./model.ts";
+  import { backgroundCss, colorError, liveRows, mergeSnapshot, MODES, rowsForLines, toolbarVisible, upsertLine, type DisplayMode, type SubtitleSettings } from "./model.ts";
   import type { LineDto } from "../lib/api.ts";
+  import { afterFinal, type LiveText } from "../lib/live.ts";
+
+  interface LiveMsg { kind: "partial" | "clear"; source: string; translation: string }
 
   let s = $state<SubtitleSettings>({
     display_mode: "bilingual", font_size_pt: 18, source_color: "#D0D6DC", translation_color: "#FFFFFF",
     opacity_percent: 0, hidden_from_capture: true,
   });
   let lines = $state<LineDto[]>([]);
+  let live = $state<LiveText | null>(null);   // chu tam: moi ban thay ban truoc, dong chot den thi bo phan da chot
   let hover = $state(false);       // pointerenter/leave cua trang
   let rustHover = $state(false);   // Rust theo doi con tro (NSPanel khong nhan focus co the khong nhan hover cua trang)
   let focusIn = $state(false);     // Tab vao mot nut trong thanh
@@ -20,7 +24,7 @@
   let err = $state("");
   const follow = new Follow();
 
-  const rows = $derived(rowsForLines(s.display_mode, lines));
+  const rows = $derived([...rowsForLines(s.display_mode, lines), ...liveRows(s.display_mode, live)]);
   const barOn = $derived(toolbarVisible(hover, rustHover, focusIn, menuOpen));
 
   onMount(() => {
@@ -30,6 +34,11 @@
       listen<SubtitleSettings>("subtitle://settings", e => (s = e.payload)),
       listen<LineDto>("subtitle://line", e => {
         lines = upsertLine(lines, e.payload);
+        live = afterFinal(live, e.payload.sourceText, e.payload.translatedText);
+      }),
+      listen<LiveMsg>("subtitle://live", e => {
+        live = e.payload.kind === "partial" && e.payload.source.trim()
+          ? { source: e.payload.source, translation: e.payload.translation, origin: "system", lang: "", offsetMs: 0 } : null;
       }),
       listen<boolean>("subtitle://hover", e => { rustHover = e.payload; if (!e.payload) menuOpen = false; }),
     ];
@@ -84,7 +93,7 @@
   <div class="tw">
     <div class="text" style:font-size="{s.font_size_pt}px" use:follow.action>
       {#each rows as r}
-        <p style:color={r.kind === "source" ? s.source_color : s.translation_color}>{r.text}</p>
+        <p class:live={r.live} style:color={r.kind === "source" ? s.source_color : s.translation_color}>{r.text}</p>
       {:else}
         <p class="wait">{$_("sub.waiting")}</p>
       {/each}
@@ -117,6 +126,7 @@
   .text > :global(p:first-child) { margin-top: auto; }
   .jump { position: absolute; right: 6px; bottom: 6px; height: 22px; padding: 0 10px; font-size: 11px; color: #fff; background: rgba(16, 16, 18, 0.9); border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 11px; cursor: pointer; }
   .text p { margin: 0; line-height: 1.35; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+  .text p.live { opacity: 0.7; font-style: italic; }
   .wait { color: #8a939c; font-size: 14px; }
   .err { color: #ffb4a8; font-size: 12px; margin: 0 0 4px; }
 </style>

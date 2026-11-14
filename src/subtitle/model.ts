@@ -43,8 +43,12 @@ export function rowsForLines(mode: DisplayMode, lines: FeedLine[]): Row[] {
 /** Thanh nut hien khi con tro nam trong popup (trang hoac Rust bao), khi tieu diem ban phim nam trong thanh, hoac menu dang mo. */
 export const toolbarVisible = (pageHover: boolean, rustHover: boolean, focusWithin: boolean, menuOpen: boolean) =>
   pageHover || rustHover || focusWithin || menuOpen;
-export interface Row { kind: "source" | "translation"; text: string }
+export interface Row { kind: "source" | "translation"; text: string; live?: boolean }
 
+/** Cac hang cua chu tam (nhat, nghieng); nam sau cac dong da chot. Ban dich tam co "..." de phan biet voi ban chot. */
+export function liveRows(mode: DisplayMode, live: { source: string; translation: string } | null): Row[] {
+  return rowsFor(mode, live).map(r => ({ ...r, live: true, text: r.kind === "translation" ? `${r.text}...` : r.text }));
+}
 
 /** Che do song ngu hien ca hai (goc truoc, dich sau); cac che do kia chi hien mot dong. Dong rong bi bo. */
 export function rowsFor(mode: DisplayMode, line: Line | null): Row[] {

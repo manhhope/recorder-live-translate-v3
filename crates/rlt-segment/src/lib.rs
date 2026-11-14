@@ -16,4 +16,4 @@ pub use merger::{
 pub use offset::DropCompensator;
 pub use sentence::sentences;
 pub use token::{SttToken, TranslationStatus, END_TEXT};
-pub use tracker::{CompletedSegment, SegmentTracker};
+pub use tracker::{CompletedSegment, LiveCaption, SegmentTracker};

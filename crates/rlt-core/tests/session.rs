@@ -313,6 +313,8 @@ async fn stop_drains_queued_frames_and_collects_final_segment() {
         let e = next(&mut r).await;
         match e {
             CoreEvent::StateChanged(s) => order.push(format!("{s:?}")),
+            // Chu chua chot cua token cuoi hien truoc dong chot (khong doi thu tu Line/Stopped).
+            CoreEvent::Partial(_) => {}
             CoreEvent::Line(l) => {
                 assert_eq!(l.source_text, "Last words");
                 order.push("Line".into());

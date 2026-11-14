@@ -5,7 +5,7 @@
 
 use rlt_core::{
     start_session, ActivityLog, ActivitySource, AudioError, AudioSource, AudioSourceKind, AudioSourceProvider, CoreError, CoreEvent,
-    DeviceEvent, LineSource, SessionConfig, SessionHandle, SessionState,
+    DeviceEvent, LineSource, PartialLine, SessionConfig, SessionHandle, SessionState,
 };
 use rlt_features::glossary;
 use rlt_features::usage::{local_date_now, record_usage, UsageRecord};
@@ -53,12 +53,53 @@ pub struct LineDto {
     pub translated_text: Option<String>,
 }
 
+/// Chu dang noi do (token non-final cua Soniox): chua ghi store, moi lan la ban THAY THE day du cua chu tam truoc.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PartialDto {
+    /// `mic` hoac `system` (che do tron: nguon noi nhieu nhat toi luc nay).
+    pub source: &'static str,
+    pub offset_ms: i64,
+    pub source_lang: String,
+    pub source_text: String,
+    pub translated_text: Option<String>,
+}
+
+impl From<PartialLine> for PartialDto {
+    fn from(p: PartialLine) -> Self {
+        Self { source: p.source, offset_ms: p.offset_ms, source_lang: p.source_lang, source_text: p.source_text, translated_text: p.translated_text }
+    }
+}
+
+/// Tin chu tam gui cua so phu de (`subtitle://live`): `partial` = chu tam (thay the), `clear` = het chu tam.
+/// Dong da chot di qua `subtitle://line` (bo dem cua `subtitle::tee`), khong lap o day.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct SubtitleLine {
+    pub kind: &'static str,
+    pub source: String,
+    pub translation: String,
+}
+
+pub fn subtitle_payload(e: &UiEvent) -> Option<SubtitleLine> {
+    match e {
+        UiEvent::Partial { partial: Some(p) } => Some(SubtitleLine {
+            kind: "partial",
+            source: p.source_text.clone(),
+            translation: p.translated_text.clone().unwrap_or_default(),
+        }),
+        UiEvent::Partial { partial: None } => Some(SubtitleLine { kind: "clear", source: String::new(), translation: String::new() }),
+        _ => None,
+    }
+}
+
 /// Su kien day ra giao dien qua `tauri::ipc::Channel`.
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum UiEvent {
     State { state: &'static str },
     Line { line: LineDto },
+    /// Chu tam; `partial: null` = xoa. Den sau `Line` cua cung lo token.
+    Partial { partial: Option<PartialDto> },
     Level { level: f32 },
     /// `code` = None: het loi. Ma: `permission`, `auth`, `quota`, `network`, `timeout`.
     Status { code: Option<&'static str> },
@@ -522,6 +563,7 @@ async fn pump(
                     },
                 });
             }
+            CoreEvent::Partial(p) => sink(UiEvent::Partial { partial: p.map(PartialDto::from) }),
             CoreEvent::Reconnecting { error, .. } => {
                 let k = classify_soniox(&error);
                 errs.raise(k);

@@ -16,7 +16,7 @@ pub use audio::{
     DeviceEvent, PcmFrame,
 };
 pub use session::{
-    start_session, CoreError, CoreEvent, PauseLedger, SessionConfig, SessionHandle, StoredLine,
+    start_session, CoreError, CoreEvent, PartialLine, PauseLedger, SessionConfig, SessionHandle, StoredLine,
 };
 pub use mix::{ActivityLog, ActivitySource, LineSource};
 pub use state::{InvalidTransition, SessionState, Transition};

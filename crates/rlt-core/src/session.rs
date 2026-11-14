@@ -72,11 +72,24 @@ pub struct StoredLine {
     pub translated_text: Option<String>,
 }
 
+/// Chữ đang nói dở (token non-final), chưa ghi vào store. Mỗi lần là bản thay thế đầy đủ của chữ tạm trước.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PartialLine {
+    /// `mic` hoặc `system` (chế độ trộn: nguồn nói nhiều nhất tới lúc này).
+    pub source: &'static str,
+    pub offset_ms: i64,
+    pub source_lang: String,
+    pub source_text: String,
+    pub translated_text: Option<String>,
+}
+
 /// Sự kiện phát ra kênh cho lớp Tauri.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CoreEvent {
     StateChanged(SessionState),
     Line(StoredLine),
+    /// Chữ tạm; `None` = xoá chữ tạm (câu đã chốt hoặc hết phiên). Đến sau `Line` của cùng lô token.
+    Partial(Option<PartialLine>),
     /// Lỗi tạm (vd 408, mất mạng): Soniox sẽ nối lại sau `delay`; phiên vẫn ghi.
     Reconnecting {
         error: SonioxError,
@@ -422,11 +435,15 @@ impl Actor {
     /// Nguồn của dòng: ở chế độ trộn là nguồn nói nhiều nhất trong khoảng của đoạn, không có dữ liệu
     /// thì dùng nguồn mặc định của phiên.
     fn source_for(&self, offset_ms: Option<i64>, seg: &CompletedSegment) -> &'static str {
+        self.source_for_range(offset_ms, seg.stream_start_ms, seg.stream_end_ms)
+    }
+
+    fn source_for_range(&self, offset_ms: Option<i64>, start_ms: Option<i64>, end_ms: Option<i64>) -> &'static str {
         let default = line_source(self.cfg.source_kind);
         let (Some(log), Some(start)) = (&self.cfg.activity, offset_ms) else {
             return default;
         };
-        let dur = match (seg.stream_start_ms, seg.stream_end_ms) {
+        let dur = match (start_ms, end_ms) {
             (Some(s), Some(e)) if e > s => e - s,
             _ => 1,
         };
@@ -477,11 +494,29 @@ impl Actor {
     async fn on_soniox_event(&mut self, ev: Event) {
         match ev {
             Event::Segment { segment, offset_ms } => self.persist(segment, offset_ms).await,
+            Event::Partial { live, offset_ms } => self.partial(live, offset_ms).await,
             Event::Reconnecting { error, failures, delay } => {
                 self.emit(CoreEvent::Reconnecting { error, failures, delay }).await;
             }
             Event::Connected { .. } | Event::Finished | Event::Failed(_) => {}
         }
+    }
+
+    /// Chữ tạm: không ghi store. Chữ rỗng sau khi cắt khoảng trắng coi như xoá. Bỏ khi đang tạm dừng.
+    async fn partial(&mut self, live: Option<rlt_segment::LiveCaption>, offset_ms: Option<i64>) {
+        let ev = live
+            .filter(|l| !l.source.trim().is_empty() && self.state != SessionState::Paused)
+            .map(|l| {
+                let start = offset_ms.map(|o| self.ledger.to_session_ms(o)).unwrap_or(self.last_offset).max(0);
+                PartialLine {
+                    source: self.source_for_range(offset_ms, l.start_ms, l.end_ms),
+                    offset_ms: start,
+                    source_lang: l.lang.unwrap_or_else(|| "und".into()),
+                    source_text: l.source.trim().to_string(),
+                    translated_text: Some(l.translation.trim().to_string()).filter(|t| !t.is_empty()),
+                }
+            });
+        self.emit(CoreEvent::Partial(ev)).await;
     }
 
     async fn persist(&mut self, seg: CompletedSegment, offset_ms: Option<i64>) {

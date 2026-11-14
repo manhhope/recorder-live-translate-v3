@@ -2,7 +2,7 @@ use std::fmt;
 use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
-use rlt_segment::{CompletedSegment, DropCompensator, SegmentTracker};
+use rlt_segment::{CompletedSegment, DropCompensator, LiveCaption, SegmentTracker};
 use tokio::sync::mpsc;
 use tokio::time::{sleep, timeout, Instant};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -99,6 +99,12 @@ pub enum Event {
     /// Đoạn hoàn chỉnh; `offset_ms` = mốc thật của token nguồn đầu đoạn (đã bù khung bỏ và luồng trước).
     Segment {
         segment: CompletedSegment,
+        offset_ms: Option<i64>,
+    },
+    /// Chữ đang nói dở (token non-final): thay thế chữ tạm trước đó. `live: None` = xoá chữ tạm.
+    /// Luôn đến SAU các `Segment` sinh ra từ cùng lô token. `offset_ms` đã bù như `Segment`.
+    Partial {
+        live: Option<LiveCaption>,
         offset_ms: Option<i64>,
     },
     /// Lỗi có thể thử lại; sẽ nối lại sau `delay`.
@@ -222,7 +228,20 @@ async fn emit_flushed(
             return false;
         }
     }
-    true
+    emit_live(events, comp, tracker).await
+}
+
+/// Báo chữ tạm nếu đổi so với lần trước (sau các `Segment` của cùng lô).
+async fn emit_live(
+    events: &mpsc::Sender<Event>,
+    comp: &DropCompensator,
+    tracker: &mut SegmentTracker,
+) -> bool {
+    let Some(live) = tracker.take_live_update() else {
+        return true;
+    };
+    let offset_ms = live.as_ref().and_then(|l| l.start_ms).map(|s| comp.offset_ms(s));
+    events.send(Event::Partial { live, offset_ms }).await.is_ok()
 }
 
 async fn emit_segment(
@@ -342,6 +361,9 @@ async fn stream_once(
                         if !emit_segment(events, comp, segment).await {
                             return Outcome::Cancelled;
                         }
+                    }
+                    if !emit_live(events, comp, tracker).await {
+                        return Outcome::Cancelled;
                     }
                     if resp.finished {
                         return Outcome::Finished;

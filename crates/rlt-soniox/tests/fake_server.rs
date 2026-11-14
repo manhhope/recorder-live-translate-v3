@@ -28,7 +28,17 @@ enum Script {
     Cut,
     /// Từ chối ngay ở bước bắt tay HTTP.
     Http(u16),
+    /// Đợi khung audio đầu, gửi lần lượt các tin ở `LIVE_MSGS` (non-final rồi final), đợi khung TEXT rỗng rồi `finished`.
+    Live,
 }
+
+/// Chuỗi tin Soniox giả: chữ gốc và dịch non-final được gửi lại và nới dần, rồi final + `<end>`.
+const LIVE_MSGS: [&str; 4] = [
+    r#"{"tokens":[{"text":"Hello","start_ms":0,"end_ms":300,"is_final":false,"language":"en","translation_status":"original"}]}"#,
+    r#"{"tokens":[{"text":"Hello wor","start_ms":0,"end_ms":500,"is_final":false,"language":"en","translation_status":"original"},{"text":"Ola","is_final":false,"language":"pt","translation_status":"translation"}]}"#,
+    r#"{"tokens":[{"text":"Hello world.","start_ms":0,"end_ms":900,"is_final":true,"language":"en","translation_status":"original"},{"text":"Ola mu","is_final":false,"language":"pt","translation_status":"translation"}]}"#,
+    r#"{"tokens":[{"text":"Ola mundo.","is_final":true,"language":"pt","translation_status":"translation"},{"text":"<end>","is_final":true}]}"#,
+];
 
 #[derive(Default, Debug)]
 struct Seen {
@@ -88,6 +98,25 @@ async fn spawn_server(scripts: Vec<Script>) -> Server {
                         );
                         ws.send(Message::Text(m.into())).await.ok();
                         ws.close(None).await.ok();
+                    }
+                    Script::Live => {
+                        let mut sent = false;
+                        while let Some(Ok(msg)) = ws.next().await {
+                            match msg {
+                                Message::Binary(_) if !sent => {
+                                    sent = true;
+                                    for m in LIVE_MSGS {
+                                        ws.send(Message::Text(m.into())).await.ok();
+                                    }
+                                }
+                                Message::Text(t) if t.as_str().is_empty() => {
+                                    ws.send(Message::Text(r#"{"tokens":[],"finished":true}"#.into())).await.ok();
+                                    ws.close(None).await.ok();
+                                    return;
+                                }
+                                _ => {}
+                            }
+                        }
                     }
                     Script::Tokens | Script::Cut => {
                         let mut sent = false;
@@ -164,11 +193,22 @@ fn end_audio(run: &mut Run) {
     run.audio = mpsc::channel(1).0;
 }
 
-async fn next(run: &mut Run) -> Event {
+/// Mọi sự kiện kể cả `Partial` (chữ tạm).
+async fn next_any(run: &mut Run) -> Event {
     timeout(Duration::from_secs(5), run.events.recv())
         .await
         .expect("het gio cho su kien")
         .expect("kenh dong")
+}
+
+/// Bỏ qua `Partial`: các kịch bản cũ chỉ quan tâm đoạn hoàn chỉnh và lỗi.
+async fn next(run: &mut Run) -> Event {
+    loop {
+        let e = next_any(run).await;
+        if !matches!(e, Event::Partial { .. }) {
+            return e;
+        }
+    }
 }
 
 fn assert_clean_start(seen: &Seen) {
@@ -336,4 +376,43 @@ async fn handshake_401_is_auth_failure_and_not_retried() {
 #[tokio::test]
 async fn auth_debug_hides_key() {
     assert!(!format!("{:?}", Auth::new(FAKE_KEY)).contains(FAKE_KEY));
+}
+
+/// Chữ tạm (non-final) đi ra TRƯỚC đoạn final, được thay chứ không nối, và bị xoá sau đoạn hoàn chỉnh.
+#[tokio::test]
+async fn scenario_non_final_text_is_emitted_before_final_and_replaced() {
+    let server = spawn_server(vec![Script::Live]).await;
+    let mut run = start(&server.url);
+    run.audio.send(vec![0u8; FRAME]).await.unwrap();
+
+    assert!(matches!(next_any(&mut run).await, Event::Connected { .. }));
+    let mut seen: Vec<String> = Vec::new();
+    let mut final_at = None;
+    // Thu cho tới khi đoạn hoàn chỉnh và lệnh xoá chữ tạm sau nó đều đã tới.
+    loop {
+        match next_any(&mut run).await {
+            Event::Partial { live: Some(l), .. } => seen.push(format!("{}|{}", l.source, l.translation)),
+            Event::Partial { live: None, .. } => {
+                seen.push("CLEAR".into());
+                break;
+            }
+            Event::Segment { segment, .. } => {
+                assert_eq!(segment.source_text, "Hello world.");
+                assert_eq!(segment.translated_text, "Ola mundo.");
+                final_at = Some(seen.len());
+            }
+            e => panic!("khong mong doi {e:?}"),
+        }
+    }
+    assert_eq!(
+        seen,
+        vec!["Hello|", "Hello wor|Ola", "Hello world.|Ola mu", "CLEAR"],
+        "chu tam phai thay tai cho, khong noi them"
+    );
+    // Đoạn final đến sau mọi chữ tạm của nó và trước lệnh xoá.
+    assert_eq!(final_at, Some(3));
+
+    end_audio(&mut run);
+    assert_eq!(next(&mut run).await, Event::Finished);
+    assert!(run.task.await.unwrap().is_ok());
 }

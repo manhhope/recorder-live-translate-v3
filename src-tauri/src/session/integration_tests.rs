@@ -563,3 +563,105 @@ async fn session_with_real_audio_writes_usage_row_visible_in_current_week() {
     assert_eq!(week.failed_start_count, 0);
     assert!(week.sessions_count >= 1);
 }
+
+// ================================================================= Chu tam (non-final) realtime
+
+/// Soniox gia gui chu tam: cau 1 (0-400 ms) non-final o khung 3 va 4, final + `<end>` o khung 5;
+/// cau 2 (600-900 ms) non-final o khung 8, final + dich + `<end>` o khung 10.
+async fn fake_soniox_live() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                #[allow(clippy::result_large_err)]
+                let cb = |_: &Request, r: Response| -> Result<Response, ErrorResponse> { Ok(r) };
+                let Ok(mut ws) = accept_hdr_async(tcp, cb).await else { return };
+                let _ = ws.next().await;
+                let mut frames = 0;
+                while let Some(Ok(msg)) = ws.next().await {
+                    match msg {
+                        Message::Binary(_) => {
+                            frames += 1;
+                            let m = match frames {
+                                3 => Some(r#"{"tokens":[{"text":"First","start_ms":0,"end_ms":200,"is_final":false,"language":"en","translation_status":"original"}]}"#),
+                                4 => Some(r#"{"tokens":[{"text":"First sent","start_ms":0,"end_ms":300,"is_final":false,"language":"en","translation_status":"original"},{"text":"Prim","is_final":false,"language":"pt","translation_status":"translation"}]}"#),
+                                5 => Some(r#"{"tokens":[{"text":"First sentence.","start_ms":0,"end_ms":400,"is_final":true,"language":"en","translation_status":"original"},{"text":"Primeira frase.","is_final":true,"language":"pt","translation_status":"translation"},{"text":"<end>","is_final":true}]}"#),
+                                8 => Some(r#"{"tokens":[{"text":"Second","start_ms":600,"end_ms":800,"is_final":false,"language":"en","translation_status":"original"}]}"#),
+                                10 => Some(r#"{"tokens":[{"text":"Second sentence.","start_ms":600,"end_ms":900,"is_final":true,"language":"en","translation_status":"original"},{"text":"Segunda frase.","is_final":true,"language":"pt","translation_status":"translation"},{"text":"<end>","is_final":true}]}"#),
+                                _ => None,
+                            };
+                            if let Some(m) = m {
+                                ws.send(Message::Text(m.into())).await.ok();
+                            }
+                        }
+                        Message::Text(t) if t.as_str().is_empty() => {
+                            ws.send(Message::Text(r#"{"tokens":[],"finished":true}"#.into())).await.ok();
+                            ws.close(None).await.ok();
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+            });
+        }
+    });
+    url
+}
+
+/// Chu tam di ra giao dien TRUOC dong chot cua no, thay tai cho (khong noi them), bi xoa sau khi chot, va o che do
+/// tron moi cau mang dung nguon (`system` roi `mic`). Cua so phu de nhan cung chuoi su kien.
+#[tokio::test]
+async fn partial_text_reaches_ui_before_final_replaces_in_place_and_labels_mixed_sources() {
+    let url = fake_soniox_live().await;
+    let store = Arc::new(Mutex::new(Store::open_in_memory().unwrap()));
+    let svc = SessionService::new(store, Arc::new(InMemorySecretStore::new()), Arc::new(PhasedProvider))
+        .with_soniox_url(url)
+        .with_drain_timeout(Duration::from_secs(2));
+    svc.save_key(FAKE_KEY).unwrap();
+    svc.accept_consent().unwrap();
+
+    let (sink, events) = collector();
+    svc.start(params(RecordMode::Mixed), sink).await.unwrap();
+    assert!(wait_for(&events, |e| matches!(e, UiEvent::Line { line } if line.source_text == "Second sentence.")).await, "khong thay cau 2");
+    svc.stop().unwrap();
+    assert!(wait_for(&events, |e| matches!(e, UiEvent::Stopped { .. })).await);
+
+    // Rut chuoi su kien lien quan: P(nguon|goc|dich) / L(goc) / CLEAR.
+    let seq: Vec<String> = events
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(|e| match e {
+            UiEvent::Partial { partial: Some(p) } => Some(format!("P({}|{}|{})", p.source, p.source_text, p.translated_text.clone().unwrap_or_default())),
+            UiEvent::Partial { partial: None } => Some("CLEAR".to_string()),
+            UiEvent::Line { line } => Some(format!("L({})", line.source_text)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        seq,
+        vec![
+            "P(system|First|)",
+            "P(system|First sent|Prim)",
+            "L(First sentence.)",
+            "CLEAR",
+            "P(mic|Second|)",
+            "L(Second sentence.)",
+            "CLEAR",
+        ],
+        "chu tam phai den truoc dong chot, thay tai cho, xoa sau khi chot: {seq:?}"
+    );
+
+    // Cua so phu de: chu tam va lenh xoa (dong chot di qua `subtitle://line`).
+    let sub: Vec<(String, String, String)> = events
+        .lock()
+        .unwrap()
+        .iter()
+        .filter_map(super::service::subtitle_payload)
+        .map(|l| (l.kind.to_string(), l.source, l.translation))
+        .collect();
+    assert_eq!(sub[0], ("partial".into(), "First".into(), "".into()));
+    assert_eq!(sub[1], ("partial".into(), "First sent".into(), "Prim".into()));
+    assert_eq!(sub[2].0, "clear");
+}

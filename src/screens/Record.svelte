@@ -10,6 +10,7 @@
   import * as api from "../lib/api.ts";
   import type { LineDto, SessionStateName, StatusCode } from "../lib/api.ts";
   import { Follow } from "../lib/follow.svelte.ts";
+  import { afterFinal, fromPartial, type LiveText } from "../lib/live.ts";
 
   let state = $state<SessionStateName>("idle");
   let lines = $state<LineDto[]>([]);
@@ -51,14 +52,20 @@
     if (s === "recording") timer = setInterval(() => app.seconds++, 1000);
   }
 
+  // Chu tam (token chua chot cua Soniox): moi ban THAY ban truoc, dong chot den thi bo phan da chot.
+  let live = $state<LiveText | null>(null);
+
   function onEvent(e: api.UiEvent) {
-    if (e.kind === "state") {
+    if (e.kind === "partial") live = fromPartial(e.partial);
+    else if (e.kind === "state") {
+      if (e.state === "idle") live = null;
       if (e.state === "recording" && state === "idle") { app.seconds = 0; level = 0; }
       setState(e.state);
       void api.sessionState().then(st => (sessionId = st[1])).catch(() => {});
     } else if (e.kind === "line") {
       const i = lines.findIndex(l => l.captionLineId === e.line.captionLineId);
       if (i >= 0) lines[i] = e.line; else lines.push(e.line);
+      live = afterFinal(live, e.line.sourceText, e.line.translatedText);
     } else if (e.kind === "level") level = e.level;
     else if (e.kind === "status") status = e.code;
     else if (e.kind === "stopped") lastStop = { lines: e.lines, drained: e.drained };
@@ -232,7 +239,15 @@
         </div>
       </div>
     {/each}
-    {#if active}
+    {#if live}
+      <div class="ln live" data-lang={live.lang}><span class="ts">{fmtClock(Math.floor(live.offsetMs / 1000))}</span>
+        <div class="tx">
+          <div class="meta"><b>{$_((mode === "mixed" ? live.origin === "mic" : mode === "mic") ? "src.name.mic" : "src.name.sys")}</b><span class="lg">{live.lang}</span><span class="pv">{$_("ln.listening")}</span></div>
+          {#if app.view !== "dst"}<div class="src">{live.source}</div>{/if}
+          {#if app.view !== "src" && live.translation}<div class="dst">{live.translation}...</div>{/if}
+        </div>
+      </div>
+    {:else if active}
       <div class="ln live"><span class="ts">{fmtClock(app.seconds)}</span>
         <div class="tx"><div class="meta"><b>{$_(mode === "mic" ? "src.name.mic" : "src.name.sys")}</b><span class="pv">{$_("ln.listening")}</span></div><div class="dst">...</div></div>
       </div>

@@ -82,11 +82,16 @@ impl SessionState {
 
 #[tauri::command]
 pub async fn session_start(app: tauri::AppHandle, s: State<'_, SessionState>, params: StartParams, on_event: Channel<UiEvent>) -> Res<String> {
+    use tauri::Emitter;
     // Phien moi: bo cac dong cua phien truoc khoi bo dem cua popup phu de (popup mo giua chung se lay lai bang `subtitle_lines`).
     crate::subtitle::reset_feed(&app);
+    // Cung mot nguon cho cua so chinh (Channel) va cua so phu de (su kien `subtitle://live` cho chu tam).
     let sink: UiSink = Arc::new(move |e| {
         // Dong chu (tam thoi va da chot) vao bo dem + su kien `subtitle://line` cho moi cua so.
         crate::subtitle::tee(&app, &e);
+        if let Some(line) = service::subtitle_payload(&e) {
+            let _ = app.emit_to(crate::subtitle::LABEL, "subtitle://live", line);
+        }
         let _ = on_event.send(e);
     });
     s.svc.start(params, sink).await

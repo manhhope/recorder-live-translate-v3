@@ -76,3 +76,13 @@ test("toolbarVisible is true when any of hover, rust hover, focus or open menu h
   assert.equal(toolbarVisible(false, false, false, false), false);
   for (const i of [0, 1, 2, 3]) { const a = [false, false, false, false]; a[i] = true; assert.equal(toolbarVisible(a[0], a[1], a[2], a[3]), true); }
 });
+
+test("liveRows: interim text is flagged live, dim by flag, provisional translation ends with ...", async () => {
+  const { liveRows } = await import("./model.ts");
+  assert.deepEqual(liveRows("bilingual", { source: "Hello wor", translation: "Ola" }), [
+    { kind: "source", text: "Hello wor", live: true },
+    { kind: "translation", text: "Ola...", live: true },
+  ]);
+  assert.deepEqual(liveRows("translation_only", { source: "Hello", translation: "" }), []);
+  assert.deepEqual(liveRows("source_only", null), []);
+});
