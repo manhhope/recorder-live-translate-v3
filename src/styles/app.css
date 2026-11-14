@@ -78,6 +78,10 @@ button{font:inherit;color:inherit;cursor:default}
 .langwrap{position:relative;display:inline-block}
 /* noi dung man Ghi */
 .rowx{padding:12px 18px 0;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+/* Tieu de, cau hinh va chan trang co dinh; chi .trs cuon (min-height:0 de flex cho phep co lai). */
+.trw{flex:1;min-height:0;position:relative;display:flex}
+.trs{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+.jump{position:absolute;right:18px;bottom:10px;height:28px;padding:0 12px;border:1px solid var(--rlt-line);border-radius:14px;background:var(--rlt-card);color:var(--rlt-text);font-size:12px;box-shadow:var(--rlt-sh2)}
 .tr{padding:6px 18px;display:flex;flex-direction:column}
 .ln{display:grid;grid-template-columns:62px 1fr;gap:10px;padding:10px 4px;border-bottom:1px solid var(--rlt-line)}
 .ts{font:11px var(--rlt-mono);color:var(--rlt-text2);padding-top:3px}
@@ -87,7 +91,7 @@ button{font:inherit;color:inherit;cursor:default}
 .ln.prov .dst{font-style:italic}.ln.live .dst{color:var(--rlt-text2);font-weight:400}
 .empty{flex:1;display:grid;place-content:center;justify-items:center;gap:6px;padding:40px 24px;color:var(--rlt-text2);text-align:center}
 .empty b{color:var(--rlt-text);font:600 var(--rlt-fh) var(--rlt-font)}.empty .i{width:32px;height:32px}
-.foot{display:flex;align-items:center;gap:12px;padding:8px 18px;border-top:1px solid var(--rlt-line);background:var(--rlt-side);font-size:12px;flex-wrap:wrap;margin-top:auto}
+.foot{flex:none;display:flex;align-items:center;gap:12px;padding:8px 18px;border-top:1px solid var(--rlt-line);background:var(--rlt-side);font-size:12px;flex-wrap:wrap;margin-top:auto}
 .foot .fs{margin-left:auto;color:var(--rlt-text2)}
 .sb{display:inline-flex;align-items:center;gap:6px;color:var(--rlt-text)}.sb b{font-weight:600}
 .sb.ok{color:var(--rlt-ok)}.sb.warn{color:var(--rlt-warn)}.sb.err{color:var(--rlt-rec)}

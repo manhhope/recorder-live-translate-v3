@@ -128,6 +128,7 @@
   "qt.time": "1.2 s",
   "rec.empty.hint": "Choose the languages and the audio source in the bar above, then click Start.",
   "rec.empty.title": "Click Start to translate",
+  "rec.jump.latest": "Jump to latest",
   "rec.view.both": "Source + Translation",
   "rec.view.dst": "Translation only",
   "rec.view.group": "Transcript view",

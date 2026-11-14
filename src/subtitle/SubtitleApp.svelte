@@ -4,6 +4,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { Follow } from "../lib/follow.svelte.ts";
   import { backgroundCss, colorError, MODES, rowsFor, type DisplayMode, type Line, type SubtitleSettings } from "./model.ts";
 
   let s = $state<SubtitleSettings>({
@@ -14,6 +15,7 @@
   let hover = $state(false);
   let menuOpen = $state(false);
   let err = $state("");
+  const follow = new Follow();
 
   const rows = $derived(rowsFor(s.display_mode, line));
 
@@ -36,7 +38,9 @@
     try { await invoke("subtitle_set_color", { which, hex: (e.target as HTMLInputElement).value }); }
     catch (code) { const c = colorError(String(code)); err = $_(c.key, { values: c.values }); }
   }
-  const startDrag = (e: MouseEvent) => { if (e.button === 0 && !(e.target as HTMLElement).closest("button, select, input, label, .menu")) getCurrentWindow().startDragging(); };
+  // Keo thanh cuon cua vung chu (phan ben phai .text vuot clientWidth) la cuon, khong phai keo cua so.
+  const onScrollbar = (e: MouseEvent) => { const t = e.target as HTMLElement; return t.classList.contains("text") && e.offsetX >= t.clientWidth; };
+  const startDrag = (e: MouseEvent) => { if (e.button === 0 && !onScrollbar(e) && !(e.target as HTMLElement).closest("button, select, input, label, .menu")) getCurrentWindow().startDragging(); };
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -68,12 +72,15 @@
     <button class="mini" onclick={() => invoke("subtitle_close")} title={$_("sub.close")} aria-label={$_("sub.close")}>{$_("sub.close.short")}</button>
   </div>
   {#if err}<p class="err" role="alert">{err}</p>{/if}
-  <div class="text" style:font-size="{s.font_size_pt}px">
-    {#each rows as r}
-      <p style:color={r.kind === "source" ? s.source_color : s.translation_color}>{r.text}</p>
-    {:else}
-      <p class="wait">{$_("sub.waiting")}</p>
-    {/each}
+  <div class="tw">
+    <div class="text" style:font-size="{s.font_size_pt}px" use:follow.action>
+      {#each rows as r}
+        <p style:color={r.kind === "source" ? s.source_color : s.translation_color}>{r.text}</p>
+      {:else}
+        <p class="wait">{$_("sub.waiting")}</p>
+      {/each}
+    </div>
+    {#if follow.away}<button type="button" class="jump" onclick={follow.jump}>{$_("rec.jump.latest")}</button>{/if}
   </div>
 </div>
 
@@ -94,7 +101,11 @@
   .menu { position: absolute; right: 0; top: 26px; z-index: 5; display: flex; flex-direction: column; gap: 2px; padding: 4px; min-width: 190px; background: rgba(16, 16, 18, 0.96); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; }
   .menu button, .menu label { text-align: left; font-size: 12px; color: #fff; background: transparent; border: 0; padding: 5px 8px; border-radius: 5px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
   .menu button:hover, .menu label:hover { background: rgba(255, 255, 255, 0.12); }
-  .text { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; }
+  .tw { flex: 1; min-height: 0; position: relative; display: flex; }
+  /* Chi vung chu nay cuon; thanh .tools (flex:none) nam ngoai. Dung margin-top:auto thay justify-content:flex-end de dau doan van cuon toi duoc. */
+  .text { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; overscroll-behavior: contain; scrollbar-width: thin; }
+  .text > :global(p:first-child) { margin-top: auto; }
+  .jump { position: absolute; right: 6px; bottom: 6px; height: 22px; padding: 0 10px; font-size: 11px; color: #fff; background: rgba(16, 16, 18, 0.9); border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 11px; cursor: pointer; }
   .text p { margin: 0; line-height: 1.35; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
   .wait { color: #8a939c; font-size: 14px; }
   .err { color: #ffb4a8; font-size: 12px; margin: 0 0 4px; }

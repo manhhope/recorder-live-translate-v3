@@ -128,6 +128,7 @@
   "qt.time": "1,2 s",
   "rec.empty.hint": "Escolha os idiomas e a fonte de áudio na barra acima e clique em Iniciar.",
   "rec.empty.title": "Clique em Iniciar para traduzir",
+  "rec.jump.latest": "Ir para o mais recente",
   "rec.view.both": "Origem + Tradução",
   "rec.view.dst": "Só tradução",
   "rec.view.group": "Vista da transcrição",

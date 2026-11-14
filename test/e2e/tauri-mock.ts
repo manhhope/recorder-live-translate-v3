@@ -197,6 +197,7 @@ export function installTauriMock(seed: MockSeed): void {
     ai_clear_api_key: (a) => { state.aiKeys[a.provider] = false; },
     ai_test_connection: () => undefined,
     "plugin:event|listen": (a) => { const id = state.listeners.length + 1; state.listeners.push({ event: a.event, id, cb: a.handler }); return id; },
+    "plugin:window|start_dragging": () => undefined,
     "plugin:event|unlisten": (a) => { state.listeners = state.listeners.filter((l: any) => !(l.event === a.event && l.id === a.eventId)); },
     ai_accept_consent: (a) => { state.aiConsent[a.provider] = true; },
     ai_list_conversations: (a) => state.convs.filter((c: any) => c.session_id === a.sessionId).map(clone),
@@ -228,6 +229,7 @@ export function installTauriMock(seed: MockSeed): void {
   };
 
   w.__TAURI_INTERNALS__ = {
+    metadata: { currentWindow: { label: "main" }, currentWebview: { windowLabel: "main", label: "main" } },
     transformCallback(cb: (m: unknown) => void) { const id = nextCb++; callbacks.set(id, cb); return id; },
     unregisterCallback(id: number) { callbacks.delete(id); },
     async invoke(cmd: string, args: any = {}) {

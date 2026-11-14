@@ -9,6 +9,7 @@
   import { AUTO } from "../lib/langs.ts";
   import * as api from "../lib/api.ts";
   import type { LineDto, SessionStateName, StatusCode } from "../lib/api.ts";
+  import { Follow } from "../lib/follow.svelte.ts";
 
   let state = $state<SessionStateName>("idle");
   let lines = $state<LineDto[]>([]);
@@ -25,6 +26,7 @@
   let sessionId = $state<string | null>(null);
   let lastStop = $state<{ lines: number; drained: boolean } | null>(null);
   let timer: ReturnType<typeof setInterval> | undefined;
+  const follow = new Follow();
 
   const active = $derived(state !== "idle");
   const mode = $derived<api.RecordMode | null>(app.sysOn && app.micOn ? "mixed" : app.sysOn ? "system" : app.micOn ? "mic" : null);
@@ -216,6 +218,8 @@
     </span>
     {#if lastStop}<span class="hint">{stoppedLbl(lastStop.lines)}{#if !lastStop.drained} {$_("rec.stopped.partial")}{/if}</span>{/if}
   </div>
+  <div class="trw">
+  <div class="trs" use:follow.action>
   <TermContext dstLang={app.dst}>
   <div class="tr" aria-live="polite">
     {#each lines as l (l.captionLineId)}
@@ -235,6 +239,9 @@
     {/if}
   </div>
   </TermContext>
+  </div>
+  {#if follow.away}<button type="button" class="jump" onclick={follow.jump}>{$_("rec.jump.latest")}</button>{/if}
+  </div>
 {:else}
   <div class="empty"><Icon name="mic" /><b>{$_("rec.empty.title")}</b><span>{$_(!mode ? "rec.empty.nosrc" : "rec.empty.hint")}</span></div>
 {/if}
