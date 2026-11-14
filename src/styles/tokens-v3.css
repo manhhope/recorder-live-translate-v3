@@ -1,0 +1,148 @@
+/*
+  tokens-v3.css - Design system v3, phuong an A "Quiet Native"
+  Nguon: design-system-v3.md muc 2.1, 2.2, 2.3, 2.7, 8.2, 9.1.
+  Dung cho Tauri (Svelte trong WKWebView) tren macOS.
+
+  Cach chon che do:
+  - Mac dinh theo he thong: @media (prefers-color-scheme: dark).
+  - Ep tay: <html data-theme="light"> hoac <html data-theme="dark">.
+    data-theme luon thang prefers-color-scheme.
+
+  Anh xa NSColor/NSFont cua ban AppKit duoc thay bang anh xa CSS:
+    NSColor.windowBackgroundColor  -> var(--rlt-bg)
+    NSColor.controlBackgroundColor -> var(--rlt-card)
+    NSColor.controlColor           -> var(--rlt-ctl)
+    NSColor.separatorColor         -> var(--rlt-line)
+    NSColor.labelColor             -> var(--rlt-text)
+    NSColor.secondaryLabelColor    -> var(--rlt-text2)
+    NSColor.controlAccentColor     -> var(--rlt-fill)
+    NSColor.systemRed (tinh chinh) -> var(--rlt-rec)
+    NSFont.systemFont              -> var(--rlt-font)
+    NSFont.monospacedSystemFont    -> var(--rlt-mono)
+
+  Ti so tuong phan WCAG tinh tay (design-system-v3.md muc 2.2). Chu thuong can 4,5:1, do hoa can 3:1.
+*/
+
+:root {
+  /* ---------- Phong chu he thong (SF) ---------- */
+  --rlt-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+  --rlt-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --rlt-fs: 13px;        /* chu than, nhan, nut */
+  --rlt-fh: 15px;        /* tieu de nho */
+  --rlt-fdst: 15px;      /* chu dich trong man ghi */
+  --rlt-hc: 28px;        /* chieu cao dieu khien (nut, o chon) */
+
+  /* ---------- Bo goc ---------- */
+  --rlt-rb: 6px;         /* nut, o chon */
+  --rlt-rc: 10px;        /* the */
+  --rlt-rw: 12px;        /* cua so, hop thoai */
+  --rlt-rcap: 12px;      /* tam phu de noi */
+
+  /* ---------- Phu de noi: luon toi, khong doi theo che do ---------- */
+  --rlt-capbg: rgba(16, 16, 18, 0.72);
+  --rlt-capblur: blur(20px) saturate(1.4);
+  --rlt-capl: 1px solid rgba(255, 255, 255, 0.12);
+  --rlt-capsrc: #D9D9DE;   /* chu nguon: 5,46:1 o nen video trang hoan toan (nen hoa #535354) */
+  --rlt-captxt: #FFFFFF;   /* chu dich: 7,68:1 o nen video trang hoan toan, chua tinh bong chu */
+  --rlt-captxt-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  /* Khong ha alpha nen duoi 0,72 (OPEN-DS-05, cho chu quyet): tuong phan xau di. */
+
+  /* ---------- Sang (mac dinh) ---------- */
+  --rlt-page: #E3E3E8;     /* nen trang mockup, khong dung trong app */
+  --rlt-bg: #F5F5F7;       /* nen cua so */
+  --rlt-card: #FFFFFF;     /* the, o nhap */
+  --rlt-side: #EBEBF0;     /* thanh ben, thanh tieu de */
+  --rlt-ctl: #E8E8ED;      /* nut thuong, nen nhom phan doan */
+  --rlt-line: #D8D8DE;     /* vien */
+  --rlt-text: #1D1D1F;     /* chu chinh: 15,46 tren bg, 16,83 tren card */
+  --rlt-text2: #5C5C63;    /* chu phu: 6,09 tren bg, 6,63 tren card */
+  --rlt-fill: #0A5BC4;     /* nut chinh, muc dang chon */
+  --rlt-onfill: #FFFFFF;   /* chu tren nut chinh: 6,35 tren fill */
+  --rlt-acc: #0A5BC4;      /* lien ket, huy hieu: 5,83 tren bg, 6,35 tren card */
+  --rlt-rec: #C5221A;      /* dang ghi, chu: 5,33 tren bg */
+  --rlt-ok: #1A7436;       /* tot, dang noi */
+  --rlt-warn: #8A5A00;     /* canh bao */
+  --rlt-sel: rgba(10, 91, 196, 0.12);   /* nen chu boi chon */
+  --rlt-stopbg: #C5221A;   /* nut Dung: chu trang 5,81 tren nen */
+  --rlt-stopfg: #FFFFFF;
+  --rlt-focus: #0A5BC4;    /* vong focus 3 px, mo 12% */
+  --rlt-focus-ring: 0 0 0 3px rgba(10, 91, 196, 0.12);
+
+  /* ---------- Do bong ---------- */
+  --rlt-sh1: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --rlt-sh2: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+/* ---------- Toi theo he thong ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --rlt-page: #0E0E10;
+    --rlt-bg: #1C1C1E;       /* chu chinh 15,62 tren bg */
+    --rlt-card: #2C2C2E;     /* chu chinh 12,80 tren card */
+    --rlt-side: #242426;
+    --rlt-ctl: #3A3A3E;
+    --rlt-line: #3A3A3D;
+    --rlt-text: #F5F5F7;
+    --rlt-text2: #A6A6AD;    /* 7,03 tren bg, 5,76 tren card */
+    --rlt-fill: #2F6FDE;     /* chu trang tren fill 4,72 (sat nguong); fill so voi bg 3,61 (do hoa) */
+    --rlt-onfill: #FFFFFF;
+    --rlt-acc: #6AA6FF;      /* 6,90 tren bg, 5,65 tren card */
+    --rlt-rec: #FF6B63;      /* chu 6,10 tren bg, 5,00 tren card */
+    --rlt-ok: #5EC977;
+    --rlt-warn: #F2B84B;
+    --rlt-sel: rgba(106, 166, 255, 0.18);
+    --rlt-stopbg: #FF6B63;   /* chu #1C1C1E tren nen Dung: 6,10 */
+    --rlt-stopfg: #1C1C1E;
+    --rlt-focus: #6AA6FF;    /* vong focus 3 px, mo 18% */
+    --rlt-focus-ring: 0 0 0 3px rgba(106, 166, 255, 0.18);
+    --rlt-sh1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --rlt-sh2: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* ---------- Ep tay: toi ---------- */
+:root[data-theme="dark"] {
+  --rlt-page: #0E0E10;
+  --rlt-bg: #1C1C1E;
+  --rlt-card: #2C2C2E;
+  --rlt-side: #242426;
+  --rlt-ctl: #3A3A3E;
+  --rlt-line: #3A3A3D;
+  --rlt-text: #F5F5F7;
+  --rlt-text2: #A6A6AD;
+  --rlt-fill: #2F6FDE;
+  --rlt-onfill: #FFFFFF;
+  --rlt-acc: #6AA6FF;
+  --rlt-rec: #FF6B63;
+  --rlt-ok: #5EC977;
+  --rlt-warn: #F2B84B;
+  --rlt-sel: rgba(106, 166, 255, 0.18);
+  --rlt-stopbg: #FF6B63;
+  --rlt-stopfg: #1C1C1E;
+  --rlt-focus: #6AA6FF;
+  --rlt-focus-ring: 0 0 0 3px rgba(106, 166, 255, 0.18);
+  --rlt-sh1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --rlt-sh2: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- Ep tay: sang (thang prefers-color-scheme: dark) ---------- */
+/* Cac gia tri sang da nam o :root; selector nay chi de ghi y dinh va giu do uu tien. */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* ---------- Vi du dung ---------- */
+body {
+  font-family: var(--rlt-font);
+  font-size: var(--rlt-fs);
+  color: var(--rlt-text);
+  background: var(--rlt-bg);
+}
+:focus-visible {
+  outline: none;
+  box-shadow: var(--rlt-focus-ring);
+  border-color: var(--rlt-focus);
+}
