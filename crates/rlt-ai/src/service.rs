@@ -237,7 +237,7 @@ impl AiService {
     /// Thu ket noi (US-47): gui mot cau rat ngan, bo ket qua.
     pub async fn test_connection(&self, kind: ProviderKind) -> Result<()> {
         let (p, model) = self.provider_for(kind)?;
-        let req = ChatRequest { model, system: None, messages: vec![ChatMessage::user("Reply with the single word: OK")] };
+        let req = ChatRequest { model, system: None, messages: vec![ChatMessage::user("Reply with the single word: OK")], max_output_tokens: Some(1024) };
         let mut sink = |_: &str| {};
         p.stream_chat(&req, &CancelFlag::new(), &mut sink).await.map(|_| ())
     }
@@ -397,7 +397,7 @@ impl AiService {
             (msgs, cfg.context_max_turns)
         };
         let _ = turns_limit;
-        let req = ChatRequest { model: model.to_string(), system: Some(system_prompt(ctx_text)), messages };
+        let req = ChatRequest { model: model.to_string(), system: Some(system_prompt(ctx_text)), messages, max_output_tokens: None };
 
         let mut raw = String::new();
         let result = {

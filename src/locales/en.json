@@ -681,5 +681,10 @@
   "ask.screen.nosession.title": "Nothing to ask about yet",
   "ask.screen.nosession.hint": "Record a session or open a saved transcript first, then ask the AI about it.",
   "ask.screen.gorecord": "Go to Record",
-  "ask.screen.error": "Could not load your sessions."
+  "ask.screen.error": "Could not load your sessions.",
+  "ai.err.blocked": "The AI service blocked this request (safety filter). Try different wording.",
+  "ai.err.model": "This model was not found. Check the model name in the AI settings.",
+  "ai.err.quota": "The quota or billing limit of this key is used up. Check your plan, or try later.",
+  "ai.err.region": "The AI service is not available for this account or region, or billing is not set up.",
+  "ai.err.rejected": "The AI service refused the request. Check the model name and the key permissions."
 }

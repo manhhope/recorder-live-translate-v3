@@ -51,28 +51,42 @@ pub(crate) async fn send_ex(
         Ok(Ok(r)) => r,
     };
     let status = resp.status().as_u16();
+    if (200..=299).contains(&status) {
+        return Ok(resp);
+    }
+    // Chi doc than de PHAN LOAI (khong luu, khong log, khong dua vao thong diep loi).
+    let body = match tokio::time::timeout(timeout, resp.text()).await {
+        Ok(Ok(t)) => t,
+        _ => String::new(),
+    };
+    Err(classify_status(status, &body, bad_key_in_400, vision_in_400))
+}
+
+/// Phan loai loi HTTP theo ma + than (than chi dung de doan, khong tra ra ngoai).
+/// Cac chuoi khop theo than Gemini (`error.status`/`message`), OpenAI (`error.code`) va Ollama (`error`).
+pub(crate) fn classify_status(status: u16, body: &str, bad_key_in_400: bool, vision_in_400: bool) -> AiError {
+    let b = body.to_ascii_lowercase();
+    let has = |s: &str| b.contains(s);
     match status {
-        200..=299 => Ok(resp),
-        401 | 403 => Err(AiError::Unauthorized),
-        429 => Err(AiError::RateLimited),
-        400 if vision_in_400 => {
-            let body = resp.text().await.unwrap_or_default().to_ascii_lowercase();
-            if body.contains("image") || body.contains("vision") || body.contains("multimodal") {
-                Err(AiError::VisionUnsupported)
+        401 | 403 => AiError::Unauthorized,
+        429 => {
+            if has("quota") || has("billing") || has("insufficient_quota") {
+                AiError::QuotaExceeded
             } else {
-                Err(AiError::BadResponse("http 400".to_string()))
+                AiError::RateLimited
             }
         }
-        400 if bad_key_in_400 => {
-            let body = resp.text().await.unwrap_or_default();
-            if body.contains("API_KEY_INVALID") || body.contains("API key not valid") {
-                Err(AiError::Unauthorized)
-            } else {
-                Err(AiError::BadResponse("http 400".to_string()))
-            }
+        404 => AiError::ModelNotFound,
+        500..=599 => AiError::Unreachable(format!("http {status}")),
+        400 if vision_in_400 && (has("image") || has("vision") || has("multimodal")) => AiError::VisionUnsupported,
+        400 if bad_key_in_400 && (has("api_key_invalid") || has("api key not valid") || has("api key expired")) => {
+            AiError::Unauthorized
         }
-        500..=599 => Err(AiError::Unreachable(format!("http {status}"))),
-        _ => Err(AiError::BadResponse(format!("http {status}"))),
+        400 | 422 if has("not found") || has("model_not_found") || has("is not supported for generatecontent") => {
+            AiError::ModelNotFound
+        }
+        400 if has("failed_precondition") || has("location is not supported") => AiError::Region,
+        _ => AiError::Rejected(format!("http {status}")),
     }
 }
 

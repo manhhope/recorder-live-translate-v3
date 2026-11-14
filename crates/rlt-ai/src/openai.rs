@@ -72,6 +72,9 @@ impl LlmProvider for OpenAi {
                 return Ok(true);
             }
             let v: Value = serde_json::from_str(data).map_err(|_| AiError::BadResponse("json".into()))?;
+            if v["error"].is_object() {
+                return Err(crate::http::classify_status(400, &v["error"].to_string(), false, false));
+            }
             if let Some(t) = v["choices"][0]["delta"]["content"].as_str() {
                 if !t.is_empty() {
                     on_delta(t);

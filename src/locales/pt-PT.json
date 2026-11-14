@@ -681,5 +681,10 @@
   "ask.screen.nosession.title": "Ainda não há nada para perguntar",
   "ask.screen.nosession.hint": "Grave uma sessão ou abra uma ata guardada e depois pergunte à IA sobre ela.",
   "ask.screen.gorecord": "Ir para Gravar",
-  "ask.screen.error": "Não foi possível carregar as suas sessões."
+  "ask.screen.error": "Não foi possível carregar as suas sessões.",
+  "ai.err.blocked": "O serviço de IA bloqueou este pedido (filtro de segurança). Tente outra formulação.",
+  "ai.err.model": "Este modelo não foi encontrado. Verifique o nome do modelo nas definições de IA.",
+  "ai.err.quota": "A quota ou o limite de faturação desta chave esgotou-se. Verifique o plano ou tente mais tarde.",
+  "ai.err.region": "O serviço de IA não está disponível para esta conta ou região, ou a faturação não está configurada.",
+  "ai.err.rejected": "O serviço de IA recusou o pedido. Verifique o nome do modelo e as permissões da chave."
 }

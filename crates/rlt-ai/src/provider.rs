@@ -121,6 +121,9 @@ pub struct ChatRequest {
     pub model: String,
     pub system: Option<String>,
     pub messages: Vec<ChatMessage>,
+    /// Gioi han token tra ve. `Some` chi dung cho yeu cau thu ket noi: Gemini 2.5 tinh ca token "thinking"
+    /// vao tran nay nen yeu cau thu tat thinking (neu model cho phep) va dat tran du lon.
+    pub max_output_tokens: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

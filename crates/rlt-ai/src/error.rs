@@ -14,8 +14,18 @@ pub enum AiError {
     Timeout,
     /// Nguoi dung huy.
     Cancelled,
-    /// Ma tra ve khong doc duoc hoac loi 4xx khac.
+    /// Than tra ve THAT SU khong doc duoc (JSON hong, thieu truong).
     BadResponse(String),
+    /// Model khong ton tai hoac khong ho tro (404, hoac 400 "model not found").
+    ModelNotFound,
+    /// Nha cung cap chan noi dung (promptFeedback.blockReason, finishReason SAFETY...).
+    Blocked,
+    /// Het quota/billing (429 kem "quota").
+    QuotaExceeded,
+    /// Khu vuc hoac tai khoan chua duoc dung API (400 FAILED_PRECONDITION).
+    Region,
+    /// 4xx khac: nha cung cap tu choi yeu cau. Chua ma HTTP, khong chua than.
+    Rejected(String),
     /// Chua co khoa cho nha cung cap.
     NoKey,
     /// Chua chon nha cung cap nao.
@@ -38,6 +48,11 @@ impl AiError {
             AiError::Unreachable(_) | AiError::Timeout => "provider_unreachable",
             AiError::Cancelled => "provider_cancelled",
             AiError::BadResponse(_) => "provider_bad_response",
+            AiError::ModelNotFound => "provider_model_not_found",
+            AiError::Blocked => "provider_blocked",
+            AiError::QuotaExceeded => "provider_quota",
+            AiError::Region => "provider_region",
+            AiError::Rejected(_) => "provider_rejected",
             AiError::NoKey => "provider_no_key",
             AiError::NotConfigured => "provider_not_configured",
             AiError::ConsentRequired => "consent_required",
@@ -51,7 +66,11 @@ impl AiError {
 impl fmt::Display for AiError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AiError::Unreachable(m) | AiError::BadResponse(m) | AiError::InvalidInput(m) | AiError::Store(m) => {
+            AiError::Unreachable(m)
+            | AiError::BadResponse(m)
+            | AiError::Rejected(m)
+            | AiError::InvalidInput(m)
+            | AiError::Store(m) => {
                 write!(f, "{}: {m}", self.code())
             }
             _ => write!(f, "{}", self.code()),

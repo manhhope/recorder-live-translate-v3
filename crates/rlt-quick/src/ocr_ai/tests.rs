@@ -201,7 +201,7 @@ fn ollama_ban_cu_khong_co_capabilities_loi_400_van_thanh_vision_unsupported() {
 #[test]
 fn ollama_400_khong_lien_quan_anh_la_loi_nha_cung_cap() {
     let f = fake(vec![Reply(200, "{}".into()), Reply(400, "{\"error\":\"bad option\"}".into())]);
-    assert_eq!(engine(ProviderKind::Ollama, &f, None).recognize(&img(), &[]), Err(OcrError::Provider("provider_bad_response")));
+    assert_eq!(engine(ProviderKind::Ollama, &f, None).recognize(&img(), &[]), Err(OcrError::Provider("provider_rejected")));
 }
 
 // ---------- loi tu nha cung cap ----------

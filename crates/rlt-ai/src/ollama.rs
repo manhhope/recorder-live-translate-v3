@@ -77,7 +77,7 @@ impl LlmProvider for Ollama {
             }
             let v: Value = serde_json::from_str(line).map_err(|_| AiError::BadResponse("json".into()))?;
             if let Some(e) = v["error"].as_str() {
-                return Err(AiError::BadResponse(e.chars().take(200).collect()));
+                return Err(crate::http::classify_status(400, e, false, false));
             }
             if let Some(t) = v["message"]["content"].as_str() {
                 if !t.is_empty() {

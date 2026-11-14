@@ -99,6 +99,7 @@ impl AiVisionOcr {
             model: self.model.clone(),
             system: None,
             messages: vec![ChatMessage::user_with_images(text, vec![ImagePart::new(img.mime, img.bytes)])],
+            max_output_tokens: None,
         }
     }
 }

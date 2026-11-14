@@ -126,7 +126,7 @@ fn ollama_stream() -> Reply {
 }
 
 fn req() -> ChatRequest {
-    ChatRequest { model: "m".into(), system: Some("sys".into()), messages: vec![ChatMessage::user("hi")] }
+    ChatRequest { model: "m".into(), system: Some("sys".into()), messages: vec![ChatMessage::user("hi")], max_output_tokens: None }
 }
 
 async fn run(kind: ProviderKind, url: &str, key: Option<&str>, timeout_ms: u64) -> (Result<Usage>, Vec<String>) {
@@ -456,6 +456,7 @@ fn img_req() -> ChatRequest {
         model: "m".into(),
         system: None,
         messages: vec![ChatMessage::user_with_images("doc chu", vec![ImagePart::new("image/png", vec![0xff, 0xfe, 0xfd])])],
+        max_output_tokens: None,
     }
 }
 
@@ -509,4 +510,123 @@ fn debug_cua_anh_chi_in_kich_thuoc() {
     let m = ChatMessage::user_with_images("x", vec![ImagePart::new("image/png", vec![1, 2, 3])]);
     assert!(format!("{m:?}").contains("ImagePart(image/png, 3 byte)"));
     assert!(!format!("{m:?}").contains("[1, 2, 3]"));
+}
+
+// ---------- Gemini: Test connection (loi "unreadable"), may chu gia, khong goi Gemini that ----------
+
+fn sse(json: &str) -> Reply {
+    Reply::Stream(vec![format!("data: {json}\n\n")], Duration::from_millis(5))
+}
+
+/// `AiService::test_connection` cua Gemini tro vao may chu gia, dung khoa gia trong bo nho.
+async fn gemini_test(reply: Reply) -> (Result<()>, String) {
+    let f = fake(vec![reply]).await;
+    let ep = Endpoints { gemini: Some(f.url.clone()), timeout: Duration::from_millis(800), ..Endpoints::default() };
+    let (svc, _) = service(ep);
+    svc.set_api_key(ProviderKind::Gemini, KEY).unwrap();
+    let r = svc.test_connection(ProviderKind::Gemini).await;
+    let rq = f.requests.lock().unwrap().first().cloned().unwrap_or_default();
+    (r, rq)
+}
+
+#[tokio::test]
+async fn gemini_test_tra_loi_hop_le_co_phan_thought_thi_thanh_cong() {
+    let ok = r#"{"candidates":[{"content":{"parts":[{"text":"suy nghi...","thought":true},{"text":"OK"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":7,"candidatesTokenCount":1}}"#;
+    let (r, rq) = gemini_test(sse(ok)).await;
+    assert_eq!(r, Ok(()));
+    assert!(rq.starts_with("POST /v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse"));
+    let body = &rq[rq.find("\r\n\r\n").unwrap() + 4..];
+    let v: serde_json::Value = serde_json::from_str(body).unwrap();
+    assert_eq!(v["generationConfig"]["thinkingConfig"]["thinkingBudget"], 0);
+    assert_eq!(v["generationConfig"]["maxOutputTokens"], 1024);
+}
+
+#[tokio::test]
+async fn gemini_stream_bo_phan_thought_va_gom_moi_parts() {
+    let f = fake(vec![sse(r#"{"candidates":[{"content":{"parts":[{"text":"nghi","thought":true},{"text":"A"},{"text":"B"}]}}]}"#)]).await;
+    let (r, d) = run(ProviderKind::Gemini, &f.url, Some(KEY), 5000).await;
+    r.unwrap();
+    assert_eq!(d, vec!["A", "B"]);
+}
+
+#[tokio::test]
+async fn gemini_test_max_tokens_khong_co_text_van_la_ket_noi_tot() {
+    let r = r#"{"candidates":[{"content":{"role":"model"},"finishReason":"MAX_TOKENS"}],"usageMetadata":{"promptTokenCount":7,"thoughtsTokenCount":40}}"#;
+    let (res, _) = gemini_test(sse(r)).await;
+    assert_eq!(res, Ok(()));
+}
+
+#[tokio::test]
+async fn gemini_loi_http_duoc_phan_biet() {
+    let cases: Vec<(u16, &str, AiError)> = vec![
+        (400, r#"{"error":{"code":400,"message":"API key not valid. Please pass a valid API key.","status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}"#, AiError::Unauthorized),
+        (400, r#"{"error":{"code":400,"message":"User location is not supported for the API use.","status":"FAILED_PRECONDITION"}}"#, AiError::Region),
+        (400, r#"{"error":{"code":400,"message":"Unknown thing","status":"INVALID_ARGUMENT"}}"#, AiError::Rejected("http 400".into())),
+        (403, r#"{"error":{"code":403,"message":"Method doesn't allow unregistered callers","status":"PERMISSION_DENIED"}}"#, AiError::Unauthorized),
+        (404, r#"{"error":{"code":404,"message":"models/gemini-x is not found for API version v1beta","status":"NOT_FOUND"}}"#, AiError::ModelNotFound),
+        (429, r#"{"error":{"code":429,"message":"You exceeded your current quota, please check your plan and billing details.","status":"RESOURCE_EXHAUSTED"}}"#, AiError::QuotaExceeded),
+        (429, r#"{"error":{"code":429,"message":"Too many requests","status":"RESOURCE_EXHAUSTED"}}"#, AiError::RateLimited),
+        (503, r#"{"error":{"code":503,"status":"UNAVAILABLE"}}"#, AiError::Unreachable("http 503".into())),
+    ];
+    for (code, body, expect) in cases {
+        let (r, rq) = gemini_test(Reply::Status(code, body.into())).await;
+        assert_eq!(r, Err(expect.clone()), "http {code}: {body}");
+        assert!(!format!("{expect} {expect:?}").contains(KEY));
+        assert!(!rq.is_empty());
+    }
+}
+
+#[tokio::test]
+async fn gemini_prompt_feedback_block_reason_la_blocked() {
+    let (r, _) = gemini_test(sse(r#"{"promptFeedback":{"blockReason":"SAFETY"}}"#)).await;
+    assert_eq!(r, Err(AiError::Blocked));
+    let (r, _) = gemini_test(sse(r#"{"candidates":[{"finishReason":"SAFETY"}]}"#)).await;
+    assert_eq!(r, Err(AiError::Blocked));
+}
+
+#[tokio::test]
+async fn gemini_loi_nhet_trong_goi_sse_duoc_phan_loai() {
+    let (r, _) = gemini_test(sse(r#"{"error":{"code":429,"message":"quota","status":"RESOURCE_EXHAUSTED"}}"#)).await;
+    assert_eq!(r, Err(AiError::QuotaExceeded));
+}
+
+#[tokio::test]
+async fn gemini_chi_than_that_su_hong_moi_la_bad_response() {
+    let (r, _) = gemini_test(Reply::Stream(vec!["data: <html>proxy</html>\n\n".into()], Duration::from_millis(5))).await;
+    let e = r.unwrap_err();
+    assert_eq!(e, AiError::BadResponse("json".into()));
+    assert_eq!(e.code(), "provider_bad_response");
+}
+
+#[tokio::test]
+async fn gemini_mang_loi_va_than_rong() {
+    // Cong dong: khong co may chu nao.
+    let ep = Endpoints { gemini: Some("http://127.0.0.1:1".into()), timeout: Duration::from_millis(800), ..Endpoints::default() };
+    let (svc, _) = service(ep);
+    svc.set_api_key(ProviderKind::Gemini, KEY).unwrap();
+    let e = svc.test_connection(ProviderKind::Gemini).await.unwrap_err();
+    assert_eq!(e.code(), "provider_unreachable");
+    assert!(!format!("{e} {e:?}").contains(KEY));
+    // 200 than rong (proxy) khong co du lieu: khong loi, khong thanh "unreadable".
+    let (r, _) = gemini_test(Reply::Stream(vec![], Duration::from_millis(1))).await;
+    assert_eq!(r, Ok(()));
+}
+
+#[tokio::test]
+async fn openai_va_ollama_cung_phan_loai_loi() {
+    let f = fake(vec![Reply::Status(404, r#"{"error":{"code":"model_not_found"}}"#.into())]).await;
+    let (r, _) = run(ProviderKind::OpenAi, &f.url, Some(KEY), 5000).await;
+    assert_eq!(r.unwrap_err(), AiError::ModelNotFound);
+    let f = fake(vec![Reply::Status(429, r#"{"error":{"code":"insufficient_quota"}}"#.into())]).await;
+    let (r, _) = run(ProviderKind::OpenAi, &f.url, Some(KEY), 5000).await;
+    assert_eq!(r.unwrap_err(), AiError::QuotaExceeded);
+    let f = fake(vec![Reply::Status(404, r#"{"error":"model 'x' not found"}"#.into())]).await;
+    let (r, _) = run(ProviderKind::Ollama, &f.url, None, 5000).await;
+    assert_eq!(r.unwrap_err(), AiError::ModelNotFound);
+    let f = fake(vec![Reply::Stream(vec!["{\"error\":\"model 'x' not found\"}\n".into()], Duration::from_millis(5))]).await;
+    let (r, _) = run(ProviderKind::Ollama, &f.url, None, 5000).await;
+    assert_eq!(r.unwrap_err(), AiError::ModelNotFound);
+    let f = fake(vec![Reply::Status(400, "{}".into())]).await;
+    let (r, _) = run(ProviderKind::OpenAi, &f.url, Some(KEY), 5000).await;
+    assert_eq!(r.unwrap_err().code(), "provider_rejected");
 }
