@@ -612,6 +612,9 @@ mod tests {
     fn audio_start_codes_are_specific() {
         assert_eq!(audio_start_code(&AudioError::Device("permission: x".into())), "permission_screen");
         assert_eq!(audio_start_code(&AudioError::Device("khong co micro mac dinh".into())), "no_mic");
+        // Thong diep THAT do tren Mac mini khong co micro (docs/phien-chet-som-bao-cao.md muc 1).
+        let real = "khong co micro mac dinh dung duoc: An error unknown to the coreaudio-rs API occurred, OSStatus: 560947818";
+        assert_eq!(audio_start_code(&AudioError::Device(real.into())), "no_mic");
         assert_eq!(audio_start_code(&AudioError::Unsupported("x".into())), "audio_unsupported");
     }
 

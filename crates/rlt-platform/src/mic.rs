@@ -82,7 +82,10 @@ fn build_stream(sink: AudioSink) -> Result<cpal::Stream, AudioError> {
     let device = host
         .default_input_device()
         .ok_or_else(|| AudioError::Device("khong co micro mac dinh".into()))?;
-    let supported = device.default_input_config().map_err(dev_err)?;
+    // Mac khong co dau vao (vd Mac mini khong gan micro): CoreAudio tra OSStatus 560947818 ("!obj") o buoc nay.
+    let supported = device
+        .default_input_config()
+        .map_err(|e| AudioError::Device(format!("khong co micro mac dinh dung duoc: {e}")))?;
     let fmt = supported.sample_format();
     let config = supported.config();
     let mut pipe = MicPipeline::new(config.sample_rate, config.channels);

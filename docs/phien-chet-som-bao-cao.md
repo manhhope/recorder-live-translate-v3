@@ -17,7 +17,30 @@ Bang chung tu DB that `~/Library/Application Support/com.mmola.recorderlivetrans
 
 `select count(*) from usage_logs` = 0, `sessions` = 6. Ca 6 phien deu o che do `mixed`, chet sau 0,11 den 0,24 giay.
 
-Duong code (`crates/rlt-core/src/session.rs`, `start_session`): ham tao hang `sessions`, roi goi `source.start(sink)`. Neu nguon am loi, no ghi `finish_session(id, "interrupted", now, 0)` va tra `Err`. Khoang cach started_at/ended_at 0,1 giay chinh la thoi gian `MixedSource::start` mo nguon he thong (`SCShareableContent::get`, ScreenCaptureKit) roi that bai. Mac dinh `system.rs` gan tien to `permission:` cho loi nay (thieu quyen Ghi man hinh), nen nghi pham so 1 la quyen Ghi man hinh. Vi sao khong chung minh duoc 100%: `rlt.db` khong luu ma loi, va thoi diem do app chua ghi log loi (loi bi nuot trong `classify_audio`, xem muc 2). Phan nay can chay lai tren may that de xac nhan: CHUA DO.
+### 1a. Nguyen nhan DA CHUNG MINH (cap nhat luot nghiem thu)
+
+Nguyen nhan that: **may chay app (Mac mini) khong co thiet bi micro nao**. Che do `mixed` mo nguon he thong truoc (xong sau khoang 0,13 giay) roi mo micro, micro that bai ngay (0 ms), `MixedSource::start` dung nguon he thong va tra loi, `start_session` ghi `interrupted`, duration 0. Khong phai quyen Ghi man hinh, khong phai crash.
+
+Bang chung do truc tiep tren chinh may nay (14/11/2026), bang chuong trinh tham do tam goi dung `PlatformSources.open(..).start(..)` (da xoa sau khi chay, khong nam trong diff):
+
+```
+mic_permission = NotDetermined
+System: start -> Ok(()) after 135 ms
+Microphone: start -> Err(Device("An error unknown to the coreaudio-rs API occurred, OSStatus: 560947818")) after 0 ms
+```
+
+- `system_profiler SPAudioDataType` liet ke chi thiet bi OUTPUT (DELL U2424HE, RTK, Mac mini Speakers); dem tu khoa "Input" = 0. May khong co thiet bi vao.
+- OSStatus 560947818 = 0x216F626A = `'!obj'` (kAudioHardwareBadObjectError): CoreAudio khong co doi tuong thiet bi vao hop le. Loi tra o `device.default_input_config()` (`mic.rs`).
+- Thoi gian khop DB: system ~135 ms + mic 0 ms ~ 0,11 den 0,24 giay `ended_at - started_at` cua 6 phien.
+- Nguon he thong (ScreenCaptureKit) mo THANH CONG tren may nay (135 ms, Ok), nen quyen Ghi man hinh KHONG phai nguyen nhan; ket luan truoc ("nghi quyen Ghi man hinh") sai. `captions.log` cu cung cho thay `tokens_system` co du lieu ngay 14/11 07:44.
+- Cac file crash `.ips` (`rlt-app-2026-11-14-1854xx...1907xx`, SIGABRT trong `tao::...control_flow_end_handler` / `rust_panic_cleanup`) la panic cua vong lap su kien giao dien (viec t_301edccbd6f9), khong lien quan: khong cung co che, khong nam trong `start_session`.
+- Loi cu bi gan nhan chung "audio_device"/`permission` nen nguoi dung khong biet. Sau sua: `mic.rs` dat thong diep `khong co micro mac dinh dung duoc: ...` nen `audio_start_code` tra `no_mic`, giao dien hien ro "khong co micro".
+
+Gioi han: probe chay tu terminal (quyen TCC cua terminal, `mic_permission = NotDetermined`), khong phai tu goi `.app`. Viec "khong co thiet bi vao" khong phu thuoc quyen nen ket luan van dung cho app; con thong bao tren giao dien Tauri thi CHUA DO (muc 5).
+
+### 1b. Phan tich code (tu luot truoc)
+
+Duong code (`crates/rlt-core/src/session.rs`, `start_session`): ham tao hang `sessions`, roi goi `source.start(sink)`. Neu nguon am loi, no ghi `finish_session(id, "interrupted", now, 0)` va tra `Err`. Khoang cach started_at/ended_at 0,1 giay chinh la thoi gian `MixedSource::start` mo nguon he thong (`SCShareableContent::get`, ScreenCaptureKit) roi that bai. Mac dinh `system.rs` gan tien to `permission:` cho loi nay (thieu quyen Ghi man hinh), nhung probe 1a cho thay buoc that bai that la MICRO, khong phai he thong. `rlt.db` khong luu ma loi va luc do app chua ghi log loi, nen 1a moi la bang chung.
 
 Phan biet hai loai `interrupted`:
 
@@ -319,7 +342,8 @@ index d5e0921..5c75aa4 100644
 
 ## 4. Output kiem thu (that)
 
-- `cargo test --workspace`: tat ca ket qua `ok`, tong cong 599 passed, 0 failed, gom 4 test moi o tren.
+- Chay lai sau khi sua `mic.rs` va them assert thong diep that vao `audio_start_codes_are_specific` (lan 2): `cargo test --workspace` moi nhom `ok`, 0 failed (nhom lon nhat 158 passed); `clippy --workspace --all-targets` Finished khong canh bao; `npm run build` built in 278ms; `test:i18n` fail 0; `scan:i18n` 0 chuoi cung.
+- Lan 1: `cargo test --workspace`: tat ca ket qua `ok`, tong cong 599 passed, 0 failed, gom 4 test moi o tren.
 - `cargo clippy --workspace --all-targets`: `Finished`, khong co warning/error.
 - `npm run build`: `built in 230ms`.
 - `npm run test:i18n`: pass 12, fail 0.
@@ -328,12 +352,13 @@ index d5e0921..5c75aa4 100644
 
 ## 5. CHUA DO (can may that, co giao dien)
 
-- Xac nhan nguyen nhan cu the tren may cua chu (quyen Ghi man hinh chua cap hay micro): chay app, bam Ghi o che do mixed, doc `~/Library/Application Support/com.mmola.recorderlivetranslate/session-errors.log` (dong `event=session_start_failed code=...`) va thong bao tren man Ghi.
+- Nguyen nhan "khong co micro" DA do bang probe (muc 1a). Con CHUA DO: chay app that, bam Ghi o che do mixed, xac nhan thong bao `no_mic` tren man Ghi; doc, bam Ghi o che do mixed, doc `~/Library/Application Support/com.mmola.recorderlivetranslate/session-errors.log` (dong `event=session_start_failed code=...`) va thong bao tren man Ghi.
 - Hien thi that cua cac thong bao moi va man Usage Logs tren cua so Tauri: chi kiem bang test va build, chua nhin bang mat.
 - Hanh vi cua micro khi bi tu choi quyen tren macOS: cpal co the khong tra loi (chi cho tin hieu im); ma `permission_mic` chi bat duoc khi he dieu hanh tra loi chua "denied/not authorized". CHUA DO.
 
 ## 6. De xuat ngoai pham vi (khong tu sua)
 
+- Che do mixed nen tu ha xuong chi-he-thong (kem canh bao) khi may khong co micro, thay vi chet ca phien.
 - Them quet khoi dong danh dau phien dang do (khong co `ended_at`) la `interrupted` sau crash, de phan biet ro voi loi luc bat dau (hien khong co).
 - Khong tao hang `sessions` truoc khi mo nguon thanh cong (hien moi lan bam Ghi that bai de lai mot dong bien ban rong).
 - Dung `permissions_status` kiem quyen truoc khi `session_start` va dua nut mo System Settings.
