@@ -1,0 +1,19 @@
+[package]
+name = "rlt-ai"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Hoi AI (US-46, US-47, US-18): trait LlmProvider (Gemini, OpenAI, Ollama qua reqwest + rustls, co stream), chat nhieu luot luu rlt-store, sanitizer noi dung mo hinh. Khoa lay qua rlt-secrets, khong tra ra frontend"
+
+[dependencies]
+rlt-secrets = { path = "../rlt-secrets" }
+rlt-store = { path = "../rlt-store" }
+reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
+tokio = { version = "1", features = ["rt", "macros", "sync", "time"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+async-trait = "0.1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }
