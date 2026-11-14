@@ -1,0 +1,9 @@
+[package]
+name = "rlt-secrets"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Luu khoa API (Soniox, Gemini, OpenAI) trong Keychain macOS; trait SecretStore + ban in-memory; gia tri khoa luon bi che khi Debug"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+keyring = { version = "3", default-features = false, features = ["apple-native"] }
