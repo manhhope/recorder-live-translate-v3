@@ -65,4 +65,4 @@ Lần test đầu, `resample_chunked_matches_one_shot_length` **thất bại** (
 | Chất lượng hạ mẫu (răng cưa) | Chưa đạt chuẩn sản phẩm; so `rubato` ở S13. Test chỉ kiểm độ dài và biên độ tone 440 Hz |
 
 ## Việc ngoài phạm vi (đề xuất)
-- `Cargo.toml` workspace và `Cargo.lock` đang có thay đổi chưa commit của task khác (`rlt-store`, `rusqlite`); tôi **không commit** hai file này. `Cargo.lock` cần được commit sau khi task kia xong để khoá `screencapturekit =11.1.2` cùng `apple-cf`, `apple-metal`, `doom-fish-utils`.
+- `Cargo.lock` (đã chứa `screencapturekit` 11.1.2 và phụ thuộc) được commit c3c5042 của task M1 `rlt-store`, không nằm trong commit S1 của tôi.
