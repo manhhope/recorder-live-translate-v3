@@ -9,8 +9,10 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: resolve(import.meta.dirname, "index.html"),
-        "ask-ai": resolve(import.meta.dirname, "ask-ai.html"),
+        main: resolve(__dirname, "index.html"),
+        "ask-ai": resolve(__dirname, "ask-ai.html"),
+        subtitle: resolve(__dirname, "subtitle.html"),
+        capture: resolve(__dirname, "capture.html"),
       },
     },
   },
