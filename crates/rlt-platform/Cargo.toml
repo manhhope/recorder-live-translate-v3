@@ -16,3 +16,8 @@ objc2 = "0.6"
 objc2-app-kit = "0.3"
 objc2-foundation = "0.3"
 block2 = "0.6"
+
+[[test]]
+name = "panel_real_window"
+path = "tests/panel_real_window.rs"
+harness = false

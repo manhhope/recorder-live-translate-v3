@@ -50,12 +50,26 @@ gọi `w.close()`), hoặc đóng lớp phủ chọn vùng.
 Lưu ý quan trọng: `guard` và panic hook chỉ bắt panic của Rust. Ngoại lệ Objective-C vẫn abort tiến trình, nên
 không có `crash.log` cho lỗi này. Chỉ có bản sửa gốc ở trên mới chặn được nó.
 
+## Bằng chứng chạy thật bằng NSWindow thật (lượt nghiệm thu lần 2)
+
+Test mới `crates/rlt-platform/tests/panel_real_window.rs` (harness=false, chạy trên luồng chính, cần phiên đồ hoạ macOS).
+Nó tạo một lớp con NSWindow có ivar AtomicBool (cùng bố cục với lớp cửa sổ của tao), gọi `apply(Subtitle)`,
+`orderFrontRegardless`, `close`, rồi giải phóng, trong hai tiến trình con:
+
+- `good` (có `restore_class` trước khi giải phóng): thoát mã 0.
+- `bad` (bỏ `restore_class`): `fatal runtime error: Rust cannot catch foreign exceptions, aborting`, mã thoát 6 (SIGABRT).
+
+Cùng một triệu chứng với file `.ips`, nên test vừa tái hiện lỗi gốc vừa chứng minh bản sửa. Test khẳng định `good` thành công
+và `bad` phải abort (nếu `bad` không còn abort thì test fail, tức là test không còn chứng minh gì).
+Giới hạn thật: đây là NSWindow dựng tay, chưa phải cửa sổ do tao/wry tạo, và chưa bấm đóng trên GUI của .app. Đường đóng thật
+của app (`CloseRequested` gọi `restore_panel_class`) vẫn cần anh thử tay một lần.
+
 ## Kết quả kiểm
 
-- `cargo test --workspace`: 601 passed, 0 failed (cộng các dòng `test result`).
-- `cargo clippy --workspace --all-targets`: không cảnh báo mới. Còn 2 cảnh báo cũ ở
-  `crates/rlt-platform/examples/probe_start.rs` (import `AudioSource` thừa, let-binding giá trị unit), không thuộc diff này.
-- `npm run build`: `✓ built in 256ms`.
+- `cargo test --workspace`: 601 passed, 0 failed (cộng các dòng `test result`, đã gồm `panel_real_window: ok`).
+- `cargo clippy --workspace --all-targets`: không còn cảnh báo nào (`Finished`, không dòng `warning`).
+  Hai cảnh báo ở `probe_start.rs` ghi ở bản trước không còn: file đó không có trong cây hiện tại.
+- `npm run build`: `✓ built in 287ms`.
 - `cargo tauri build --bundles app` chạy trong bản sao `/tmp/rlt-build` (không chạm cây git):
   `/private/tmp/rlt-build/target/release/bundle/macos/Recorder Live Translate.app` (22.02 MiB), bản chép sang
   `~/Desktop/RLT-v3-fix/Recorder Live Translate.app`. Ký ad-hoc như các bản trước nên Keychain và quyền TCC sẽ hỏi lại.
@@ -65,8 +79,8 @@ không có `crash.log` cho lỗi này. Chỉ có bản sửa gốc ở trên m�
 - Trước khi sửa: bắt được ngoại lệ thật dưới lldb (ở trên).
 - Sau khi sửa: build chạy được, cửa sổ chính và cửa sổ phụ đề mở được dưới lldb, không có ngoại lệ lúc mở.
   Tôi KHÔNG đóng được cửa sổ phụ đề trên GUI thật (cửa sổ không có nút đóng, bấm tay trên máy không tin cậy), nên
-  chưa có bằng chứng chạy thật rằng đóng xong không còn abort. Test hồi quy chỉ khẳng định `apply` nhớ lớp gốc
-  trước `set_class` và `restore_class` an toàn với con trỏ lạ, chứ không tạo NSWindow thật. Anh cần thử: mở phụ đề rồi
+  chưa có bằng chứng chạy thật rằng đóng xong không còn abort. Test mã nguồn chỉ kiểm `apply` nhớ lớp gốc;
+  test `panel_real_window` ở trên mới tạo NSWindow thật. Anh cần thử: mở phụ đề rồi
   tắt phụ đề, đóng/mở lại cửa sổ chính, bấm Reopen.
 - Dữ liệu cũ (`rlt.db`, `subtitle-positions.json`, `subtitle-settings.json`) trong
   `com.mmola.recorderlivetranslate` được sao lưu ở `/tmp/rlt-data-backup`; các lần thử dùng identifier `...crashtest`
