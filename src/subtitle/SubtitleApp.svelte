@@ -5,26 +5,35 @@
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import { Follow } from "../lib/follow.svelte.ts";
-  import { backgroundCss, colorError, MODES, rowsFor, type DisplayMode, type Line, type SubtitleSettings } from "./model.ts";
+  import { backgroundCss, colorError, mergeSnapshot, MODES, rowsForLines, toolbarVisible, upsertLine, type DisplayMode, type SubtitleSettings } from "./model.ts";
+  import type { LineDto } from "../lib/api.ts";
 
   let s = $state<SubtitleSettings>({
     display_mode: "bilingual", font_size_pt: 18, source_color: "#D0D6DC", translation_color: "#FFFFFF",
     opacity_percent: 0, hidden_from_capture: true,
   });
-  let line = $state<Line | null>(null);
-  let hover = $state(false);
+  let lines = $state<LineDto[]>([]);
+  let hover = $state(false);       // pointerenter/leave cua trang
+  let rustHover = $state(false);   // Rust theo doi con tro (NSPanel khong nhan focus co the khong nhan hover cua trang)
+  let focusIn = $state(false);     // Tab vao mot nut trong thanh
   let menuOpen = $state(false);
   let err = $state("");
   const follow = new Follow();
 
-  const rows = $derived(rowsFor(s.display_mode, line));
+  const rows = $derived(rowsForLines(s.display_mode, lines));
+  const barOn = $derived(toolbarVisible(hover, rustHover, focusIn, menuOpen));
 
   onMount(() => {
     invoke<SubtitleSettings>("subtitle_get").then(v => (s = v));
+    // Nghe truoc, lay ban chup sau: dong den trong luc cho ban chup khong bi mat (mergeSnapshot uu tien dong tu su kien).
     const offs = [
       listen<SubtitleSettings>("subtitle://settings", e => (s = e.payload)),
-      listen<Line>("subtitle://line", e => (line = e.payload)),
+      listen<LineDto>("subtitle://line", e => {
+        lines = upsertLine(lines, e.payload);
+      }),
+      listen<boolean>("subtitle://hover", e => { rustHover = e.payload; if (!e.payload) menuOpen = false; }),
     ];
+    Promise.all(offs).then(() => invoke<LineDto[]>("subtitle_lines")).then(snap => (lines = mergeSnapshot(lines, snap))).catch(() => {});
     return () => offs.forEach(p => p.then(f => f()));
   });
 
@@ -45,8 +54,8 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="sub" style:background={backgroundCss(s.opacity_percent)} onmousedown={startDrag}
-     onmouseenter={() => (hover = true)} onmouseleave={() => { hover = false; menuOpen = false; }} role="presentation">
-  <div class="tools" class:dim={!hover && !menuOpen} data-drag>
+     onpointerenter={() => (hover = true)} onpointerleave={() => { hover = false; if (!rustHover) menuOpen = false; }} role="presentation">
+  <div class="tools" class:show={barOn} data-drag onfocusin={() => (focusIn = true)} onfocusout={e => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) focusIn = false; }}>
     <button class="mini" onclick={() => step(-1)} disabled={s.font_size_pt <= 12} title={$_("sub.font.decrease")} aria-label={$_("sub.font.decrease")}>{$_("sub.font.decrease.short")}</button>
     <span class="pt">{s.font_size_pt}{$_("sub.font.unit")}</span>
     <button class="mini" onclick={() => step(1)} disabled={s.font_size_pt >= 36} title={$_("sub.font.increase")} aria-label={$_("sub.font.increase")}>{$_("sub.font.increase.short")}</button>
@@ -87,8 +96,9 @@
 <style>
   :global(html), :global(body) { margin: 0; background: transparent; overflow: hidden; font-family: -apple-system, system-ui, sans-serif; }
   .sub { box-sizing: border-box; height: 100vh; padding: 0 14px 8px; border-radius: 12px; display: flex; flex-direction: column; user-select: none; }
-  .tools { flex: none; height: 24px; display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; font-size: 11px; color: #d9d9de; transition: opacity 0.15s; position: relative; }
-  .tools.dim { opacity: 0.25; }
+  .tools { flex: none; height: 24px; display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; font-size: 11px; color: #d9d9de; transition: opacity 0.15s ease; position: relative; opacity: 0; }
+  .tools.show { opacity: 1; }
+  @media (prefers-reduced-motion: reduce) { .tools { transition: none; } }
   .tools .pt { min-width: 28px; text-align: center; }
   .tools .grow { flex: 1; min-width: 0; }
   .mini { min-width: 22px; height: 22px; padding: 0 4px; display: inline-grid; place-items: center; font-size: 11px; color: #fff; background: transparent; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 5px; cursor: pointer; }

@@ -12,7 +12,39 @@ export interface SubtitleSettings {
 }
 
 export interface Line { source: string; translation: string }
+/** Dong chu tu luong phien ghi (cung hinh dang voi `LineDto` cua cua so chinh). */
+export interface FeedLine { captionLineId: number; sourceText: string; translatedText: string | null }
+
+/** Khop `MAX_LINES` o Rust (subtitle/feed.rs): chi giu cac dong cuoi. */
+export const MAX_LINES = 300;
+
+/** Dong cung `captionLineId` thi thay tai cho (chu tam -> chu chot); dong moi them cuoi. Khong sua mang vao. */
+export function upsertLine<T extends FeedLine>(lines: T[], line: T): T[] {
+  const i = lines.findIndex(l => l.captionLineId === line.captionLineId);
+  if (i >= 0) { const out = lines.slice(); out[i] = line; return out; }
+  const out = [...lines, line];
+  return out.length > MAX_LINES ? out.slice(out.length - MAX_LINES) : out;
+}
+
+/** Popup mo giua chung: ban chup tu Rust (thu tu cu -> moi) ghep voi cac dong da nhan qua su kien trong luc cho ban chup.
+ *  Cung id thi dong da nhan qua su kien thang (moi hon); dong chi co o su kien dat sau ban chup. */
+export function mergeSnapshot<T extends FeedLine>(current: T[], snapshot: T[]): T[] {
+  const cur = new Map(current.map(l => [l.captionLineId, l]));
+  const snapIds = new Set(snapshot.map(l => l.captionLineId));
+  const out = [...snapshot.map(l => cur.get(l.captionLineId) ?? l), ...current.filter(l => !snapIds.has(l.captionLineId))];
+  return out.length > MAX_LINES ? out.slice(out.length - MAX_LINES) : out;
+}
+
+/** Cac hang hien thi cua nhieu dong, theo che do hien tai. */
+export function rowsForLines(mode: DisplayMode, lines: FeedLine[]): Row[] {
+  return lines.flatMap(l => rowsFor(mode, { source: l.sourceText, translation: l.translatedText ?? "" }));
+}
+
+/** Thanh nut hien khi con tro nam trong popup (trang hoac Rust bao), khi tieu diem ban phim nam trong thanh, hoac menu dang mo. */
+export const toolbarVisible = (pageHover: boolean, rustHover: boolean, focusWithin: boolean, menuOpen: boolean) =>
+  pageHover || rustHover || focusWithin || menuOpen;
 export interface Row { kind: "source" | "translation"; text: string }
+
 
 /** Che do song ngu hien ca hai (goc truoc, dich sau); cac che do kia chi hien mot dong. Dong rong bi bo. */
 export function rowsFor(mode: DisplayMode, line: Line | null): Row[] {
