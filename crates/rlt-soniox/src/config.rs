@@ -3,6 +3,8 @@ use serde_json::{json, Map, Value};
 pub const DEFAULT_URL: &str = "wss://stt-rt.soniox.com/transcribe-websocket";
 pub const MODEL: &str = "stt-rt-v6";
 pub const SAMPLE_RATE: u32 = 16_000;
+/// Soniox gioi han `context` khoang 10.000 ky tu (tai lieu Soniox, muc Context). Vuot thi khong gui.
+pub const MAX_CONTEXT_CHARS: usize = 10_000;
 
 /// Cấu hình luồng (không chứa khoá API).
 #[derive(Clone, Debug)]
@@ -13,6 +15,8 @@ pub struct SonioxConfig {
     /// Ngôn ngữ nghe (không chứa đích); rỗng thì bỏ khoá `language_hints`.
     pub listen_languages: Vec<String>,
     pub max_endpoint_delay_ms: u32,
+    /// Khoa `context` (terms, translation_terms...) gui kem cau hinh dau tien. Chot luc mo phien.
+    pub context: Option<Value>,
 }
 
 impl SonioxConfig {
@@ -23,7 +27,17 @@ impl SonioxConfig {
             target_language: target_language.into(),
             listen_languages: Vec::new(),
             max_endpoint_delay_ms: 700,
+            context: None,
         }
+    }
+
+    /// Gan `context`. Tra `false` (va bo qua) khi JSON vuot `MAX_CONTEXT_CHARS`.
+    pub fn set_context(&mut self, ctx: Value) -> bool {
+        if ctx.to_string().chars().count() > MAX_CONTEXT_CHARS {
+            return false;
+        }
+        self.context = Some(ctx);
+        true
     }
 
     /// Tin nhắn cấu hình đầu tiên. KHÔNG có `api_key`: khoá đi qua header `Authorization`.
@@ -53,6 +67,9 @@ impl SonioxConfig {
             "translation".into(),
             json!({"type": "one_way", "target_language": self.target_language}),
         );
+        if let Some(ctx) = &self.context {
+            m.insert("context".into(), ctx.clone());
+        }
         Value::Object(m).to_string()
     }
 }
@@ -73,6 +90,20 @@ mod tests {
         assert_eq!(v["num_channels"], 1);
         assert_eq!(v["language_hints"], json!(["pt", "en"]));
         assert_eq!(v["translation"]["type"], "one_way");
+    }
+
+    #[test]
+    fn context_is_sent_in_start_message_and_capped() {
+        let mut c = SonioxConfig::new("pt");
+        let ctx = json!({"terms": ["latency"], "translation_terms": [{"source": "latency", "target": "latencia"}]});
+        assert!(c.set_context(ctx.clone()));
+        let v: Value = serde_json::from_str(&c.start_message()).unwrap();
+        assert_eq!(v["context"], ctx);
+        let mut big = SonioxConfig::new("pt");
+        let huge = json!({"terms": vec!["x".repeat(100); 200]});
+        assert!(!big.set_context(huge));
+        let v: Value = serde_json::from_str(&big.start_message()).unwrap();
+        assert!(v.get("context").is_none());
     }
 
     #[test]

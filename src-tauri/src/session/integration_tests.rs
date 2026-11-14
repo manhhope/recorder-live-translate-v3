@@ -175,7 +175,7 @@ async fn full_flow_start_lines_stop_read_search_export() {
     assert!(records::toggle_highlight(&store, &id, line.caption_line_id, Some("ghi chu")).unwrap());
     assert!(records::get_session(&store, &id).unwrap().lines.iter().any(|l| l.highlighted));
     // muc dung da ghi khi dung
-    let week = records::usage_week(&store, &rlt_core::session::iso_now()[..10], Some("soniox")).unwrap();
+    let week = records::usage_week(&store, &rlt_features::usage::local_date_now(), Some("soniox")).unwrap();
     assert!(week.estimated);
     assert!(week.total_audio_ms > 0, "{week:?}");
     // Drive chua noi OAuth: khong gia lap da dong bo
@@ -249,4 +249,237 @@ fn glossary_roundtrip() {
     assert_eq!(records::list_terms(&store).unwrap().len(), 1);
     assert_eq!(records::add_term(&store, &t).unwrap_err(), "duplicate");
     assert!(records::delete_term(&store, id).unwrap());
+}
+
+// ================================================================= Dot sua A: thuat ngu, che do tron, ngay dia phuong
+
+type Captured = Arc<Mutex<Vec<serde_json::Value>>>;
+
+/// Soniox gia ghi lai khung cau hinh (khung TEXT dau tien) cua moi ket noi. `two_segments`: gui hai cau
+/// o hai khoang thoi gian audio khac nhau (0-400 ms va 600-900 ms) de thu gan nguon theo tung dong.
+async fn fake_soniox_capture(two_segments: bool) -> (String, Captured) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    let captured: Captured = Arc::new(Mutex::new(Vec::new()));
+    let cap = captured.clone();
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            let cap = cap.clone();
+            tokio::spawn(async move {
+                #[allow(clippy::result_large_err)]
+                let cb = |_: &Request, r: Response| -> Result<Response, ErrorResponse> { Ok(r) };
+                let Ok(mut ws) = accept_hdr_async(tcp, cb).await else { return };
+                if let Some(Ok(Message::Text(cfg))) = ws.next().await {
+                    cap.lock().unwrap().push(serde_json::from_str(cfg.as_str()).unwrap());
+                }
+                let mut frames = 0;
+                while let Some(Ok(msg)) = ws.next().await {
+                    match msg {
+                        Message::Binary(_) => {
+                            frames += 1;
+                            let m = if frames == 5 {
+                                Some(r#"{"tokens":[
+ {"text":"First sentence.","start_ms":0,"end_ms":400,"is_final":true,"language":"en","translation_status":"original"},
+ {"text":"Primeira frase.","is_final":true,"language":"pt","translation_status":"translation"},
+ {"text":"<end>","is_final":true}]}"#)
+                            } else if two_segments && frames == 10 {
+                                Some(r#"{"tokens":[
+ {"text":"Second sentence.","start_ms":600,"end_ms":900,"is_final":true,"language":"en","translation_status":"original"},
+ {"text":"Segunda frase.","is_final":true,"language":"pt","translation_status":"translation"},
+ {"text":"<end>","is_final":true}]}"#)
+                            } else {
+                                None
+                            };
+                            if let Some(m) = m {
+                                ws.send(Message::Text(m.into())).await.ok();
+                            }
+                        }
+                        Message::Text(t) if t.as_str().is_empty() => {
+                            ws.send(Message::Text(r#"{"tokens":[],"finished":true}"#.into())).await.ok();
+                            ws.close(None).await.ok();
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+            });
+        }
+    });
+    (url, captured)
+}
+
+async fn run_and_stop(svc: &SessionService, p: StartParams, min_lines: usize) -> String {
+    let (sink, events) = collector();
+    let id = svc.start(p, sink).await.unwrap();
+    for _ in 0..200 {
+        let n = events.lock().unwrap().iter().filter(|e| matches!(e, UiEvent::Line { .. })).count();
+        if n >= min_lines {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    svc.stop().unwrap();
+    assert!(wait_for(&events, |e| matches!(e, UiEvent::Stopped { .. })).await, "khong thay Stopped");
+    for _ in 0..40 {
+        if svc.active_session_id().is_none() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    id
+}
+
+fn add_term(svc: &SessionService, src: &str, tgt: &str) {
+    let s = svc.store.lock().unwrap();
+    rlt_features::glossary::add_term(&s, &rlt_features::glossary::NewTerm::translated(src, tgt, "en", "pt-PT")).unwrap();
+}
+
+#[tokio::test]
+async fn glossary_goes_into_soniox_start_config_and_changes_apply_to_next_session_only() {
+    let (url, cfgs) = fake_soniox_capture(false).await;
+    let svc = service(&url, true, true);
+    add_term(&svc, "latency", "latencia");
+
+    // Phien 1: mo ra voi 1 thuat ngu; trong luc chay them thuat ngu thu hai.
+    let (sink, events) = collector();
+    svc.start(params(RecordMode::Mic), sink).await.unwrap();
+    assert!(wait_for(&events, |e| matches!(e, UiEvent::Line { .. })).await);
+    add_term(&svc, "jitter", "instabilidade");
+    svc.stop().unwrap();
+    assert!(wait_for(&events, |e| matches!(e, UiEvent::Stopped { .. })).await);
+    for _ in 0..40 {
+        if svc.active_session_id().is_none() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+
+    // Phien 2: thay thuat ngu moi.
+    run_and_stop(&svc, params(RecordMode::Mic), 1).await;
+
+    let cfgs = cfgs.lock().unwrap();
+    assert_eq!(cfgs.len(), 2, "moi phien mot ket noi, khong noi lai");
+    let ctx1 = &cfgs[0]["context"];
+    assert_eq!(ctx1["terms"], serde_json::json!(["latency"]), "{ctx1}");
+    assert_eq!(ctx1["translation_terms"], serde_json::json!([{"source": "latency", "target": "latencia"}]));
+    assert!(!cfgs[0].to_string().contains("jitter"), "doi thuat ngu giua phien khong duoc doi phien dang chay");
+    let ctx2 = &cfgs[1]["context"];
+    assert_eq!(ctx2["terms"], serde_json::json!(["latency", "jitter"]), "{ctx2}");
+    assert!(cfgs[0].get("api_key").is_none());
+}
+
+#[tokio::test]
+async fn glossary_context_is_size_capped_and_absent_when_empty() {
+    let (url, cfgs) = fake_soniox_capture(false).await;
+    let svc = service(&url, true, true);
+    run_and_stop(&svc, params(RecordMode::Mic), 1).await;
+    assert!(cfgs.lock().unwrap()[0].get("context").is_none(), "khong co thuat ngu thi khong gui khoa context");
+
+    for i in 0..600 {
+        add_term(&svc, &format!("termino-numero-{i:04}-ABCDEFGHIJ"), &format!("termo-{i:04}-KLMNOPQRST"));
+    }
+    run_and_stop(&svc, params(RecordMode::Mic), 1).await;
+    let cfgs = cfgs.lock().unwrap();
+    let ctx = &cfgs[1]["context"];
+    let n = ctx["terms"].as_array().unwrap().len();
+    assert!(n > 0 && n < 600, "phai cat theo gioi han: {n}");
+    assert!(ctx.to_string().chars().count() <= rlt_soniox::config::MAX_CONTEXT_CHARS, "{}", ctx.to_string().len());
+    assert_eq!(ctx["terms"].as_array().unwrap().len(), ctx["translation_terms"].as_array().unwrap().len());
+}
+
+// ---- che do tron: hai nguon gia, mot nguon noi nua dau, nguon kia noi nua sau
+struct PhasedSource {
+    run: Arc<std::sync::atomic::AtomicBool>,
+    loud_first_half: bool,
+}
+impl AudioSource for PhasedSource {
+    fn start(&mut self, sink: AudioSink) -> Result<(), AudioError> {
+        use std::sync::atomic::Ordering;
+        self.run.store(true, Ordering::SeqCst);
+        let (run, first) = (self.run.clone(), self.loud_first_half);
+        std::thread::spawn(move || {
+            let mut i = 0;
+            while run.load(Ordering::SeqCst) {
+                let loud = (i < 5) == first; // khung 0-4 (0-500 ms) vs tu khung 5
+                let v = if loud { 8000 } else { 0 };
+                let _ = sink.send(AudioMessage::Frame(PcmFrame { samples: vec![v; 1600] }));
+                i += 1;
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        });
+        Ok(())
+    }
+    fn stop(&mut self) {
+        self.run.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+struct PhasedProvider;
+impl AudioSourceProvider for PhasedProvider {
+    fn open(&self, kind: AudioSourceKind) -> Result<Box<dyn AudioSource>, AudioError> {
+        // He thong noi truoc, micro noi sau.
+        Ok(Box::new(PhasedSource {
+            run: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            loud_first_half: kind == AudioSourceKind::System,
+        }))
+    }
+}
+
+#[tokio::test]
+async fn mixed_mode_records_mic_or_system_per_line_and_keeps_mixed_mode_column() {
+    let (url, _) = fake_soniox_capture(true).await;
+    let store = Arc::new(Mutex::new(Store::open_in_memory().unwrap()));
+    let svc = SessionService::new(store, Arc::new(InMemorySecretStore::new()), Arc::new(PhasedProvider))
+        .with_soniox_url(url)
+        .with_drain_timeout(Duration::from_secs(2));
+    svc.save_key(FAKE_KEY).unwrap();
+    svc.accept_consent().unwrap();
+
+    let id = run_and_stop(&svc, params(RecordMode::Mixed), 2).await;
+    let store = svc.store.lock().unwrap();
+    let s = store.conn();
+    let mode: String = s.query_row("SELECT audio_source_mode FROM sessions WHERE session_id = ?1", [&id], |r| r.get(0)).unwrap();
+    assert_eq!(mode, "mixed");
+    let rows: Vec<(String, String)> = s
+        .prepare("SELECT source_text, source FROM caption_lines WHERE session_id = ?1 AND line_type = 'speech' ORDER BY seq")
+        .unwrap()
+        .query_map([&id], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(
+        rows,
+        vec![("First sentence.".to_string(), "system".to_string()), ("Second sentence.".to_string(), "mic".to_string())],
+        "hai nguon gia phai cho hai gia tri nguon khac nhau"
+    );
+}
+
+#[tokio::test]
+async fn mic_and_system_modes_keep_their_fixed_source() {
+    let (url, _) = fake_soniox_capture(false).await;
+    let svc = service(&url, true, true);
+    let id = run_and_stop(&svc, params(RecordMode::Mic), 1).await;
+    let store = svc.store.lock().unwrap();
+    let src: String = store
+        .conn()
+        .query_row("SELECT source FROM caption_lines WHERE session_id = ?1 AND line_type = 'speech' LIMIT 1", [&id], |r| r.get(0))
+        .unwrap();
+    assert_eq!(src, "mic");
+}
+
+#[tokio::test]
+async fn usage_row_uses_local_date_not_utc() {
+    let url = fake_soniox(false).await;
+    let svc = service(&url, true, true);
+    let id = run_and_stop(&svc, params(RecordMode::Mic), 1).await;
+    for _ in 0..40 {
+        if records::usage_week(&svc.store.lock().unwrap(), &rlt_features::usage::local_date_now(), Some("soniox")).unwrap().total_audio_ms > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    let store = svc.store.lock().unwrap();
+    let d: String = store.conn().query_row("SELECT local_date FROM usage_logs WHERE session_id = ?1", [&id], |r| r.get(0)).unwrap();
+    assert_eq!(d, rlt_features::usage::local_date_now());
+    let week = records::usage_week(&store, &d, Some("soniox")).unwrap();
+    assert!(week.estimated, "chi phi phai gan nhan uoc tinh");
 }

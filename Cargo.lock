@@ -3655,6 +3655,7 @@ dependencies = [
 name = "rlt-features"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "rlt-store",
  "rusqlite",
  "serde_json",
@@ -3664,9 +3665,11 @@ dependencies = [
 name = "rlt-platform"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "cpal",
  "objc2",
  "objc2-app-kit",
+ "objc2-foundation",
  "rlt-core",
  "screencapturekit",
  "tokio",

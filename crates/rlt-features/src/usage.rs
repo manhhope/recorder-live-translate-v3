@@ -11,6 +11,64 @@ use serde_json::Value;
 /// 1 cent = 10.000 micro-USD.
 pub const MICROS_PER_CENT: i64 = 10_000;
 
+// ---------------------------------------------------------------- Ngay dia phuong
+
+/// `YYYY-MM-DD` cua thoi diem `epoch_secs` (UTC) khi dich sang mui gio lech `utc_offset_secs` so voi UTC.
+/// Ham thuan, de test co dinh mui gio va ranh gioi nua dem.
+pub fn local_date_at(epoch_secs: i64, utc_offset_secs: i64) -> String {
+    let days = (epoch_secs + utc_offset_secs).div_euclid(86_400);
+    // civil_from_days (Howard Hinnant).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    format!("{year:04}-{month:02}-{day:02}")
+}
+
+#[cfg(unix)]
+extern "C" {
+    fn tzset();
+}
+
+/// Do lech UTC (giay) cua mui gio may tai thoi diem `epoch_secs` (tinh ca gio mua he). Khong phai Unix: 0.
+#[cfg(unix)]
+pub fn local_utc_offset_secs(epoch_secs: i64) -> i64 {
+    // SAFETY: `tm` khoi tao bang 0 la hop le cho localtime_r; con tro tro toi bien cuc bo con song.
+    unsafe {
+        tzset();
+        let t = epoch_secs as libc::time_t;
+        let mut tm: libc::tm = std::mem::zeroed();
+        if libc::localtime_r(&t, &mut tm).is_null() {
+            return 0;
+        }
+        tm.tm_gmtoff as i64
+    }
+}
+
+#[cfg(not(unix))]
+pub fn local_utc_offset_secs(_epoch_secs: i64) -> i64 {
+    0
+}
+
+/// Ngay dia phuong (mui gio may) cua mot thoi diem Unix.
+pub fn local_date_of(epoch_secs: i64) -> String {
+    local_date_at(epoch_secs, local_utc_offset_secs(epoch_secs))
+}
+
+/// Ngay dia phuong luc nay.
+pub fn local_date_now() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    local_date_of(secs)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UsageRecord {
     /// ISO 8601 UTC.

@@ -4,10 +4,11 @@
 //! QUY TAC KHOA: khoa Soniox chi doc o `read_key` (trong Rust) de tao `Auth`; khong DTO nao chua khoa.
 
 use rlt_core::{
-    start_session, AudioError, AudioSource, AudioSourceKind, AudioSourceProvider, CoreError, CoreEvent,
-    DeviceEvent, SessionConfig, SessionHandle, SessionState,
+    start_session, ActivityLog, ActivitySource, AudioError, AudioSource, AudioSourceKind, AudioSourceProvider, CoreError, CoreEvent,
+    DeviceEvent, LineSource, SessionConfig, SessionHandle, SessionState,
 };
-use rlt_features::usage::{record_usage, UsageRecord};
+use rlt_features::glossary;
+use rlt_features::usage::{local_date_now, record_usage, UsageRecord};
 use rlt_platform::mix::{LevelFn, MixedSource, TappedSource};
 use rlt_secrets::{SecretKind, SecretStore, SecretValue};
 use rlt_soniox::{Auth, Event as SonioxEvent, SessionSettings, SonioxConfig, SonioxError};
@@ -65,7 +66,7 @@ pub enum UiEvent {
 }
 
 /// Nguon da dung: nguon am thanh, loai ghi vao dong chu, nhan che do tron (neu co).
-type BuiltSource = (Box<dyn AudioSource>, AudioSourceKind, Option<&'static str>);
+type BuiltSource = (Box<dyn AudioSource>, AudioSourceKind, Option<&'static str>, Option<Arc<ActivityLog>>);
 
 pub type UiSink = Arc<dyn Fn(UiEvent) + Send + Sync>;
 
@@ -240,9 +241,13 @@ impl SessionService {
         }
     }
 
-    fn soniox_settings(&self, target: &str, listen: &[String]) -> SessionSettings {
+    /// `context` la anh chup thuat ngu luc mo phien (xem `glossary_context`); `None` cho thu ket noi.
+    fn soniox_settings(&self, target: &str, listen: &[String], context: Option<serde_json::Value>) -> SessionSettings {
         let mut cfg = SonioxConfig::new(target);
         cfg.listen_languages = listen.to_vec();
+        if let Some(c) = context {
+            cfg.set_context(c);
+        }
         if let Some(u) = &self.soniox_url {
             cfg.url = u.clone();
         }
@@ -253,7 +258,7 @@ impl SessionService {
     /// Tra Ok(()) hoac ma loi (`auth`, `quota`, `network`, `timeout`, `key_missing`).
     pub async fn test_connection(&self) -> Result<(), String> {
         let auth = self.read_key()?;
-        let settings = self.soniox_settings("en", &[]);
+        let settings = self.soniox_settings("en", &[], None);
         let (audio_tx, audio_rx) = mpsc::channel::<Vec<u8>>(1);
         let (ev_tx, mut ev_rx) = mpsc::channel(8);
         let task = tokio::spawn(rlt_soniox::run_session(settings, auth, audio_rx, ev_tx));
@@ -314,18 +319,30 @@ impl SessionService {
         self.active.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|a| a.session_id.clone())
     }
 
+    /// Chup glossary LUC MO PHIEN thanh `context` gui Soniox (AC-04.1, gioi han ky tu theo Soniox) va danh dau
+    /// cac muc da gui. Cau hinh da chot vao `SessionSettings` nen doi thuat ngu giua phien chi co hieu luc o phien sau
+    /// (ke ca khi Soniox noi lai giua phien: van gui lai ban chup cu).
+    fn glossary_context(&self, target: &str, listen: &[String]) -> Option<serde_json::Value> {
+        let store = self.store.lock().unwrap_or_else(|e| e.into_inner());
+        let built = glossary::build_soniox_context(&store, target, listen).ok()?;
+        let ctx = built.context?;
+        let _ = glossary::mark_used(&store, &built.sent_ids, &rlt_core::session::iso_now());
+        Some(ctx)
+    }
+
     fn build_source(&self, mode: RecordMode, on_level: LevelFn) -> Result<BuiltSource, AudioError> {
-        let (inner, kind, label): (Box<dyn AudioSource>, _, _) = match mode {
-            RecordMode::Mic => (self.provider.open(AudioSourceKind::Microphone)?, AudioSourceKind::Microphone, None),
-            RecordMode::System => (self.provider.open(AudioSourceKind::System)?, AudioSourceKind::System, None),
+        let (inner, kind, label, activity): (Box<dyn AudioSource>, _, _, _) = match mode {
+            RecordMode::Mic => (self.provider.open(AudioSourceKind::Microphone)?, AudioSourceKind::Microphone, None, None),
+            RecordMode::System => (self.provider.open(AudioSourceKind::System)?, AudioSourceKind::System, None, None),
             RecordMode::Mixed => {
-                let sys = self.provider.open(AudioSourceKind::System)?;
-                let mic = self.provider.open(AudioSourceKind::Microphone)?;
-                // Dong chu cua che do tron ghi la `system` (khong tach duoc nguoi noi sau khi tron).
-                (Box::new(MixedSource::new(sys, mic)), AudioSourceKind::System, Some("mixed"))
+                let log = ActivityLog::new();
+                let sys = ActivitySource::new(self.provider.open(AudioSourceKind::System)?, LineSource::System, log.clone());
+                let mic = ActivitySource::new(self.provider.open(AudioSourceKind::Microphone)?, LineSource::Mic, log.clone());
+                // Tron xong khong con biet ai noi, nen moi dong duoc gan nguon theo nang luong tung nguon (rlt-core::mix).
+                (Box::new(MixedSource::new(Box::new(sys), Box::new(mic))), AudioSourceKind::System, Some("mixed"), Some(log))
             }
         };
-        Ok((Box::new(TappedSource::new(inner, on_level)), kind, label))
+        Ok((Box::new(TappedSource::new(inner, on_level)), kind, label, activity))
     }
 
     pub async fn start(&self, p: StartParams, sink: UiSink) -> Result<String, String> {
@@ -338,13 +355,14 @@ impl SessionService {
         let auth = self.read_key()?;
         let level_sink = sink.clone();
         let on_level: LevelFn = Arc::new(move |l| level_sink(UiEvent::Level { level: l }));
-        let (source, kind, label) = self.build_source(p.mode, on_level).map_err(|e| classify_audio(&e).code().to_string())?;
+        let (source, kind, label, activity) = self.build_source(p.mode, on_level).map_err(|e| classify_audio(&e).code().to_string())?;
         let id = new_uuid();
         let title = p.title.unwrap_or_else(|| format!("Session {}", rlt_core::session::iso_now()[..16].replace('T', " ")));
-        let mut cfg = SessionConfig::new(&id, title, &p.target_lang, self.soniox_settings(&p.target_lang, &p.listen_langs), auth);
+        let mut cfg = SessionConfig::new(&id, title, &p.target_lang, self.soniox_settings(&p.target_lang, &p.listen_langs, self.glossary_context(&p.target_lang, &p.listen_langs)), auth);
         cfg.listen_langs = p.listen_langs.clone();
         cfg.source_kind = kind;
         cfg.audio_mode = label;
+        cfg.activity = activity;
         cfg.drain_timeout = self.drain_timeout;
         let (tx, rx) = mpsc::channel(64);
         let handle = match start_session(cfg, source, self.store.clone(), tx).await {
@@ -446,7 +464,8 @@ async fn pump(
     if audio_ms > 0 {
         let now = rlt_core::session::iso_now();
         let rec = UsageRecord {
-            local_date: now[..10].to_string(),
+            // Ngay theo mui gio may (khong phai UTC); `occurred_at` van la UTC.
+            local_date: local_date_now(),
             occurred_at: now,
             provider: "soniox".into(),
             usage_kind: "session".into(),

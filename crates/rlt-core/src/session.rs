@@ -14,6 +14,7 @@ use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 use tokio::time::{timeout_at, Instant};
 
+use crate::mix::ActivityLog;
 use crate::audio::{AudioError, AudioMessage, AudioSource, AudioSourceKind, DeviceEvent};
 use crate::state::{InvalidTransition, SessionState, Transition};
 
@@ -108,6 +109,8 @@ pub struct SessionConfig {
     pub audio_mode: Option<&'static str>,
     pub soniox: SessionSettings,
     pub auth: Auth,
+    /// Chế độ trộn: nhật ký hoạt động của hai nguồn để gán `mic`/`system` cho từng dòng.
+    pub activity: Option<Arc<ActivityLog>>,
     /// Hạn chờ Soniox `finished` sau khi bấm Dừng.
     pub drain_timeout: Duration,
 }
@@ -129,6 +132,7 @@ impl SessionConfig {
             audio_mode: None,
             soniox,
             auth,
+            activity: None,
             drain_timeout: Duration::from_secs(3),
         }
     }
@@ -368,11 +372,13 @@ impl Actor {
             tokio::select! {
                 cmd = self.cmd_rx.recv() => match cmd {
                     Some(Command::Pause) if self.state == SessionState::Recording => {
+                        self.set_activity_paused(true);
                         self.pause_started = Some((Instant::now(), self.audio_ms));
                         self.set_state(Transition::Pause).await;
                     }
                     Some(Command::Resume) if self.state == SessionState::Paused => {
                         self.close_pause();
+                        self.set_activity_paused(false);
                         self.set_state(Transition::Resume).await;
                     }
                     Some(Command::Stop) => {
@@ -405,6 +411,26 @@ impl Actor {
                 },
             }
         }
+    }
+
+    fn set_activity_paused(&self, paused: bool) {
+        if let Some(a) = &self.cfg.activity {
+            a.set_paused(paused);
+        }
+    }
+
+    /// Nguồn của dòng: ở chế độ trộn là nguồn nói nhiều nhất trong khoảng của đoạn, không có dữ liệu
+    /// thì dùng nguồn mặc định của phiên.
+    fn source_for(&self, offset_ms: Option<i64>, seg: &CompletedSegment) -> &'static str {
+        let default = line_source(self.cfg.source_kind);
+        let (Some(log), Some(start)) = (&self.cfg.activity, offset_ms) else {
+            return default;
+        };
+        let dur = match (seg.stream_start_ms, seg.stream_end_ms) {
+            (Some(s), Some(e)) if e > s => e - s,
+            _ => 1,
+        };
+        log.dominant(start, start + dur).map(|s| s.as_str()).unwrap_or(default)
     }
 
     fn close_pause(&mut self) {
@@ -471,10 +497,11 @@ impl Actor {
         let lang = seg.source_lang.clone().unwrap_or_else(|| "und".into());
         let translated = Some(seg.translated_text.trim().to_string()).filter(|t| !t.is_empty());
         let seq = self.seq + 1;
+        let source = self.source_for(offset_ms, &seg);
         let mut row = NewCaptionLine::speech(
             &self.cfg.session_id,
             seq,
-            line_source(self.cfg.source_kind),
+            source,
             start,
             &lang,
             &text,

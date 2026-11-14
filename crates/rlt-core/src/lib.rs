@@ -2,10 +2,12 @@
 //! Mọi thứ phụ thuộc OS nằm sau trait [`AudioSource`] và được cài trong `rlt-platform`.
 //!
 //! - [`audio`]: trait nguồn âm thanh và cổng nguồn hệ thống (chỉ trừu tượng).
+//! - [`mix`]: gán nguồn mic/system cho từng dòng ở chế độ trộn.
 //! - [`state`]: máy trạng thái Idle / Recording / Paused / Stopping.
 //! - [`session`]: điều phối `rlt-soniox` + `rlt-segment` + `rlt-store`, phát [`CoreEvent`] ra kênh.
 
 pub mod audio;
+pub mod mix;
 pub mod session;
 pub mod state;
 
@@ -16,6 +18,7 @@ pub use audio::{
 pub use session::{
     start_session, CoreError, CoreEvent, PauseLedger, SessionConfig, SessionHandle, StoredLine,
 };
+pub use mix::{ActivityLog, ActivitySource, LineSource};
 pub use state::{InvalidTransition, SessionState, Transition};
 
 /// Phiên bản lõi, dùng cho kiểm tra khung.
