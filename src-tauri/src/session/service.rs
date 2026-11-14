@@ -144,6 +144,85 @@ pub fn classify_soniox(e: &SonioxError) -> ErrKind {
     }
 }
 
+/// Ma loi cu the khi KHONG MO DUOC nguon am luc bat dau phien (tra ve giao dien, khong ve Idle lang le).
+/// `system.rs` gan tien to `permission:` cho loi quyen Ghi man hinh; micro thi nhan dang qua noi dung loi.
+pub fn audio_start_code(e: &AudioError) -> &'static str {
+    match e {
+        AudioError::Unsupported(_) => "audio_unsupported",
+        AudioError::Device(m) => {
+            let l = m.to_lowercase();
+            if l.starts_with("permission") || l.contains("screen") && l.contains("permission") {
+                "permission_screen"
+            } else if l.contains("khong co micro") {
+                "no_mic"
+            } else if l.contains("denied") || l.contains("not authori") || l.contains("permission") {
+                "permission_mic"
+            } else {
+                "audio_device"
+            }
+        }
+    }
+}
+
+/// Che moi chuoi dai giong khoa (>= 20 ky tu chu/so/-/_) va cat ngan: log khong bao gio chua khoa hay bi mat.
+pub fn scrub_log(s: &str) -> String {
+    let mut out = String::new();
+    let mut tok = String::new();
+    let flush = |tok: &mut String, out: &mut String| {
+        if tok.chars().count() >= 20 {
+            out.push_str("[che]");
+        } else {
+            out.push_str(tok);
+        }
+        tok.clear();
+    };
+    for c in s.chars() {
+        if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+            tok.push(c);
+        } else {
+            flush(&mut tok, &mut out);
+            out.push(if c.is_control() { ' ' } else { c });
+        }
+    }
+    flush(&mut tok, &mut out);
+    out.chars().take(200).collect()
+}
+
+fn log_dir() -> Option<std::path::PathBuf> {
+    let home = std::path::PathBuf::from(std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?);
+    const ID: &str = "com.mmola.recorderlivetranslate";
+    if cfg!(target_os = "macos") {
+        Some(home.join("Library/Application Support").join(ID))
+    } else if cfg!(windows) {
+        std::env::var_os("APPDATA").map(|a| std::path::PathBuf::from(a).join(ID))
+    } else {
+        Some(home.join(".local/share").join(ID))
+    }
+}
+
+/// Mot dong log co cau truc `ts=.. event=.. k=v ...` ra stderr va `session-errors.log` (cat khi > 256 KB).
+/// Chi nhan ma loi va chuoi da `scrub_log`; khong bao gio nhan khoa Soniox.
+pub fn log_event(event: &str, fields: &[(&str, String)]) {
+    let ts = rlt_core::session::iso_now();
+    let mut line = format!("ts={ts} event={event}");
+    for (k, v) in fields {
+        line.push_str(&format!(" {k}=\"{}\"", scrub_log(v).replace('"', "'")));
+    }
+    eprintln!("{line}");
+    if cfg!(test) {
+        return; // test khong ghi vao thu muc du lieu that cua nguoi dung
+    }
+    let Some(dir) = log_dir() else { return };
+    let path = dir.join("session-errors.log");
+    if std::fs::metadata(&path).map(|m| m.len() > 256 * 1024).unwrap_or(false) {
+        let _ = std::fs::rename(&path, dir.join("session-errors.log.1"));
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        use std::io::Write;
+        let _ = writeln!(f, "{line}");
+    }
+}
+
 fn classify_audio(e: &AudioError) -> ErrKind {
     match e {
         AudioError::Device(m) if m.contains("permission") => ErrKind::Permission,
@@ -355,7 +434,11 @@ impl SessionService {
         let auth = self.read_key()?;
         let level_sink = sink.clone();
         let on_level: LevelFn = Arc::new(move |l| level_sink(UiEvent::Level { level: l }));
-        let (source, kind, label, activity) = self.build_source(p.mode, on_level).map_err(|e| classify_audio(&e).code().to_string())?;
+        let (source, kind, label, activity) = self.build_source(p.mode, on_level).map_err(|e| {
+            let code = audio_start_code(&e);
+            log_event("session_start_failed", &[("stage", "open_source".into()), ("mode", format!("{:?}", p.mode)), ("code", code.into()), ("detail", e.to_string())]);
+            code.to_string()
+        })?;
         let id = new_uuid();
         let title = p.title.unwrap_or_else(|| format!("Session {}", rlt_core::session::iso_now()[..16].replace('T', " ")));
         let mut cfg = SessionConfig::new(&id, title, &p.target_lang, self.soniox_settings(&p.target_lang, &p.listen_langs, self.glossary_context(&p.target_lang, &p.listen_langs)), auth);
@@ -367,7 +450,15 @@ impl SessionService {
         let (tx, rx) = mpsc::channel(64);
         let handle = match start_session(cfg, source, self.store.clone(), tx).await {
             Ok(h) => h,
-            Err(e) => return Err(classify_core(&e).code().to_string()),
+            Err(e) => {
+                // Nguon am mo loi sau khi dong phien da tao: phien nay ghi `interrupted`, duration 0 (khong phai do crash).
+                let code = match &e {
+                    CoreError::Audio(a) => audio_start_code(a),
+                    other => classify_core(other).code(),
+                };
+                log_event("session_start_failed", &[("stage", "start_session".into()), ("session", id.clone()), ("mode", format!("{:?}", p.mode)), ("code", code.into()), ("detail", e.to_string())]);
+                return Err(code.to_string());
+            }
         };
         *self.active.lock().unwrap_or_else(|e| e.into_inner()) = Some(Active { handle, session_id: id.clone() });
         tokio::spawn(pump(rx, sink, id.clone(), self.store.clone(), self.active.clone()));
@@ -442,6 +533,7 @@ async fn pump(
             }
             CoreEvent::Device(DeviceEvent::DeviceChanged) => {}
             CoreEvent::Failed(e) => {
+                log_event("session_failed", &[("session", session_id.clone()), ("code", classify_core(&e).code().into()), ("detail", e.to_string())]);
                 errs.raise(classify_core(&e));
                 update(&sink, &mut shown, errs.current());
                 finished = true;
@@ -449,7 +541,7 @@ async fn pump(
                 *active.lock().unwrap_or_else(|e| e.into_inner()) = None;
                 sink(UiEvent::State { state: "idle" });
             }
-            CoreEvent::StoreError(_) => {}
+            CoreEvent::StoreError(m) => log_event("store_error", &[("session", session_id.clone()), ("detail", m)]),
             CoreEvent::Stopped { lines, duration_ms, drained } => {
                 audio_ms = duration_ms;
                 finished = true;
@@ -478,7 +570,10 @@ async fn pump(
             price_table_date: None,
         };
         let s = store.lock().unwrap_or_else(|e| e.into_inner());
-        let _ = record_usage(&s, &rec);
+        match record_usage(&s, &rec) {
+            Ok(_) => log_event("usage_recorded", &[("session", rec.session_id.clone().unwrap_or_default()), ("audio_ms", audio_ms.to_string()), ("local_date", rec.local_date.clone())]),
+            Err(e) => log_event("usage_record_failed", &[("session", rec.session_id.clone().unwrap_or_default()), ("audio_ms", audio_ms.to_string()), ("detail", e.to_string())]),
+        }
     }
 }
 
@@ -511,6 +606,20 @@ mod tests {
         assert_eq!(classify_soniox(&SonioxError::QuotaExhausted { error_type: "x".into() }), ErrKind::Quota);
         assert_eq!(classify_soniox(&SonioxError::Timeout), ErrKind::Timeout);
         assert_eq!(classify_soniox(&SonioxError::Network("x".into())), ErrKind::Network);
+    }
+
+    #[test]
+    fn audio_start_codes_are_specific() {
+        assert_eq!(audio_start_code(&AudioError::Device("permission: x".into())), "permission_screen");
+        assert_eq!(audio_start_code(&AudioError::Device("khong co micro mac dinh".into())), "no_mic");
+        assert_eq!(audio_start_code(&AudioError::Unsupported("x".into())), "audio_unsupported");
+    }
+
+    #[test]
+    fn scrub_log_masks_key_like_tokens() {
+        let r = scrub_log("auth failed key=abcd1234abcd1234abcd1234abcd1234 status 401");
+        assert!(!r.contains("abcd1234abcd"), "{r}");
+        assert!(r.contains("[che]") && r.contains("status 401"));
     }
 
     #[test]

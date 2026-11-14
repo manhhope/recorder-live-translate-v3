@@ -20,6 +20,8 @@
 
   const errKey = (c: string) => api.errKeyOf(c, k => $_(k) !== k);
   const max = $derived(Math.max(1, ...(data?.days.map(d => d.audioMs) ?? [0])));
+  const emptyWhyKey = $derived((data?.failedStartCount ?? 0) > 0 ? "set.usage.none.failed" : "set.usage.none.noaudio");
+  const emptyWhy = $derived($_(emptyWhyKey, { values: { n: data?.sessionsCount ?? 0, f: data?.failedStartCount ?? 0 } }));
   const empty = $derived(!data || data.totalAudioMs === 0);
   const audioLabel = $derived.by(() => {
     const mins = Math.round((data?.totalAudioMs ?? 0) / 60000);
@@ -117,7 +119,11 @@
     </div>
     <div class="hint">{$_("set.usage.note")}</div>
   {:else}
-    <div class="empty" style="padding:30px"><Icon name="list" /><b>{$_("set.usage.none")}</b><span>{$_("set.usage.none.hint")}</span></div>
+    <div class="empty" style="padding:30px"><Icon name="list" /><b>{$_("set.usage.none")}</b><span>{$_("set.usage.none.hint")}</span>
+      {#if data && data.sessionsCount > 0}
+        <span role="status">{emptyWhy}</span>
+      {/if}
+    </div>
   {/if}
   <div class="tl2" style="margin-top:10px">
     {#if confirmClear}

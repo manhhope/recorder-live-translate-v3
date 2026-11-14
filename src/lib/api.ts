@@ -36,7 +36,7 @@ export interface NoteRow { sessionId: string; captionLineId: number | null; note
 export interface TermRow { id: number; termSource: string; termTarget: string | null; keepOriginal: boolean; sourceLang: string; targetLang: string }
 export interface SearchOut { lines: HitRow[]; notes: NoteRow[]; terms: TermRow[] }
 export interface DayRow { localDate: string; audioMs: number; estCostUsdMicros: number; calls: number }
-export interface WeekOut { days: DayRow[]; totalAudioMs: number; totalEstCostUsdMicros: number; estimated: boolean }
+export interface WeekOut { days: DayRow[]; totalAudioMs: number; totalEstCostUsdMicros: number; estimated: boolean; sessionsCount: number; failedStartCount: number }
 export interface DriveOut { status: string; attempts: number; oauthConnected: boolean }
 export interface ImportOut { totalRows: number; tables: [string, number][] }
 

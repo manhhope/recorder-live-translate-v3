@@ -300,11 +300,27 @@ pub struct WeekOut {
     pub total_est_cost_usd_micros: i64,
     /// Con so luon la UOC TINH (AC-32.3).
     pub estimated: bool,
+    /// So phien bat dau trong tuan (theo ngay may), de man Usage Logs giai thich khi usage trong.
+    pub sessions_count: i64,
+    /// Trong do: phien chet luc bat dau (`interrupted`, duration 0) nen khong co audio de tinh.
+    pub failed_start_count: i64,
 }
 
 pub fn usage_week(store: &Store, any_date: &str, provider: Option<&str>) -> Res<WeekOut> {
     let (days, total) = usage::week_chart(store, any_date, provider).map_err(err)?;
+    let (first, last) = (days.first().map(|d| d.0.clone()).unwrap_or_default(), days.last().map(|d| d.0.clone()).unwrap_or_default());
+    let (sessions_count, failed_start_count): (i64, i64) = store
+        .conn()
+        .query_row(
+            "SELECT COUNT(*), COALESCE(SUM(status = 'interrupted' AND COALESCE(duration_ms, 0) = 0), 0) FROM sessions \
+             WHERE date(started_at, 'localtime') BETWEEN ?1 AND ?2",
+            [&first, &last],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .map_err(|e| e.to_string())?;
     Ok(WeekOut {
+        sessions_count,
+        failed_start_count,
         days: days
             .into_iter()
             .map(|(d, t)| DayRow { local_date: d, audio_ms: t.audio_ms, est_cost_usd_micros: t.est_cost_usd_micros, calls: t.call_count })

@@ -8,7 +8,7 @@ const en: Record<string, string> = JSON.parse(fs.readFileSync(path.join(import.m
 const known = (k: string) => k in en;
 
 test("ma loi cua Rust deu co khoa i18n, ma la thi roi ve err.generic", () => {
-  for (const c of ["key_missing", "consent_required", "already_recording", "auth", "quota", "network", "timeout", "permission", "store_error", "session_active", "import_failed"]) {
+  for (const c of ["key_missing", "consent_required", "already_recording", "auth", "quota", "network", "timeout", "permission", "permission_screen", "permission_mic", "no_mic", "audio_unsupported", "audio_device", "store_error", "session_active", "import_failed"]) {
     assert.notEqual(errKeyOf(c, known), "err.generic", c);
   }
   assert.equal(errKeyOf("khong_biet", known), "err.generic");

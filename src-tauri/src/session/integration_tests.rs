@@ -485,3 +485,81 @@ async fn usage_row_uses_local_date_not_utc() {
     let week = records::usage_week(&store, &d, Some("soniox")).unwrap();
     assert!(week.estimated, "chi phi phai gan nhan uoc tinh");
 }
+
+// ---- Hoi quy: phien chet luc bat dau (nguon am loi ngay) va usage khi co audio that.
+
+struct FailingProvider(AudioError);
+struct FailingSource(AudioError);
+impl AudioSource for FailingSource {
+    fn start(&mut self, _: AudioSink) -> Result<(), AudioError> {
+        Err(self.0.clone())
+    }
+    fn stop(&mut self) {}
+}
+impl AudioSourceProvider for FailingProvider {
+    fn open(&self, _: AudioSourceKind) -> Result<Box<dyn AudioSource>, AudioError> {
+        Ok(Box::new(FailingSource(self.0.clone())))
+    }
+}
+
+fn failing_service(e: AudioError) -> SessionService {
+    let store = Arc::new(Mutex::new(Store::open_in_memory().unwrap()));
+    let svc = SessionService::new(store, Arc::new(InMemorySecretStore::new()), Arc::new(FailingProvider(e)))
+        .with_soniox_url("ws://127.0.0.1:9")
+        .with_drain_timeout(Duration::from_secs(1));
+    svc.save_key(FAKE_KEY).unwrap();
+    svc.accept_consent().unwrap();
+    svc
+}
+
+#[tokio::test]
+async fn source_failing_at_start_returns_specific_code_and_marks_interrupted_zero_duration() {
+    let cases = [
+        (AudioError::Device("permission: user declined".into()), "permission_screen"),
+        (AudioError::Device("khong co micro mac dinh".into()), "no_mic"),
+        (AudioError::Device("microphone access denied".into()), "permission_mic"),
+        (AudioError::Device("stream config not supported".into()), "audio_device"),
+        (AudioError::Unsupported("system".into()), "audio_unsupported"),
+    ];
+    for (err, want) in cases {
+        let svc = failing_service(err);
+        let (sink, ev) = collector();
+        let got = svc.start(params(RecordMode::Mixed), sink).await.unwrap_err();
+        assert_eq!(got, want);
+        assert!(ev.lock().unwrap().is_empty(), "khong co su kien nao: loi tra thang cho giao dien");
+        let store = svc.store.lock().unwrap();
+        let (status, dur): (String, i64) = store
+            .conn()
+            .query_row("SELECT status, COALESCE(duration_ms,0) FROM sessions", [], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap();
+        assert_eq!((status.as_str(), dur), ("interrupted", 0), "{want}: phien loi luc bat dau");
+        let week = records::usage_week(&store, &rlt_features::usage::local_date_now(), Some("soniox")).unwrap();
+        assert_eq!(week.total_audio_ms, 0);
+        assert_eq!((week.sessions_count, week.failed_start_count), (1, 1), "man Usage Logs phai giai thich duoc usage trong");
+        assert!(svc.active_session_id().is_none(), "phien loi khong duoc de lai trang thai dang ghi");
+    }
+}
+
+#[tokio::test]
+async fn session_with_real_audio_writes_usage_row_visible_in_current_week() {
+    let url = fake_soniox(false).await;
+    let svc = service(&url, true, true);
+    let id = run_and_stop(&svc, params(RecordMode::Mic), 1).await;
+    for _ in 0..80 {
+        if records::usage_week(&svc.store.lock().unwrap(), &rlt_features::usage::local_date_now(), Some("soniox")).unwrap().total_audio_ms > 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    let store = svc.store.lock().unwrap();
+    let (audio_ms, date, kind): (i64, String, String) = store
+        .conn()
+        .query_row("SELECT audio_ms, local_date, usage_kind FROM usage_logs WHERE session_id = ?1", [&id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .expect("phien co audio_ms > 0 phai sinh dong usage");
+    assert!(audio_ms > 0);
+    assert_eq!((date.as_str(), kind.as_str()), (rlt_features::usage::local_date_now().as_str(), "session"));
+    let week = records::usage_week(&store, &rlt_features::usage::local_date_now(), Some("soniox")).unwrap();
+    assert!(week.total_audio_ms >= audio_ms);
+    assert_eq!(week.failed_start_count, 0);
+    assert!(week.sessions_count >= 1);
+}
