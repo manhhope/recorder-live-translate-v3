@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-soniox-test-connection"
+description = "Enables the soniox_test_connection command without any pre-configured scope."
+commands.allow = ["soniox_test_connection"]
+
+[[permission]]
+identifier = "deny-soniox-test-connection"
+description = "Denies the soniox_test_connection command without any pre-configured scope."
+commands.deny = ["soniox_test_connection"]

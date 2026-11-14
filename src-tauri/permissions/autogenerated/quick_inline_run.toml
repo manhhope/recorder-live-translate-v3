@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-quick-inline-run"
+description = "Enables the quick_inline_run command without any pre-configured scope."
+commands.allow = ["quick_inline_run"]
+
+[[permission]]
+identifier = "deny-quick-inline-run"
+description = "Denies the quick_inline_run command without any pre-configured scope."
+commands.deny = ["quick_inline_run"]

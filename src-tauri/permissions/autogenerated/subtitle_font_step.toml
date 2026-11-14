@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-subtitle-font-step"
+description = "Enables the subtitle_font_step command without any pre-configured scope."
+commands.allow = ["subtitle_font_step"]
+
+[[permission]]
+identifier = "deny-subtitle-font-step"
+description = "Denies the subtitle_font_step command without any pre-configured scope."
+commands.deny = ["subtitle_font_step"]

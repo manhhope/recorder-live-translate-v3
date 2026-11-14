@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-subtitle-close"
+description = "Enables the subtitle_close command without any pre-configured scope."
+commands.allow = ["subtitle_close"]
+
+[[permission]]
+identifier = "deny-subtitle-close"
+description = "Denies the subtitle_close command without any pre-configured scope."
+commands.deny = ["subtitle_close"]

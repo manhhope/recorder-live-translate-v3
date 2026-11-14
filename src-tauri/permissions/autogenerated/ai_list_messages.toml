@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ai-list-messages"
+description = "Enables the ai_list_messages command without any pre-configured scope."
+commands.allow = ["ai_list_messages"]
+
+[[permission]]
+identifier = "deny-ai-list-messages"
+description = "Denies the ai_list_messages command without any pre-configured scope."
+commands.deny = ["ai_list_messages"]

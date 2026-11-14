@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-capture-begin"
+description = "Enables the capture_begin command without any pre-configured scope."
+commands.allow = ["capture_begin"]
+
+[[permission]]
+identifier = "deny-capture-begin"
+description = "Denies the capture_begin command without any pre-configured scope."
+commands.deny = ["capture_begin"]

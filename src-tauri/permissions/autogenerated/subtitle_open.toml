@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-subtitle-open"
+description = "Enables the subtitle_open command without any pre-configured scope."
+commands.allow = ["subtitle_open"]
+
+[[permission]]
+identifier = "deny-subtitle-open"
+description = "Denies the subtitle_open command without any pre-configured scope."
+commands.deny = ["subtitle_open"]

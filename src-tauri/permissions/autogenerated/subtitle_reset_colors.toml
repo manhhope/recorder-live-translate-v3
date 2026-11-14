@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-subtitle-reset-colors"
+description = "Enables the subtitle_reset_colors command without any pre-configured scope."
+commands.allow = ["subtitle_reset_colors"]
+
+[[permission]]
+identifier = "deny-subtitle-reset-colors"
+description = "Denies the subtitle_reset_colors command without any pre-configured scope."
+commands.deny = ["subtitle_reset_colors"]

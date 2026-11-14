@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-deepl-test-connection"
+description = "Enables the deepl_test_connection command without any pre-configured scope."
+commands.allow = ["deepl_test_connection"]
+
+[[permission]]
+identifier = "deny-deepl-test-connection"
+description = "Denies the deepl_test_connection command without any pre-configured scope."
+commands.deny = ["deepl_test_connection"]

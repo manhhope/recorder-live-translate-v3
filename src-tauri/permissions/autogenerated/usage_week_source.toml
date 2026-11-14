@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-usage-week-source"
+description = "Enables the usage_week_source command without any pre-configured scope."
+commands.allow = ["usage_week_source"]
+
+[[permission]]
+identifier = "deny-usage-week-source"
+description = "Denies the usage_week_source command without any pre-configured scope."
+commands.deny = ["usage_week_source"]

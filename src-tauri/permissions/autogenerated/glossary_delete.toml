@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-glossary-delete"
+description = "Enables the glossary_delete command without any pre-configured scope."
+commands.allow = ["glossary_delete"]
+
+[[permission]]
+identifier = "deny-glossary-delete"
+description = "Denies the glossary_delete command without any pre-configured scope."
+commands.deny = ["glossary_delete"]

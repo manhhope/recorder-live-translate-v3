@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-usage-export-week-csv"
+description = "Enables the usage_export_week_csv command without any pre-configured scope."
+commands.allow = ["usage_export_week_csv"]
+
+[[permission]]
+identifier = "deny-usage-export-week-csv"
+description = "Denies the usage_export_week_csv command without any pre-configured scope."
+commands.deny = ["usage_export_week_csv"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-quick-translate"
+description = "Enables the quick_translate command without any pre-configured scope."
+commands.allow = ["quick_translate"]
+
+[[permission]]
+identifier = "deny-quick-translate"
+description = "Denies the quick_translate command without any pre-configured scope."
+commands.deny = ["quick_translate"]

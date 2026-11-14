@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ai-retry"
+description = "Enables the ai_retry command without any pre-configured scope."
+commands.allow = ["ai_retry"]
+
+[[permission]]
+identifier = "deny-ai-retry"
+description = "Denies the ai_retry command without any pre-configured scope."
+commands.deny = ["ai_retry"]

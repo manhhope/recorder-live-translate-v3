@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-deepl-has-key"
+description = "Enables the deepl_has_key command without any pre-configured scope."
+commands.allow = ["deepl_has_key"]
+
+[[permission]]
+identifier = "deny-deepl-has-key"
+description = "Denies the deepl_has_key command without any pre-configured scope."
+commands.deny = ["deepl_has_key"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-subtitle-lines"
+description = "Enables the subtitle_lines command without any pre-configured scope."
+commands.allow = ["subtitle_lines"]
+
+[[permission]]
+identifier = "deny-subtitle-lines"
+description = "Denies the subtitle_lines command without any pre-configured scope."
+commands.deny = ["subtitle_lines"]

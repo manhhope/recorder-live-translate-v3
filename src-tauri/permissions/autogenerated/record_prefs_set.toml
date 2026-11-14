@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-record-prefs-set"
+description = "Enables the record_prefs_set command without any pre-configured scope."
+commands.allow = ["record_prefs_set"]
+
+[[permission]]
+identifier = "deny-record-prefs-set"
+description = "Denies the record_prefs_set command without any pre-configured scope."
+commands.deny = ["record_prefs_set"]

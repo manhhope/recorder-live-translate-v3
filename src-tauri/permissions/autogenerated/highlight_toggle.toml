@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-highlight-toggle"
+description = "Enables the highlight_toggle command without any pre-configured scope."
+commands.allow = ["highlight_toggle"]
+
+[[permission]]
+identifier = "deny-highlight-toggle"
+description = "Denies the highlight_toggle command without any pre-configured scope."
+commands.deny = ["highlight_toggle"]

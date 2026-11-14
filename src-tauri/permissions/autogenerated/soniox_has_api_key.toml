@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-soniox-has-api-key"
+description = "Enables the soniox_has_api_key command without any pre-configured scope."
+commands.allow = ["soniox_has_api_key"]
+
+[[permission]]
+identifier = "deny-soniox-has-api-key"
+description = "Denies the soniox_has_api_key command without any pre-configured scope."
+commands.deny = ["soniox_has_api_key"]

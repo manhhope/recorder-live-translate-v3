@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-shortcut-rebind"
+description = "Enables the shortcut_rebind command without any pre-configured scope."
+commands.allow = ["shortcut_rebind"]
+
+[[permission]]
+identifier = "deny-shortcut-rebind"
+description = "Denies the shortcut_rebind command without any pre-configured scope."
+commands.deny = ["shortcut_rebind"]

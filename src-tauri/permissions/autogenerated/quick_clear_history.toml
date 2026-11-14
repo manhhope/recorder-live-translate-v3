@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-quick-clear-history"
+description = "Enables the quick_clear_history command without any pre-configured scope."
+commands.allow = ["quick_clear_history"]
+
+[[permission]]
+identifier = "deny-quick-clear-history"
+description = "Denies the quick_clear_history command without any pre-configured scope."
+commands.deny = ["quick_clear_history"]
