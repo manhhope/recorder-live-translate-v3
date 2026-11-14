@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 1420 --strictPort",
-    "build": "vite build"
+    "build": "vite build",
+    "test:i18n": "node --test src/i18n/i18n.test.ts",
+    "scan:i18n": "node scripts/scan-hardcoded.mjs src"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
@@ -13,5 +15,8 @@
     "svelte": "^5.57.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.8"
+  },
+  "dependencies": {
+    "svelte-i18n": "^4.0.1"
   }
 }
