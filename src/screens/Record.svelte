@@ -4,6 +4,7 @@
   import Icon from "../lib/Icon.svelte";
   import LangSelect from "../lib/LangSelect.svelte";
   import SourceButton from "../lib/SourceButton.svelte";
+  import TermContext from "../lib/TermContext.svelte";
   import { app, fmtClock, type Level } from "../lib/app.svelte.ts";
   import { AUTO } from "../lib/langs.ts";
   import * as api from "../lib/api.ts";
@@ -21,6 +22,7 @@
   let keyInput = $state("");
   let busy = $state(false);
   let loaded = $state(false);
+  let sessionId = $state<string | null>(null);
   let lastStop = $state<{ lines: number; drained: boolean } | null>(null);
   let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -42,6 +44,7 @@
   function setState(s: SessionStateName) {
     state = s;
     app.recording = s !== "idle";
+    void api.shellSetRecording(s === "recording").catch(() => {});
     clearInterval(timer);
     if (s === "recording") timer = setInterval(() => app.seconds++, 1000);
   }
@@ -50,6 +53,7 @@
     if (e.kind === "state") {
       if (e.state === "recording" && state === "idle") { app.seconds = 0; level = 0; }
       setState(e.state);
+      void api.sessionState().then(st => (sessionId = st[1])).catch(() => {});
     } else if (e.kind === "line") {
       const i = lines.findIndex(l => l.captionLineId === e.line.captionLineId);
       if (i >= 0) lines[i] = e.line; else lines.push(e.line);
@@ -67,6 +71,7 @@
         app.sysOn = p.mode !== "mic";
         app.micOn = p.mode !== "system";
         hasKey = k; consent = c;
+        sessionId = st[1];
         if (st[0] !== "idle") setState(st[0] as SessionStateName);
       } catch (e) { errCode = api.errCode(e); }
       loaded = true;
@@ -119,6 +124,14 @@
   async function newSession() {
     await act(async () => { await api.sessionNew(); lines = []; lastStop = null; app.seconds = 0; });
   }
+  /** Chup vung: chi khi dang co phien; the capture overlay doc phien va moc thoi gian tu localStorage. */
+  async function capture() {
+    if (!sessionId) return;
+    localStorage.setItem("rlt.capture.session", sessionId);
+    localStorage.setItem("rlt.capture.offset_ms", String(app.seconds * 1000));
+    await act(api.captureBegin);
+  }
+  const openSubtitle = () => act(api.subtitleOpen);
   function toggle() { if (active) void stop(); else void start(); }
   const stoppedLbl = (n: number) => $_("rec.stopped", { values: { n } });
   const text = (l: LineDto) => l.translatedText?.trim() ?? "";
@@ -138,6 +151,8 @@
     {/if}
   </div>
   <div class="tr2">
+    <button type="button" class="btn" onclick={openSubtitle}><Icon name="caption" />{$_("rec.subtitle.open")}</button>
+    <button type="button" class="btn" disabled={!active || !sessionId} title={active ? $_("rec.capture") : $_("rec.capture.needsession")} onclick={capture}><Icon name="crop" />{$_("rec.capture")}</button>
     <span class="bd {state === 'recording' ? 'rec' : ''}"><Icon name="dot" />{$_(state === "recording" ? "tool.badge.rec" : statusKey)}</span>
   </div>
 </div>
@@ -197,9 +212,10 @@
     </span>
     {#if lastStop}<span class="hint">{stoppedLbl(lastStop.lines)}{#if !lastStop.drained} {$_("rec.stopped.partial")}{/if}</span>{/if}
   </div>
+  <TermContext dstLang={app.dst}>
   <div class="tr" aria-live="polite">
     {#each lines as l (l.captionLineId)}
-      <div class="ln {text(l) ? '' : 'prov'}">
+      <div class="ln {text(l) ? '' : 'prov'}" data-lang={l.sourceLang}>
         <span class="ts">{fmtClock(Math.floor(l.offsetMs / 1000))}</span>
         <div class="tx">
           <div class="meta"><b>{$_(mode === "mic" ? "src.name.mic" : "src.name.sys")}</b><span class="lg">{l.sourceLang}</span>{#if !text(l)}<span class="pv">{$_("ln.provisional")}</span>{/if}</div>
@@ -214,6 +230,7 @@
       </div>
     {/if}
   </div>
+  </TermContext>
 {:else}
   <div class="empty"><Icon name="mic" /><b>{$_("rec.empty.title")}</b><span>{$_(!mode ? "rec.empty.nosrc" : "rec.empty.hint")}</span></div>
 {/if}

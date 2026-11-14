@@ -67,7 +67,7 @@
   }
 </script>
 
-<h3>{$_("set.tab.usagelogs")}</h3>
+<h3>{$_("set.tab.sonioxusage")}</h3>
 
 <div class="card">
   <h4>{$_("set.soniox.title")}</h4>

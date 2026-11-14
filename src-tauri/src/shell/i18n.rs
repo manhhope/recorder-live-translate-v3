@@ -14,6 +14,8 @@ pub const DEFAULT_LOCALE: &str = "pt-PT";
 pub const KEYS: &[&str] = &[
     "shell.tray.open",
     "shell.tray.quit",
+    "shell.tray.subtitle",
+    "shell.tray.capture",
     "shell.tray.recording",
     "shell.tray.idle",
     "shell.tray.stop",

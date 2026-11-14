@@ -585,10 +585,22 @@
           "markdownDescription": "Enables the shortcut_rebind command without any pre-configured scope."
         },
         {
+          "description": "Enables the shortcut_reset command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-shortcut-reset",
+          "markdownDescription": "Enables the shortcut_reset command without any pre-configured scope."
+        },
+        {
           "description": "Enables the shortcut_set_enabled command without any pre-configured scope.",
           "type": "string",
           "const": "allow-shortcut-set-enabled",
           "markdownDescription": "Enables the shortcut_set_enabled command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the shortcuts_list command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-shortcuts-list",
+          "markdownDescription": "Enables the shortcuts_list command without any pre-configured scope."
         },
         {
           "description": "Enables the shortcuts_status command without any pre-configured scope.",
@@ -1107,10 +1119,22 @@
           "markdownDescription": "Denies the shortcut_rebind command without any pre-configured scope."
         },
         {
+          "description": "Denies the shortcut_reset command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-shortcut-reset",
+          "markdownDescription": "Denies the shortcut_reset command without any pre-configured scope."
+        },
+        {
           "description": "Denies the shortcut_set_enabled command without any pre-configured scope.",
           "type": "string",
           "const": "deny-shortcut-set-enabled",
           "markdownDescription": "Denies the shortcut_set_enabled command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the shortcuts_list command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-shortcuts-list",
+          "markdownDescription": "Denies the shortcuts_list command without any pre-configured scope."
         },
         {
           "description": "Denies the shortcuts_status command without any pre-configured scope.",

@@ -28,3 +28,22 @@ test("mondayOf lui theo tuan (UTC) va usd doi micro", () => {
   assert.equal(mondayOf(1, new Date(Date.UTC(2026, 10, 14))), "2026-11-07");
   assert.equal(usd(240_000), 0.24);
 });
+
+import { acceleratorFromEvent, canonicalAccel, displayAccel, hasMainModifier } from "./accel.ts";
+import { SHORTCUT_ACTIONS, SHORTCUT_DEFAULTS, shortcutKeyOf } from "./api.ts";
+
+test("phim tat: su kien ban phim -> chuoi Tauri, ky hieu hien thi, so trung", () => {
+  const ev = (code: string, o: Partial<{ metaKey: boolean; ctrlKey: boolean; altKey: boolean; shiftKey: boolean }> = {}) =>
+    ({ code, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...o });
+  assert.equal(acceleratorFromEvent(ev("KeyT", { metaKey: true, shiftKey: true })), "Command+Shift+T");
+  assert.equal(acceleratorFromEvent(ev("Digit5", { ctrlKey: true })), "Control+5");
+  assert.equal(acceleratorFromEvent(ev("ShiftLeft", { shiftKey: true })), null);
+  assert.equal(displayAccel("CommandOrControl+Shift+T"), "⇧⌘T");
+  assert.equal(canonicalAccel("Shift+Command+T"), canonicalAccel("CommandOrControl+Shift+t"));
+  assert.equal(hasMainModifier("Shift+T"), false);
+  assert.equal(hasMainModifier("Alt+Shift+T"), true);
+});
+
+test("moi hanh dong phim tat co mac dinh va khoa i18n", () => {
+  for (const a of SHORTCUT_ACTIONS) { assert.ok(SHORTCUT_DEFAULTS[a]); assert.ok(known(shortcutKeyOf(a)), a); }
+});

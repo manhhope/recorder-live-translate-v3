@@ -92,8 +92,6 @@
   onMount(() => { refresh().catch(e => (error = String(e))); });
 </script>
 
-<h3>{$_("set.tab.ai")}</h3>
-
 {#if s}
 <div class="card">
   <h4>{$_("set.ai.default")}</h4>

@@ -123,3 +123,11 @@ button{font:inherit;color:inherit;cursor:default}
 :focus-visible{outline:none;box-shadow:var(--rlt-focus-ring);border-color:var(--rlt-focus)}
 .two .rw{flex-wrap:wrap;gap:6px 12px}.two .rw>b{flex:0 0 100%}.two .rw .rr{flex-wrap:wrap}
 .two .rw .bd{white-space:normal;max-width:100%}.two .rw .rr{max-width:100%}
+.chk{width:18px;height:18px;accent-color:var(--rlt-acc);cursor:pointer}.chk:disabled{cursor:not-allowed;opacity:.5}
+.lockrow{opacity:.75}.lockrow small .i{width:11px;height:11px;vertical-align:-1px}
+.acc-kbd{min-width:84px;text-align:center;padding:3px 8px;border:1px solid var(--rlt-line);border-radius:var(--rlt-rb);background:var(--rlt-card);font:12px var(--rlt-mono)}
+.ctxmenu{position:fixed;z-index:50;min-width:190px;padding:4px;border:1px solid var(--rlt-line);border-radius:var(--rlt-rc);background:var(--rlt-card);box-shadow:var(--rlt-sh2, var(--rlt-sh1))}
+.ctxmenu button{display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 10px;border:0;border-radius:var(--rlt-rb);background:transparent;color:var(--rlt-text);text-align:left;cursor:pointer}
+.ctxmenu button:hover,.ctxmenu button:focus-visible{background:var(--rlt-fill);color:var(--rlt-onfill)}
+.tdlg{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.28)}
+.tdlg .card{width:min(440px,92vw)}

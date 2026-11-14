@@ -8,6 +8,7 @@
   "permissions": [
     "core:default",
     "allow-core-version",
+    "allow-quick-ax-status",
     "allow-deepl-save-key",
     "allow-deepl-has-key",
     "allow-deepl-clear-key",

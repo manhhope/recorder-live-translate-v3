@@ -102,3 +102,63 @@ export function errKeyOf(code: string, known: (key: string) => boolean): string 
   return known(k) ? k : "err.generic";
 }
 export const driveKeyOf = (status: string) => "ses.drive." + status.replace(/_/g, "");
+
+// ---- Cai dat: vo ung dung, phim tat, phu de, thuat ngu, DeepL, quyen (M3 loi goi giao dien) ----
+export type ShortcutAction = "quick_translate" | "inline_translate" | "ask_ai" | "region_capture";
+export interface ShortcutStatus { action: ShortcutAction; accelerator: string; enabled: boolean; registered: boolean; error_key: string | null; error_detail: string | null }
+export type DisplayMode = "bilingual" | "translation_only" | "source_only";
+export interface SubtitleSettings { display_mode: DisplayMode; font_size_pt: number; source_color: string; translation_color: string; opacity_percent: number; hidden_from_capture: boolean }
+export interface TermInput { termSource: string; termTarget: string | null; keepOriginal: boolean; sourceLang: string; targetLang: string }
+export interface DeeplUsage { character_count: number; character_limit: number }
+
+export const SHORTCUT_ACTIONS: ShortcutAction[] = ["quick_translate", "inline_translate", "ask_ai", "region_capture"];
+/** Mac dinh cua Rust (`ShortcutAction::default_accelerator`); dung de nut "Dat lai". */
+export const SHORTCUT_DEFAULTS: Record<ShortcutAction, string> = {
+  quick_translate: "CommandOrControl+Shift+T", inline_translate: "CommandOrControl+Shift+I",
+  ask_ai: "CommandOrControl+Shift+A", region_capture: "CommandOrControl+Shift+S",
+};
+/** Khoa i18n `set.sc.a.*` cua mot hanh dong (khoa i18n khong chua dau gach duoi). */
+export const shortcutKeyOf = (a: ShortcutAction) => "set.sc.a." + a.replace(/_/g, "");
+
+export const shellSetLocale = (locale: string) => invoke<void>("shell_set_locale", { locale });
+/** Bao vo ung dung dang ghi hay khong: dieu khien khay he thong va che do giu may thuc. */
+export const shellSetRecording = (recording: boolean) => invoke<void>("shell_set_recording", { recording });
+export const shellSetKeepAwake = (enabled: boolean) => invoke<void>("shell_set_keep_awake", { enabled });
+export const autostartGet = () => invoke<boolean>("autostart_get");
+export const autostartSet = (enabled: boolean) => invoke<boolean>("autostart_set", { enabled });
+export const shortcutsStatus = () => invoke<ShortcutStatus[]>("shortcuts_status");
+export const shortcutRebind = (action: ShortcutAction, accelerator: string) => invoke<ShortcutStatus[]>("shortcut_rebind", { action, accelerator });
+export const shortcutSetEnabled = (action: ShortcutAction, enabled: boolean) => invoke<ShortcutStatus[]>("shortcut_set_enabled", { action, enabled });
+
+export const subtitleOpen = () => invoke<void>("subtitle_open");
+export const subtitleClose = () => invoke<void>("subtitle_close");
+export const subtitleGet = () => invoke<SubtitleSettings>("subtitle_get");
+export const subtitleFontStep = (delta: number) => invoke<SubtitleSettings>("subtitle_font_step", { delta });
+export const subtitleSetMode = (mode: DisplayMode) => invoke<SubtitleSettings>("subtitle_set_mode", { mode });
+export const subtitleSetOpacity = (percent: number) => invoke<SubtitleSettings>("subtitle_set_opacity", { percent });
+export const subtitleSetColor = (which: "source" | "translation", hex: string) => invoke<SubtitleSettings>("subtitle_set_color", { which, hex });
+export const subtitleResetColors = () => invoke<SubtitleSettings>("subtitle_reset_colors");
+export const subtitleSetHidden = (hidden: boolean) => invoke<SubtitleSettings>("subtitle_set_hidden", { hidden });
+export const subtitleResetPosition = () => invoke<void>("subtitle_reset_position");
+
+export const captureBegin = () => invoke<void>("capture_begin");
+export const glossaryAdd = (term: TermInput) => invoke<number>("glossary_add", { term });
+export const glossaryDelete = (id: number) => invoke<boolean>("glossary_delete", { id });
+/** Tra ve [da nhap, trung, dong loi]. */
+export const glossaryImportCsv = (csv: string, sourceLang: string, targetLang: string) =>
+  invoke<[number, number, number]>("glossary_import_csv", { csv, sourceLang, targetLang });
+
+export const deeplSaveKey = (value: string) => invoke<void>("deepl_save_key", { value });
+export const deeplHasKey = () => invoke<boolean>("deepl_has_key");
+export const deeplClearKey = () => invoke<void>("deepl_clear_key");
+export const deeplTestConnection = () => invoke<DeeplUsage>("deepl_test_connection");
+export const axStatus = () => invoke<boolean>("quick_ax_status");
+export const coreVersion = () => invoke<string>("core_version");
+
+/** Doi ngon ngu giao dien va bao vo ung dung (khay he thong) cung luc; vo loi thi giao dien van doi. */
+export async function setUiLocale(apply: (l: "en" | "pt-PT") => Promise<unknown>, l: "en" | "pt-PT") {
+  await apply(l);
+  try { await shellSetLocale(l); } catch { /* vo chua san sang: giao dien da doi */ }
+}
+
+export const KEEP_AWAKE_KEY = "rlt.ui.keepAwake";

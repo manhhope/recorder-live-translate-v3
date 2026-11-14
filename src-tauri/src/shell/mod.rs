@@ -90,7 +90,7 @@ pub struct ShellState {
     power: PowerKeeper,
     shortcuts: Mutex<ShortcutRegistry<TauriBackend>>,
     dir: PathBuf,
-    tray_items: Mutex<Option<(MenuItem<tauri::Wry>, MenuItem<tauri::Wry>)>>,
+    tray_items: Mutex<Option<[MenuItem<tauri::Wry>; 4]>>,
     tray: Mutex<Option<TrayIcon>>,
 }
 
@@ -142,8 +142,10 @@ fn sync_power(app: &AppHandle) {
 fn refresh_tray(app: &AppHandle) {
     let st = state(app);
     let loc = st.locale();
-    if let Some((open, quit)) = st.tray_items.lock().unwrap().as_ref() {
+    if let Some([open, subtitle, capture, quit]) = st.tray_items.lock().unwrap().as_ref() {
         let _ = open.set_text(i18n::t(&loc, "shell.tray.open"));
+        let _ = subtitle.set_text(i18n::t(&loc, "shell.tray.subtitle"));
+        let _ = capture.set_text(i18n::t(&loc, "shell.tray.capture"));
         let _ = quit.set_text(i18n::t(&loc, "shell.tray.quit"));
     }
     if let Some(tray) = st.tray.lock().unwrap().as_ref() {
@@ -195,14 +197,22 @@ fn handle_url(app: &AppHandle, raw: &str) {
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let loc = state(app).locale();
     let open = MenuItem::with_id(app, "tray-open", i18n::t(&loc, "shell.tray.open"), true, None::<&str>)?;
+    let subtitle = MenuItem::with_id(app, "tray-subtitle", i18n::t(&loc, "shell.tray.subtitle"), true, None::<&str>)?;
+    let capture = MenuItem::with_id(app, "tray-capture", i18n::t(&loc, "shell.tray.capture"), true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "tray-quit", i18n::t(&loc, "shell.tray.quit"), true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &subtitle, &capture, &quit])?;
     let mut b = TrayIconBuilder::with_id("main-tray")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .tooltip(i18n::t(&loc, "shell.tray.idle"))
         .on_menu_event(|app, ev| match ev.id().as_ref() {
             "tray-open" => show_main(app),
+            "tray-subtitle" => {
+                let _ = crate::subtitle::subtitle_open(app.clone());
+            }
+            "tray-capture" => {
+                let _ = crate::capture::capture_begin(app.clone());
+            }
             "tray-quit" => request_quit(app),
             _ => {}
         })
@@ -216,7 +226,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     }
     let tray = b.build(app)?;
     let st = state(app);
-    *st.tray_items.lock().unwrap() = Some((open, quit));
+    *st.tray_items.lock().unwrap() = Some([open, subtitle, capture, quit]);
     *st.tray.lock().unwrap() = Some(tray);
     Ok(())
 }

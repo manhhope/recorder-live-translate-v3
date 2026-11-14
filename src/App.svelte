@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { _, locale, setLocale } from "./i18n/index.ts";
+  import { onMount } from "svelte";
+  import { _, currentLocale, locale, setLocale } from "./i18n/index.ts";
+  import * as api from "./lib/api.ts";
   import Icon from "./lib/Icon.svelte";
   import Record from "./screens/Record.svelte";
   import Sessions from "./screens/Sessions.svelte";
@@ -10,6 +12,11 @@
     { id: "rec", icon: "mic", key: "nav.record", kbd: "⌘1" },
     { id: "ses", icon: "clock", key: "nav.sessions", kbd: "⌘2" },
   ];
+  // Dong bo khay he thong voi ngon ngu hien tai va ap dung tuy chon giu may thuc da luu (loi thi bo qua: vo chua san sang).
+  onMount(() => {
+    void api.shellSetLocale(currentLocale()).catch(() => {});
+    if (localStorage.getItem(api.KEEP_AWAKE_KEY) === "1") void api.shellSetKeepAwake(true).catch(() => {});
+  });
   const isPt = $derived($locale === "pt-PT");
   const dark = $derived(app.theme === "dark" || (app.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches));
 </script>
@@ -26,7 +33,7 @@
       <Icon name="gear" /><span>{$_("nav.settings")}</span><kbd>{"⌘,"}</kbd>
     </button>
     <div class="ntools">
-      <button type="button" class="btn sm" aria-label={$_("ui.lang.aria")} title={$_("ui.lang.btn")} onclick={() => setLocale(isPt ? "en" : "pt-PT")}>
+      <button type="button" class="btn sm" aria-label={$_("ui.lang.aria")} title={$_("ui.lang.btn")} onclick={() => api.setUiLocale(setLocale, isPt ? "en" : "pt-PT")}>
         <Icon name="globe" />{isPt ? "PT" : "EN"}
       </button>
       <button type="button" class="btn sm icon" aria-label={$_(dark ? "theme.dark.hint" : "theme.light.hint")} title={$_(dark ? "theme.dark.hint" : "theme.light.hint")}

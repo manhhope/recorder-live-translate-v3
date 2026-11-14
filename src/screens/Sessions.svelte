@@ -2,6 +2,8 @@
   import { onMount } from "svelte";
   import { _, formatDate, currentLocale, locale } from "../i18n/index.ts";
   import Icon from "../lib/Icon.svelte";
+  import TermContext from "../lib/TermContext.svelte";
+  import { DEFAULT_DST } from "../lib/langs.ts";
   import { app, fmtClock } from "../lib/app.svelte.ts";
   import * as api from "../lib/api.ts";
   import type { SessionRow, SessionDetail, SearchOut } from "../lib/api.ts";
@@ -103,9 +105,10 @@
     {#if !(drive?.oauthConnected)} {"·"} {$_("ses.drive.nooauth")}{/if}
   </div>
   {#if d.lines.length}
+    <TermContext dstLang={d.session.targetLang || DEFAULT_DST}>
     <div class="tr">
       {#each d.lines as l (l.captionLineId)}
-        <div class="ln">
+        <div class="ln" data-lang={l.sourceLang ?? ""}>
           <span class="ts">{fmtClock(Math.floor(l.offsetMs / 1000))}</span>
           <div class="tx">
             {#if l.lineType === "gap"}<div class="meta"><span class="pv">{$_("ses.gap")}</span></div>
@@ -120,6 +123,7 @@
         </div>
       {/each}
     </div>
+    </TermContext>
   {:else}
     <div class="empty"><Icon name="list" /><span>{$_("ses.nolines")}</span></div>
   {/if}
