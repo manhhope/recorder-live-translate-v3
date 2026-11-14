@@ -5,6 +5,7 @@
 pub mod image;
 pub mod overlay;
 pub mod persist;
+pub mod screen_perm;
 #[cfg(target_os = "macos")]
 pub mod sck;
 

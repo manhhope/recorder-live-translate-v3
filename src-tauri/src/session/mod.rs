@@ -33,6 +33,7 @@ pub const SESSION_COMMANDS: &[&str] = &[
     "soniox_clear_api_key",
     "soniox_test_connection",
     "permissions_status",
+    "screen_permission_check",
     "record_prefs_get",
     "record_prefs_set",
     "sessions_list",
@@ -166,6 +167,32 @@ pub fn permissions_status() -> PermissionsOut {
     #[cfg(not(target_os = "macos"))]
     let screen = "unknown";
     PermissionsOut { mic: rlt_platform::mic_permission().as_str(), screen }
+}
+
+/// Kiem quyen Ghi man hinh bang CGPreflight + do that SCShareableContent (chi khi nguoi dung bam Check again).
+/// `settings_opened`: nguoi dung da mo Cai dat He thong tu man nay. Tra `granted|denied|needsrestart|unknown`.
+#[tauri::command]
+pub async fn screen_permission_check(settings_opened: bool) -> Res<&'static str> {
+    #[cfg(target_os = "macos")]
+    {
+        use crate::capture::screen_perm::{decide, Probe};
+        use crate::capture::sck;
+        if sck::has_permission() {
+            return Ok(decide(true, Probe::NotRun, settings_opened).as_str());
+        }
+        let probe = tauri::async_runtime::spawn_blocking(sck::probe);
+        // SCShareableContent co the treo neu he thong khong tra loi: cho toi da 5 giay roi coi nhu khong ket luan.
+        let probe = match tokio::time::timeout(std::time::Duration::from_secs(5), probe).await {
+            Ok(Ok(p)) => p,
+            _ => Probe::Inconclusive,
+        };
+        Ok(decide(false, probe, settings_opened).as_str())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = settings_opened;
+        Ok("unknown")
+    }
 }
 
 /// Xin quyen micro (hien hop thoai he thong khi con `notDetermined`). Tra trang thai sau khi nguoi dung chon.

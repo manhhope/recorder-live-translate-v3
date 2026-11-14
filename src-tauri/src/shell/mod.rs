@@ -491,6 +491,15 @@ pub fn quit_app(app: AppHandle) {
     request_quit(&app);
 }
 
+/// Khoi dong lai app (sau khi cap quyen Ghi man hinh). Dang ghi am thi tu choi de khong mat phien.
+#[tauri::command]
+pub fn restart_app(app: AppHandle) -> Result<(), String> {
+    if state(&app).recording.load(Ordering::SeqCst) {
+        return Err("session_active".into());
+    }
+    app.restart()
+}
+
 #[allow(dead_code)]
 fn _action_is_closed_set(a: &DeepLinkAction) -> &'static str {
     match a {

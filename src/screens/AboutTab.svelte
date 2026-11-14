@@ -14,15 +14,28 @@
   let busy = $state(false);
   let errKeyShown = $state<string | null>(null);
   let opened = $state(false);
+  let openedScreen = $state(false); // da mo Cai dat > Ghi man hinh tu man nay (tin hieu cho "can khoi dong lai")
 
   const errKey = (c: string) => api.errKeyOf(c, k => $_(k) !== k);
   const stateKey = (s: string) => "set.perm.s." + s.toLowerCase();
+  const needsRestart = $derived(screen === "needsrestart");
   const okOf = (s: string | null) => s === "authorized" || s === "granted";
 
   async function load() {
     err = false; errKeyShown = null;
     try { const p = await api.permissionsStatus(); mic = p.mic; screen = p.screen; } catch { err = true; }
     try { ax = await api.axStatus(); } catch { err = true; }
+  }
+  // Check again: doc nhanh, neu ghi man hinh van "denied" thi do that (SCShareableContent) de phan biet cho khoi dong lai.
+  async function recheck() {
+    await load();
+    if (screen === "denied" || screen === "needsrestart") {
+      try { screen = await api.screenPermissionCheck(openedScreen); } catch (e) { errKeyShown = errKey(api.errCode(e)); }
+    }
+  }
+  async function restart() {
+    errKeyShown = null;
+    try { await api.restartApp(); } catch (e) { errKeyShown = errKey(api.errCode(e)); }
   }
   onMount(async () => {
     try { version = await api.coreVersion(); } catch { version = ""; }
@@ -36,7 +49,7 @@
   }
   async function openSettings(pane: api.SettingsPane) {
     errKeyShown = null; opened = false;
-    try { await api.openSystemSettings(pane); opened = true; } catch (e) { errKeyShown = errKey(api.errCode(e)); }
+    try { await api.openSystemSettings(pane); opened = true; if (pane === "screen_recording") openedScreen = true; } catch (e) { errKeyShown = errKey(api.errCode(e)); }
   }
 </script>
 
@@ -66,8 +79,11 @@
     <b>{$_("set.perm.screen")}</b>
     <div class="rr">
       {#if screen}<span class="bd {okOf(screen) ? 'ok' : 'warn'}"><Icon name={okOf(screen) ? "check" : "warn"} />{$_(stateKey(screen))}</span>{/if}
-      {#if screen === "denied"}
+      {#if screen === "denied" || needsRestart}
         <button type="button" class="btn sm" onclick={() => openSettings("screen_recording")}><Icon name="link" />{$_("set.perm.opensys")}</button>
+      {/if}
+      {#if needsRestart}
+        <button type="button" class="btn sm primary" onclick={restart}><Icon name="refresh" />{$_("set.perm.restart")}</button>
       {/if}
     </div>
   </div>
@@ -80,9 +96,10 @@
       {/if}
     </div>
   </div>
+  {#if needsRestart}<div class="hint" style="margin:4px 0 0"><Icon name="info" /> {$_("set.perm.screenhelp")}</div>{/if}
   {#if ax === false}<div class="hint" style="margin:4px 0 0"><Icon name="info" /> {$_("set.perm.axhelp")}</div>{/if}
   <div class="tl2" style="margin-top:8px">
-    <button type="button" class="btn sm" onclick={load}><Icon name="refresh" />{$_("set.perm.recheck")}</button>
+    <button type="button" class="btn sm" onclick={recheck}><Icon name="refresh" />{$_("set.perm.recheck")}</button>
     {#if opened}<span class="hint" style="margin:0"><Icon name="info" /> {$_("set.perm.openedhint")}</span>{/if}
     {#if errKeyShown}<span class="bd rec" role="alert"><Icon name="warn" />{$_(errKeyShown)}</span>{/if}
     {#if err}<span class="bd rec" role="alert"><Icon name="warn" />{$_("set.perm.err")}</span>{/if}

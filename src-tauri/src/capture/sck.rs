@@ -21,6 +21,15 @@ pub fn has_permission() -> bool {
     unsafe { CGPreflightScreenCaptureAccess() }
 }
 
+/// Dò thật bằng `SCShareableContent` (lỗi -3801 = chưa cấp). Chặn luồng gọi: chạy trong `spawn_blocking`.
+/// Có thể làm hệ điều hành hiện hộp thoại quyền khi chưa từng hỏi, nên chỉ gọi khi người dùng bấm Check again.
+pub fn probe() -> super::screen_perm::Probe {
+    match SCShareableContent::get() {
+        Ok(_) => super::screen_perm::Probe::Ok,
+        Err(e) => super::screen_perm::classify_probe_error(&e.to_string()),
+    }
+}
+
 /// Xin quyền (hiện hộp thoại của hệ điều hành lần đầu).
 pub fn request_permission() -> bool {
     // SAFETY: như trên.

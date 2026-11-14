@@ -59,6 +59,9 @@ export const hasApiKey = () => invoke<boolean>("soniox_has_api_key");
 export const clearApiKey = () => invoke<void>("soniox_clear_api_key");
 export const testConnection = () => invoke<void>("soniox_test_connection");
 export const permissionsStatus = () => invoke<PermissionsOut>("permissions_status");
+/** `granted` | `denied` | `needsrestart` | `unknown`. Do that SCShareableContent: chi goi khi nguoi dung bam Check again. */
+export const screenPermissionCheck = (settingsOpened: boolean) => invoke<string>("screen_permission_check", { settingsOpened });
+export const restartApp = () => invoke<void>("restart_app");
 export const prefsGet = () => invoke<RecordPrefs>("record_prefs_get");
 export const prefsSet = (prefs: RecordPrefs) => invoke<void>("record_prefs_set", { prefs });
 
