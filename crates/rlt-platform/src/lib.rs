@@ -1,6 +1,8 @@
 //! `rlt-platform`: adapter nền tảng. M0/M1 sẽ thêm ScreenCaptureKit, cpal, Keychain, NSPanel.
 //! Hiện chỉ có nguồn âm thanh giả để chứng minh chiều phụ thuộc (platform -> core).
 
+pub mod audio_convert;
+
 use rlt_core::{AudioSource, DeviceEvent, PcmFrame};
 
 /// Nguồn âm thanh giả dùng cho test; không chạm phần cứng.
