@@ -1,0 +1,9 @@
+[package]
+name = "rlt-platform"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Adapter he dieu hanh (cpal, ScreenCaptureKit, Keychain, cua so native) sau trait cua rlt-core"
+
+[dependencies]
+rlt-core.workspace = true

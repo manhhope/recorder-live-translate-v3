@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members = ["crates/rlt-core", "crates/rlt-platform", "src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "UNLICENSED"
+
+[workspace.dependencies]
+rlt-core = { path = "crates/rlt-core" }
+rlt-platform = { path = "crates/rlt-platform" }
