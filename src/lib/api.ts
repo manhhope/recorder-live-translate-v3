@@ -1,0 +1,94 @@
+// Cau noi giua giao dien va cac lenh Tauri cua phien ghi va bien ban (M3). KHONG co ham nao tra khoa Soniox:
+// `saveApiKey` chi gui khoa di; giao dien chi biet `hasApiKey` (co / chua co).
+import { Channel, invoke } from "@tauri-apps/api/core";
+
+export type RecordMode = "system" | "mic" | "mixed";
+export type SessionStateName = "idle" | "recording" | "paused" | "stopping";
+export type StatusCode = "permission" | "auth" | "quota" | "network" | "timeout";
+
+export interface LineDto { captionLineId: number; seq: number; offsetMs: number; sourceLang: string; sourceText: string; translatedText: string | null }
+export type UiEvent =
+  | { kind: "state"; state: SessionStateName }
+  | { kind: "line"; line: LineDto }
+  | { kind: "level"; level: number }
+  | { kind: "status"; code: StatusCode | null }
+  | { kind: "stopped"; sessionId: string; lines: number; durationMs: number; drained: boolean };
+
+export interface StartParams { targetLang: string; listenLangs: string[]; mode: RecordMode; title?: string | null }
+export interface RecordPrefs { targetLang: string; listenLangs: string[]; mode: RecordMode; uiLanguage: string }
+export interface PermissionsOut { mic: string; screen: string }
+
+export interface SessionRow {
+  sessionId: string; title: string; startedAt: string; durationMs: number | null; status: string;
+  audioSourceMode: string; targetLang: string; lines: number; syncStatus: string;
+}
+export interface LineRow {
+  captionLineId: number; seq: number; lineType: string; source: string; offsetMs: number;
+  sourceLang: string | null; sourceText: string | null; translatedText: string | null; highlighted: boolean; note: string | null;
+}
+export interface SessionDetail { session: SessionRow; lines: LineRow[]; syncLastAt: string | null }
+export interface HitRow { captionLineId: number; sessionId: string; offsetMs: number; snippet: string }
+export interface NoteRow { sessionId: string; captionLineId: number | null; note: string | null }
+export interface TermRow { id: number; termSource: string; termTarget: string | null; keepOriginal: boolean; sourceLang: string; targetLang: string }
+export interface SearchOut { lines: HitRow[]; notes: NoteRow[]; terms: TermRow[] }
+export interface DayRow { localDate: string; audioMs: number; estCostUsdMicros: number; calls: number }
+export interface WeekOut { days: DayRow[]; totalAudioMs: number; totalEstCostUsdMicros: number; estimated: boolean }
+export interface DriveOut { status: string; attempts: number; oauthConnected: boolean }
+export interface ImportOut { totalRows: number; tables: [string, number][] }
+
+export function newChannel(onEvent: (e: UiEvent) => void): Channel<UiEvent> {
+  const ch = new Channel<UiEvent>();
+  ch.onmessage = onEvent;
+  return ch;
+}
+
+export const sessionStart = (params: StartParams, onEvent: Channel<UiEvent>) => invoke<string>("session_start", { params, onEvent });
+export const sessionPause = () => invoke<void>("session_pause");
+export const sessionResume = () => invoke<void>("session_resume");
+export const sessionStop = () => invoke<void>("session_stop");
+export const sessionNew = () => invoke<boolean>("session_new");
+export const sessionState = () => invoke<[string, string | null]>("session_state");
+export const consentGet = () => invoke<boolean>("consent_get");
+export const consentAccept = () => invoke<void>("consent_accept");
+export const saveApiKey = (value: string) => invoke<void>("soniox_save_api_key", { value });
+export const hasApiKey = () => invoke<boolean>("soniox_has_api_key");
+export const clearApiKey = () => invoke<void>("soniox_clear_api_key");
+export const testConnection = () => invoke<void>("soniox_test_connection");
+export const permissionsStatus = () => invoke<PermissionsOut>("permissions_status");
+export const prefsGet = () => invoke<RecordPrefs>("record_prefs_get");
+export const prefsSet = (prefs: RecordPrefs) => invoke<void>("record_prefs_set", { prefs });
+
+export const sessionsList = (limit = 100, offset = 0) => invoke<SessionRow[]>("sessions_list", { limit, offset });
+export const sessionGet = (sessionId: string) => invoke<SessionDetail>("session_get", { sessionId });
+export const sessionRename = (sessionId: string, title: string) => invoke<void>("session_rename", { sessionId, title });
+export const sessionDelete = (sessionId: string) => invoke<boolean>("session_delete", { sessionId });
+export const recordsSearch = (query: string, sessionId?: string) => invoke<SearchOut>("records_search", { query, sessionId: sessionId ?? null });
+export const sessionExport = (sessionId: string, format: "md" | "txt" | "srt", uiLang: string) =>
+  invoke<string | null>("session_export", { sessionId, format, uiLang });
+export const highlightToggle = (sessionId: string, captionLineId: number, note: string | null = null) =>
+  invoke<boolean>("highlight_toggle", { sessionId, captionLineId, note });
+export const glossaryList = () => invoke<TermRow[]>("glossary_list");
+export const usageWeek = (date: string, provider: string | null = "soniox") => invoke<WeekOut>("usage_week", { date, provider });
+export const usageExportCsv = () => invoke<string>("usage_export_csv");
+export const usageClear = () => invoke<number>("usage_clear");
+export const driveStatus = (sessionId: string) => invoke<[string, string | null]>("drive_status", { sessionId });
+export const driveSync = (sessionId: string) => invoke<DriveOut>("drive_sync", { sessionId });
+export const importDotnetPick = () => invoke<ImportOut | null>("import_dotnet_pick");
+
+/** Ma loi tra ve la chuoi ngan (vd `key_missing`); dua ve mot khoa i18n `err.*`, khong ro thi `err.generic`. */
+export function errCode(e: unknown): string {
+  return typeof e === "string" ? e : (e as { message?: string })?.message ?? "unknown";
+}
+export function usd(micros: number): number { return micros / 1_000_000; }
+export function mondayOf(offsetWeeks: number, now = new Date()): string {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  d.setUTCDate(d.getUTCDate() - offsetWeeks * 7);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Khoa i18n cho mot ma loi; ma la khong biet thi dung `err.generic`. Khoa i18n khong chua dau gach duoi. */
+export function errKeyOf(code: string, known: (key: string) => boolean): string {
+  const k = "err." + code.replace(/_/g, "");
+  return known(k) ? k : "err.generic";
+}
+export const driveKeyOf = (status: string) => "ses.drive." + status.replace(/_/g, "");

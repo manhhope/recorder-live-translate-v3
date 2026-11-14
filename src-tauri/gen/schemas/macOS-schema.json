@@ -285,10 +285,76 @@
           "markdownDescription": "Enables the capture_commit command without any pre-configured scope."
         },
         {
+          "description": "Enables the consent_accept command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-consent-accept",
+          "markdownDescription": "Enables the consent_accept command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the consent_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-consent-get",
+          "markdownDescription": "Enables the consent_get command without any pre-configured scope."
+        },
+        {
           "description": "Enables the core_version command without any pre-configured scope.",
           "type": "string",
           "const": "allow-core-version",
           "markdownDescription": "Enables the core_version command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the drive_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-drive-status",
+          "markdownDescription": "Enables the drive_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the drive_sync command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-drive-sync",
+          "markdownDescription": "Enables the drive_sync command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the glossary_add command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-glossary-add",
+          "markdownDescription": "Enables the glossary_add command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the glossary_delete command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-glossary-delete",
+          "markdownDescription": "Enables the glossary_delete command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the glossary_import_csv command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-glossary-import-csv",
+          "markdownDescription": "Enables the glossary_import_csv command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the glossary_list command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-glossary-list",
+          "markdownDescription": "Enables the glossary_list command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the highlight_toggle command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-highlight-toggle",
+          "markdownDescription": "Enables the highlight_toggle command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the import_dotnet_pick command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-import-dotnet-pick",
+          "markdownDescription": "Enables the import_dotnet_pick command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the permissions_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-permissions-status",
+          "markdownDescription": "Enables the permissions_status command without any pre-configured scope."
         },
         {
           "description": "Enables the quick_ax_status command without any pre-configured scope.",
@@ -357,6 +423,90 @@
           "markdownDescription": "Enables the quit_app command without any pre-configured scope."
         },
         {
+          "description": "Enables the record_prefs_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-record-prefs-get",
+          "markdownDescription": "Enables the record_prefs_get command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the record_prefs_set command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-record-prefs-set",
+          "markdownDescription": "Enables the record_prefs_set command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the records_search command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-records-search",
+          "markdownDescription": "Enables the records_search command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_delete command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-delete",
+          "markdownDescription": "Enables the session_delete command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_export command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-export",
+          "markdownDescription": "Enables the session_export command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-get",
+          "markdownDescription": "Enables the session_get command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_new command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-new",
+          "markdownDescription": "Enables the session_new command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_pause command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-pause",
+          "markdownDescription": "Enables the session_pause command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_rename command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-rename",
+          "markdownDescription": "Enables the session_rename command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_resume command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-resume",
+          "markdownDescription": "Enables the session_resume command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_start command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-start",
+          "markdownDescription": "Enables the session_start command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_state command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-state",
+          "markdownDescription": "Enables the session_state command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the session_stop command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-session-stop",
+          "markdownDescription": "Enables the session_stop command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the sessions_list command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-sessions-list",
+          "markdownDescription": "Enables the sessions_list command without any pre-configured scope."
+        },
+        {
           "description": "Enables the shell_set_keep_awake command without any pre-configured scope.",
           "type": "string",
           "const": "allow-shell-set-keep-awake",
@@ -391,6 +541,30 @@
           "type": "string",
           "const": "allow-shortcuts-status",
           "markdownDescription": "Enables the shortcuts_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the soniox_clear_api_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-soniox-clear-api-key",
+          "markdownDescription": "Enables the soniox_clear_api_key command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the soniox_has_api_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-soniox-has-api-key",
+          "markdownDescription": "Enables the soniox_has_api_key command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the soniox_save_api_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-soniox-save-api-key",
+          "markdownDescription": "Enables the soniox_save_api_key command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the soniox_test_connection command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-soniox-test-connection",
+          "markdownDescription": "Enables the soniox_test_connection command without any pre-configured scope."
         },
         {
           "description": "Enables the subtitle_close command without any pre-configured scope.",
@@ -451,6 +625,24 @@
           "type": "string",
           "const": "allow-subtitle-set-opacity",
           "markdownDescription": "Enables the subtitle_set_opacity command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the usage_clear command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-usage-clear",
+          "markdownDescription": "Enables the usage_clear command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the usage_export_csv command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-usage-export-csv",
+          "markdownDescription": "Enables the usage_export_csv command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the usage_week command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-usage-week",
+          "markdownDescription": "Enables the usage_week command without any pre-configured scope."
         },
         {
           "description": "Denies the ai_accept_consent command without any pre-configured scope.",
@@ -561,10 +753,76 @@
           "markdownDescription": "Denies the capture_commit command without any pre-configured scope."
         },
         {
+          "description": "Denies the consent_accept command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-consent-accept",
+          "markdownDescription": "Denies the consent_accept command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the consent_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-consent-get",
+          "markdownDescription": "Denies the consent_get command without any pre-configured scope."
+        },
+        {
           "description": "Denies the core_version command without any pre-configured scope.",
           "type": "string",
           "const": "deny-core-version",
           "markdownDescription": "Denies the core_version command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the drive_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-drive-status",
+          "markdownDescription": "Denies the drive_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the drive_sync command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-drive-sync",
+          "markdownDescription": "Denies the drive_sync command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the glossary_add command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-glossary-add",
+          "markdownDescription": "Denies the glossary_add command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the glossary_delete command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-glossary-delete",
+          "markdownDescription": "Denies the glossary_delete command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the glossary_import_csv command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-glossary-import-csv",
+          "markdownDescription": "Denies the glossary_import_csv command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the glossary_list command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-glossary-list",
+          "markdownDescription": "Denies the glossary_list command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the highlight_toggle command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-highlight-toggle",
+          "markdownDescription": "Denies the highlight_toggle command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the import_dotnet_pick command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-import-dotnet-pick",
+          "markdownDescription": "Denies the import_dotnet_pick command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the permissions_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-permissions-status",
+          "markdownDescription": "Denies the permissions_status command without any pre-configured scope."
         },
         {
           "description": "Denies the quick_ax_status command without any pre-configured scope.",
@@ -633,6 +891,90 @@
           "markdownDescription": "Denies the quit_app command without any pre-configured scope."
         },
         {
+          "description": "Denies the record_prefs_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-record-prefs-get",
+          "markdownDescription": "Denies the record_prefs_get command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the record_prefs_set command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-record-prefs-set",
+          "markdownDescription": "Denies the record_prefs_set command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the records_search command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-records-search",
+          "markdownDescription": "Denies the records_search command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_delete command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-delete",
+          "markdownDescription": "Denies the session_delete command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_export command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-export",
+          "markdownDescription": "Denies the session_export command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-get",
+          "markdownDescription": "Denies the session_get command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_new command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-new",
+          "markdownDescription": "Denies the session_new command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_pause command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-pause",
+          "markdownDescription": "Denies the session_pause command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_rename command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-rename",
+          "markdownDescription": "Denies the session_rename command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_resume command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-resume",
+          "markdownDescription": "Denies the session_resume command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_start command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-start",
+          "markdownDescription": "Denies the session_start command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_state command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-state",
+          "markdownDescription": "Denies the session_state command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the session_stop command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-session-stop",
+          "markdownDescription": "Denies the session_stop command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the sessions_list command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-sessions-list",
+          "markdownDescription": "Denies the sessions_list command without any pre-configured scope."
+        },
+        {
           "description": "Denies the shell_set_keep_awake command without any pre-configured scope.",
           "type": "string",
           "const": "deny-shell-set-keep-awake",
@@ -667,6 +1009,30 @@
           "type": "string",
           "const": "deny-shortcuts-status",
           "markdownDescription": "Denies the shortcuts_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the soniox_clear_api_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-soniox-clear-api-key",
+          "markdownDescription": "Denies the soniox_clear_api_key command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the soniox_has_api_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-soniox-has-api-key",
+          "markdownDescription": "Denies the soniox_has_api_key command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the soniox_save_api_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-soniox-save-api-key",
+          "markdownDescription": "Denies the soniox_save_api_key command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the soniox_test_connection command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-soniox-test-connection",
+          "markdownDescription": "Denies the soniox_test_connection command without any pre-configured scope."
         },
         {
           "description": "Denies the subtitle_close command without any pre-configured scope.",
@@ -727,6 +1093,24 @@
           "type": "string",
           "const": "deny-subtitle-set-opacity",
           "markdownDescription": "Denies the subtitle_set_opacity command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the usage_clear command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-usage-clear",
+          "markdownDescription": "Denies the usage_clear command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the usage_export_csv command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-usage-export-csv",
+          "markdownDescription": "Denies the usage_export_csv command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the usage_week command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-usage-week",
+          "markdownDescription": "Denies the usage_week command without any pre-configured scope."
         },
         {
           "description": "This permission set configures if your\napplication can enable or disable auto\nstarting the application on boot.\n\n#### Granted Permissions\n\nIt allows all to check, enable and\ndisable the automatic start on boot.\n\n\n#### This default permission set includes:\n\n- `allow-enable`\n- `allow-disable`\n- `allow-is-enabled`",

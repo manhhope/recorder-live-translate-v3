@@ -6,6 +6,7 @@ use rlt_platform as _;
 mod ai;
 mod capture;
 mod quick;
+mod session;
 mod shell;
 mod subtitle;
 
@@ -28,6 +29,8 @@ fn main() {
             app.manage(ai::AiState::new(rlt_ai::AiService::new(ai_store, ai::secret_store())));
             let quick_store = rlt_store::Store::open(dir_for_shell.join("rlt.db"))?;
             app.manage(quick::QuickState::new(dir_for_shell.clone(), quick_store));
+            let sess_store = std::sync::Arc::new(std::sync::Mutex::new(rlt_store::Store::open(dir_for_shell.join("rlt.db"))?));
+            app.manage(session::SessionState::new(sess_store));
             shell::setup(app.handle(), dir_for_shell)?;
             quick::setup(app.handle());
             Ok(())
@@ -78,7 +81,39 @@ fn main() {
             subtitle::subtitle_reset_position,
             capture::capture_begin,
             capture::capture_cancel,
-            capture::capture_commit
+            capture::capture_commit,
+            session::session_start,
+            session::session_pause,
+            session::session_resume,
+            session::session_stop,
+            session::session_new,
+            session::session_state,
+            session::consent_get,
+            session::consent_accept,
+            session::soniox_save_api_key,
+            session::soniox_has_api_key,
+            session::soniox_clear_api_key,
+            session::soniox_test_connection,
+            session::permissions_status,
+            session::record_prefs_get,
+            session::record_prefs_set,
+            session::sessions_list,
+            session::session_get,
+            session::session_rename,
+            session::session_delete,
+            session::records_search,
+            session::session_export,
+            session::highlight_toggle,
+            session::glossary_list,
+            session::glossary_add,
+            session::glossary_delete,
+            session::glossary_import_csv,
+            session::usage_week,
+            session::usage_export_csv,
+            session::usage_clear,
+            session::drive_status,
+            session::drive_sync,
+            session::import_dotnet_pick
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -3610,16 +3610,20 @@ dependencies = [
  "block2",
  "core-foundation 0.10.1",
  "core-graphics",
+ "futures-util",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
  "png 0.17.16",
  "rlt-ai",
  "rlt-core",
+ "rlt-features",
  "rlt-platform",
  "rlt-quick",
  "rlt-secrets",
+ "rlt-soniox",
  "rlt-store",
+ "rusqlite",
  "screencapturekit",
  "serde",
  "serde_json",
@@ -3631,6 +3635,8 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-single-instance",
+ "tokio",
+ "tokio-tungstenite",
 ]
 
 [[package]]
@@ -3663,6 +3669,7 @@ dependencies = [
  "objc2-app-kit",
  "rlt-core",
  "screencapturekit",
+ "tokio",
 ]
 
 [[package]]

@@ -1,5 +1,5 @@
-// Trang thai giao dien dung chung (M2: du lieu gia, chua noi Tauri command).
-import { DEFAULT_DST, DEFAULT_SRC } from "./mock.ts";
+// Trang thai giao dien dung chung.
+import { DEFAULT_DST, DEFAULT_SRC } from "./langs.ts";
 
 export type Screen = "rec" | "ses" | "set";
 export type Level = "idle" | "quiet" | "talk" | "clip" | "none";

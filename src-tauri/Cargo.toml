@@ -23,6 +23,10 @@ rlt-store = { path = "../crates/rlt-store" }
 rlt-ai = { path = "../crates/rlt-ai" }
 rlt-secrets = { path = "../crates/rlt-secrets" }
 rlt-quick = { path = "../crates/rlt-quick" }
+rlt-soniox = { path = "../crates/rlt-soniox" }
+rlt-features = { path = "../crates/rlt-features" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
 png = "0.17"
 sha2 = "0.10"
 
@@ -34,3 +38,8 @@ objc2-foundation = "0.3"
 block2 = "0.6"
 core-foundation = "0.10"
 core-graphics = "0.25"
+
+[dev-dependencies]
+tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net"] }

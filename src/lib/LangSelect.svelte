@@ -1,7 +1,7 @@
 <script lang="ts">
   import { _ } from "../i18n/index.ts";
   import Icon from "./Icon.svelte";
-  import { LANGS, AUTO } from "./mock.ts";
+  import { LANGS, AUTO } from "./langs.ts";
 
   let { value = $bindable(), withAuto = false, locked = false, cls = "", short = false, ariaKey, tipKey }:
     { value: string; withAuto?: boolean; locked?: boolean; cls?: string; short?: boolean; ariaKey: string; tipKey: string } = $props();

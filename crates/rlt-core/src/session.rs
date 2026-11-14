@@ -104,6 +104,8 @@ pub struct SessionConfig {
     /// `[]` = Tự nhận.
     pub listen_langs: Vec<String>,
     pub source_kind: AudioSourceKind,
+    /// Ghi đè `audio_source_mode` (vd `mixed` khi nguồn là mixer hệ thống + micro).
+    pub audio_mode: Option<&'static str>,
     pub soniox: SessionSettings,
     pub auth: Auth,
     /// Hạn chờ Soniox `finished` sau khi bấm Dừng.
@@ -124,6 +126,7 @@ impl SessionConfig {
             target_lang: target_lang.into(),
             listen_langs: Vec::new(),
             source_kind: AudioSourceKind::Microphone,
+            audio_mode: None,
             soniox,
             auth,
             drain_timeout: Duration::from_secs(3),
@@ -264,7 +267,7 @@ pub async fn start_session(
                 .collect::<Vec<_>>()
                 .join(",")
         );
-        ns.audio_source_mode = audio_mode(cfg.source_kind).into();
+        ns.audio_source_mode = cfg.audio_mode.unwrap_or(audio_mode(cfg.source_kind)).into();
         store.lock().map_err(|_| CoreError::Store("khoa bi hong".into()))?.create_session(&ns)?;
     }
 
