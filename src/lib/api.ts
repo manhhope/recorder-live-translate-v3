@@ -87,6 +87,8 @@ export const usageExportWeekCsv = (weeksAgo: number) => invoke<string>("usage_ex
 export const usageClear = () => invoke<number>("usage_clear");
 export const driveStatus = (sessionId: string) => invoke<[string, string | null]>("drive_status", { sessionId });
 export const driveSync = (sessionId: string) => invoke<DriveOut>("drive_sync", { sessionId });
+export type SettingsPane = "accessibility" | "microphone" | "screen_recording";
+export const openSystemSettings = (pane: SettingsPane) => invoke<void>("open_system_settings", { pane });
 export const micPermissionRequest = () => invoke<string>("mic_permission_request");
 export const driveConnectionStatus = () => invoke<DriveConnOut>("drive_connection_status");
 export const driveSaveClientConfig = (clientId: string, clientSecret: string | null = null) =>

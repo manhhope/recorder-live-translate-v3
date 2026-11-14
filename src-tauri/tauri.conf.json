@@ -30,6 +30,10 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "resources": {
+      "lproj/en.lproj/InfoPlist.strings": "en.lproj/InfoPlist.strings",
+      "lproj/pt-PT.lproj/InfoPlist.strings": "pt-PT.lproj/InfoPlist.strings"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

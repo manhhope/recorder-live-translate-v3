@@ -1,0 +1,2 @@
+"NSMicrophoneUsageDescription" = "O Recorder Live Translate usa o microfone para transcrever e traduzir o que diz enquanto uma sessão está a gravar. O áudio só é captado enquanto grava.";
+"NSScreenCaptureUsageDescription" = "O Recorder Live Translate usa a gravação do ecrã para captar o áudio do sistema e, se o escolher, uma zona do ecrã para traduzir. Nada é captado se não o iniciar.";

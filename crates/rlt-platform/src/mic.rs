@@ -124,6 +124,10 @@ impl AudioSource for MicSource {
         if self.running.is_some() {
             return Ok(());
         }
+        // macOS: thiếu NSMicrophoneUsageDescription mà mở micro thì TCC abort tiến trình. Báo lỗi quyền thay vì mở.
+        if !crate::permission::mic_usage_description_present() {
+            return Err(AudioError::Device("microphone access denied: missing NSMicrophoneUsageDescription".into()));
+        }
         let (ready_tx, ready_rx) = std_mpsc::channel::<Result<(), AudioError>>();
         let (stop_tx, stop_rx) = std_mpsc::channel::<()>();
         let thread = std::thread::Builder::new()

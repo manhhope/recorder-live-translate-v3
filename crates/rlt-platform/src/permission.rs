@@ -56,6 +56,24 @@ mod mac {
         AnyClass::get(c"AVCaptureDevice")
     }
 
+    /// Khoá Info.plist mà macOS đòi trước khi hiện hộp thoại micro; thiếu khoá thì TCC làm app SIGABRT.
+    pub const USAGE_KEY: &str = "NSMicrophoneUsageDescription";
+
+    /// Bundle chính có khoá mô tả quyền micro không. `.app` đóng gói thì có; chạy `cargo run` trần (không bundle) thì không.
+    pub fn has_usage_description() -> bool {
+        let Some(cls) = AnyClass::get(c"NSBundle") else { return false };
+        let key = NSString::from_str(USAGE_KEY);
+        // SAFETY: `mainBundle` -> NSBundle*, `objectForInfoDictionaryKey:` nhận NSString*, trả id (có thể nil).
+        unsafe {
+            let bundle: *mut objc2::runtime::AnyObject = msg_send![cls, mainBundle];
+            if bundle.is_null() {
+                return false;
+            }
+            let v: *mut objc2::runtime::AnyObject = msg_send![bundle, objectForInfoDictionaryKey: &*key];
+            !v.is_null()
+        }
+    }
+
     pub fn status() -> MicPermission {
         let Some(cls) = device_class() else { return MicPermission::Denied };
         let media = NSString::from_str(MEDIA_AUDIO);
@@ -65,11 +83,15 @@ mod mac {
     }
 
     /// Xin quyền; chờ tối đa `wait` cho người dùng bấm hộp thoại rồi đọc lại trạng thái thật.
-    pub fn request(wait: Duration) -> MicPermission {
+    pub fn request(wait: Duration) -> Result<MicPermission, &'static str> {
         if status() != MicPermission::NotDetermined {
-            return status();
+            return Ok(status());
         }
-        let Some(cls) = device_class() else { return MicPermission::Denied };
+        // Không có khoá này mà gọi requestAccess thì hệ thống abort cả tiến trình: báo lỗi về giao diện thay vì gọi.
+        if !has_usage_description() {
+            return Err("mic_usage_description_missing");
+        }
+        let Some(cls) = device_class() else { return Ok(MicPermission::Denied) };
         let media = NSString::from_str(MEDIA_AUDIO);
         let (tx, rx) = mpsc::channel::<bool>();
         let block = RcBlock::new(move |granted: Bool| {
@@ -80,7 +102,7 @@ mod mac {
             let _: () = msg_send![cls, requestAccessForMediaType: &*media, completionHandler: &*block];
         }
         let _ = rx.recv_timeout(wait);
-        status()
+        Ok(status())
     }
 }
 
@@ -97,8 +119,21 @@ pub fn mic_permission() -> MicPermission {
     }
 }
 
+/// Bundle có khoá `NSMicrophoneUsageDescription` không (ngoài macOS luôn `true`).
+pub fn mic_usage_description_present() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        mac::has_usage_description()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        true
+    }
+}
+
 /// Xin quyền micro (chặn tối đa `wait`). Gọi từ luồng nền, không gọi trên luồng chính của giao diện.
-pub fn request_mic_permission(wait: std::time::Duration) -> MicPermission {
+/// `Err("mic_usage_description_missing")`: bundle thiếu `NSMicrophoneUsageDescription`, không gọi hệ thống.
+pub fn request_mic_permission(wait: std::time::Duration) -> Result<MicPermission, &'static str> {
     #[cfg(target_os = "macos")]
     {
         mac::request(wait)
@@ -106,7 +141,7 @@ pub fn request_mic_permission(wait: std::time::Duration) -> MicPermission {
     #[cfg(not(target_os = "macos"))]
     {
         let _ = wait;
-        MicPermission::Authorized
+        Ok(MicPermission::Authorized)
     }
 }
 
@@ -140,6 +175,18 @@ mod tests {
         for (p, s) in all {
             assert_eq!(p.as_str(), s);
             assert_ne!(p.as_str(), "unknown");
+        }
+    }
+
+    /// Test chạy không có bundle nên không có khoá Info.plist: xin quyền phải trả lỗi chứ không abort
+    /// (trừ khi máy này đã quyết định quyền thì chỉ đọc lại trạng thái).
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn request_without_usage_description_returns_error_instead_of_aborting() {
+        if mic_permission() == MicPermission::NotDetermined {
+            assert_eq!(request_mic_permission(std::time::Duration::from_millis(10)), Err("mic_usage_description_missing"));
+        } else {
+            assert!(request_mic_permission(std::time::Duration::from_millis(10)).is_ok());
         }
     }
 

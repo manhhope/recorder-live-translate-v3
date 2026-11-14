@@ -1,0 +1,2 @@
+"NSMicrophoneUsageDescription" = "Recorder Live Translate uses the microphone to transcribe and translate what you say while a session is recording. Audio is only captured while you record.";
+"NSScreenCaptureUsageDescription" = "Recorder Live Translate uses screen recording access to capture system audio and, if you choose it, a region of the screen to translate. Nothing is captured unless you start it.";

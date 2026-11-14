@@ -53,6 +53,7 @@ fn main() {
             ai::ai_cancel,
             ai::ai_clear_history,
             ai::ai_delete_conversation,
+            shell::settings_pane::open_system_settings,
             quick::quick_translate,
             quick::quick_cancel,
             quick::quick_history,

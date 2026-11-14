@@ -171,9 +171,11 @@ pub fn permissions_status() -> PermissionsOut {
 /// Xin quyen micro (hien hop thoai he thong khi con `notDetermined`). Tra trang thai sau khi nguoi dung chon.
 #[tauri::command]
 pub async fn mic_permission_request() -> Res<&'static str> {
-    tauri::async_runtime::spawn_blocking(|| rlt_platform::request_mic_permission(std::time::Duration::from_secs(120)).as_str())
+    tauri::async_runtime::spawn_blocking(|| rlt_platform::request_mic_permission(std::time::Duration::from_secs(120)))
         .await
-        .map_err(|_| "permission_request_failed".to_string())
+        .map_err(|_| "permission_request_failed".to_string())?
+        .map(|p| p.as_str())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

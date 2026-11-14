@@ -96,6 +96,7 @@ pub const APP_COMMANDS: &[&str] = &[
     "drive_disconnect",
     "mic_permission_request",
     "import_dotnet_pick",
+    "open_system_settings",
 ];
 
 fn main() {

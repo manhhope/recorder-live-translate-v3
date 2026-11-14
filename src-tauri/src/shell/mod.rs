@@ -7,6 +7,7 @@
 pub mod deeplink;
 pub mod i18n;
 pub mod lifecycle;
+pub mod settings_pane;
 pub mod shortcuts;
 
 use deeplink::DeepLinkAction;

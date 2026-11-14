@@ -405,6 +405,12 @@
           "markdownDescription": "Enables the mic_permission_request command without any pre-configured scope."
         },
         {
+          "description": "Enables the open_system_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-system-settings",
+          "markdownDescription": "Enables the open_system_settings command without any pre-configured scope."
+        },
+        {
           "description": "Enables the permissions_status command without any pre-configured scope.",
           "type": "string",
           "const": "allow-permissions-status",
@@ -949,6 +955,12 @@
           "type": "string",
           "const": "deny-mic-permission-request",
           "markdownDescription": "Denies the mic_permission_request command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_system_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-system-settings",
+          "markdownDescription": "Denies the open_system_settings command without any pre-configured scope."
         },
         {
           "description": "Denies the permissions_status command without any pre-configured scope.",
