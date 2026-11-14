@@ -13,6 +13,7 @@ export default defineConfig({
         "ask-ai": resolve(__dirname, "ask-ai.html"),
         subtitle: resolve(__dirname, "subtitle.html"),
         capture: resolve(__dirname, "capture.html"),
+        quick: resolve(__dirname, "quick.html"),
       },
     },
   },

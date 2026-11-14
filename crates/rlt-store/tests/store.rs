@@ -275,3 +275,88 @@ fn anh_chup_ton_trong_khoa_ngoai_va_rang_buoc() {
     // danh dau cho dong khong ton tai bi tu choi
     assert!(s.add_line_note(SID, 424242, "n").is_err());
 }
+
+// ---------------- Quick Translate (ADR-11, AC-31.3, AC-31.7) ----------------
+
+fn qt(origin: &str, n: usize) -> NewQuickTranslation {
+    NewQuickTranslation {
+        origin: origin.into(),
+        source_text: format!("nguon {n}"),
+        translated_text: format!("dich {n}"),
+        source_lang: Some("en".into()),
+        detected_lang: None,
+        target_lang: "pt-PT".into(),
+    }
+}
+
+#[test]
+fn quick_them_va_liet_ke_moi_nhat_truoc_khong_lan_vao_bien_ban() {
+    let s = store_with_session();
+    for n in 1..=3 {
+        s.add_quick_translation(&qt("quick_translate", n)).unwrap();
+    }
+    let l = s.list_quick_translations(10).unwrap();
+    assert_eq!(l.len(), 3);
+    assert_eq!(l[0].source_text, "nguon 3");
+    assert_eq!(l[2].source_text, "nguon 1");
+    // AC-31.7: 0 muc Quick Translate trong bien ban.
+    assert_eq!(s.list_sessions(10, 0).unwrap().len(), 1);
+    let n: i64 = s.conn().query_row("SELECT count(*) FROM caption_lines", [], |r| r.get(0)).unwrap();
+    assert_eq!(n, 0);
+}
+
+#[test]
+fn quick_giu_toi_da_50_muc_gan_nhat_moi_origin() {
+    let s = Store::open_in_memory().unwrap();
+    for n in 1..=60 {
+        s.add_quick_translation(&qt("quick_translate", n)).unwrap();
+    }
+    s.add_quick_translation(&qt("inline_translate", 1)).unwrap();
+    let l = s.list_quick_translations(500).unwrap();
+    let quick: Vec<_> = l.iter().filter(|x| x.origin == "quick_translate").collect();
+    assert_eq!(quick.len(), 50);
+    assert_eq!(quick[0].source_text, "nguon 60");
+    assert_eq!(quick[49].source_text, "nguon 11", "10 muc cu nhat phai bi xoa");
+    assert_eq!(l.iter().filter(|x| x.origin == "inline_translate").count(), 1, "origin khac khong bi anh huong");
+}
+
+#[test]
+fn quick_xoa_lich_su_va_xoa_theo_tuoi() {
+    let s = Store::open_in_memory().unwrap();
+    s.add_quick_translation(&qt("quick_translate", 1)).unwrap();
+    s.add_quick_translation(&qt("quick_translate", 2)).unwrap();
+    // Gia lap muc cu 31 ngay.
+    s.conn()
+        .execute(
+            "UPDATE quick_translations SET created_at = strftime('%Y-%m-%dT%H:%M:%fZ','now','-31 days') WHERE source_text = 'nguon 1'",
+            [],
+        )
+        .unwrap();
+    assert_eq!(s.purge_quick_translations_older_than_days(QUICK_MAX_AGE_DAYS).unwrap(), 1);
+    let l = s.list_quick_translations(10).unwrap();
+    assert_eq!(l.len(), 1);
+    assert_eq!(l[0].source_text, "nguon 2");
+    assert_eq!(s.clear_quick_translations().unwrap(), 1);
+    assert!(s.list_quick_translations(10).unwrap().is_empty());
+}
+
+#[test]
+fn quick_5000_ky_tu_duoc_5001_bi_tu_choi_va_origin_la_la_bi_chan() {
+    let s = Store::open_in_memory().unwrap();
+    let mut q = qt("quick_translate", 1);
+    q.source_text = "a".repeat(QUICK_MAX_CHARS);
+    s.add_quick_translation(&q).unwrap();
+    q.source_text = "a".repeat(QUICK_MAX_CHARS + 1);
+    assert!(s.add_quick_translation(&q).is_err());
+    let mut bad = qt("khong_co", 2);
+    assert!(s.add_quick_translation(&bad).is_err());
+    bad.origin = "ocr_translate".into();
+    assert!(s.add_quick_translation(&bad).is_ok());
+}
+
+#[test]
+fn quick_debug_khong_lo_noi_dung() {
+    let q = qt("quick_translate", 7);
+    let d = format!("{q:?}");
+    assert!(!d.contains("nguon 7") && !d.contains("dich 7"));
+}

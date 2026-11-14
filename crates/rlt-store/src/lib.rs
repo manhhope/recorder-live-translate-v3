@@ -6,9 +6,11 @@
 mod error;
 mod migrate;
 mod models;
+mod quick;
 mod store;
 
 pub use error::{Result, StoreError};
 pub use migrate::{migrations, SCHEMA_SQL};
 pub use models::*;
+pub use quick::{NewQuickTranslation, QuickTranslation, QUICK_MAX_AGE_DAYS, QUICK_MAX_CHARS};
 pub use store::{fts_query, Store};
