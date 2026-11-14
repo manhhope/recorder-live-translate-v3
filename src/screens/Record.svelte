@@ -5,7 +5,7 @@
   import LangSelect from "../lib/LangSelect.svelte";
   import SourceButton from "../lib/SourceButton.svelte";
   import TermContext from "../lib/TermContext.svelte";
-  import { app, fmtClock, type Level } from "../lib/app.svelte.ts";
+  import { app, fmtClock, openAsk, type Level } from "../lib/app.svelte.ts";
   import { AUTO } from "../lib/langs.ts";
   import * as api from "../lib/api.ts";
   import type { LineDto, SessionStateName, StatusCode } from "../lib/api.ts";
@@ -131,6 +131,9 @@
     localStorage.setItem("rlt.capture.offset_ms", String(app.seconds * 1000));
     await act(api.captureBegin);
   }
+  // Hoi AI: dang ghi thi hoi ve phien dang chay, ghi xong thi ve phien vua ghi (hoac phien moi nhat neu chua co).
+  $effect(() => { if (sessionId) app.lastSession = sessionId; });
+  const askAi = () => openAsk(sessionId);
   const openSubtitle = () => act(api.subtitleOpen);
   function toggle() { if (active) void stop(); else void start(); }
   const stoppedLbl = (n: number) => $_("rec.stopped", { values: { n } });
@@ -151,6 +154,7 @@
     {/if}
   </div>
   <div class="tr2">
+    <button type="button" class="btn" onclick={askAi}><Icon name="sparkle" />{$_("nav.askai")}</button>
     <button type="button" class="btn" onclick={openSubtitle}><Icon name="caption" />{$_("rec.subtitle.open")}</button>
     <button type="button" class="btn" disabled={!active || !sessionId} title={active ? $_("rec.capture") : $_("rec.capture.needsession")} onclick={capture}><Icon name="crop" />{$_("rec.capture")}</button>
     <span class="bd {state === 'recording' ? 'rec' : ''}"><Icon name="dot" />{$_(state === "recording" ? "tool.badge.rec" : statusKey)}</span>

@@ -121,6 +121,8 @@ mod tests {
         assert_eq!(parse("rlt://open"), Ok(DeepLinkAction::App));
         assert_eq!(parse("RLT://Open/"), Ok(DeepLinkAction::App));
         assert_eq!(parse("rlt://ask-ai"), Ok(DeepLinkAction::AskAi));
+        // Hợp đồng với giao diện: App.svelte lắng nghe `shell://deeplink` và so `payload.action === "ask_ai"`.
+        assert_eq!(serde_json::to_string(&DeepLinkAction::AskAi).unwrap(), r#"{"action":"ask_ai"}"#);
         assert_eq!(parse("rlt://session/abc-123_X"), Ok(DeepLinkAction::Session { id: "abc-123_X".into() }));
         assert_eq!(parse("rlt://settings/shortcuts"), Ok(DeepLinkAction::Settings { tab: "shortcuts".into() }));
         assert_eq!(parse("rlt://settings/SONIOX"), Ok(DeepLinkAction::Settings { tab: "soniox".into() }));

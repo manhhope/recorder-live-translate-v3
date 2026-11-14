@@ -9,8 +9,9 @@
   import UsageLogsTab from "./UsageLogsTab.svelte";
   import DriveTab from "./DriveTab.svelte";
   import AboutTab from "./AboutTab.svelte";
+  import type { SettingsTabId } from "../lib/app.svelte.ts";
 
-  type TabId = "general" | "translate" | "shortcuts" | "glossary" | "subtitle" | "usage" | "drive" | "about";
+  type TabId = SettingsTabId;
   let { tab = $bindable("general") }: { tab?: TabId } = $props();
   const tabs: { id: TabId; key: string; icon: string; group: string }[] = [
     { id: "general", key: "set.tab.general", icon: "gear", group: "set.tab.basic" },

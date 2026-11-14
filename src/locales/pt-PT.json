@@ -25,7 +25,7 @@
   "ask.model.title": "Modelo de IA (a sua chave)",
   "ask.nocfg.hint": "Nenhum modelo de IA tem chave e o Javis não está ligado. Nada foi enviado.",
   "ask.nocfg.title": "Não configurado",
-  "ask.open.ai": "Abrir o separador Assistente de IA",
+  "ask.open.ai": "Abrir Definições: Tradução e IA",
   "banner.mic.perm": "Falta a permissão do microfone. O microfone não tem sinal (sinal x), o áudio do sistema continua a funcionar.",
   "cfg.arrow.aria": "traduzir para",
   "cfg.arrow.tip": "Traduzir para",
@@ -666,5 +666,10 @@
   "set.usage.none.soniox": "O Soniox não regista utilização esta semana (dias UTC).",
   "set.usage.none.localreason": "Também não há estimativa local: nada foi registado neste computador esta semana.",
   "set.usage.clear.note": "Elimina apenas a estimativa local guardada neste computador. Não elimina nada no Soniox, e os valores do Soniox mantêm-se.",
-  "set.usage.clear.done": "Dados locais de utilização eliminados."
+  "set.usage.clear.done": "Dados locais de utilização eliminados.",
+  "ask.screen.pick": "Ata",
+  "ask.screen.nosession.title": "Ainda não há nada para perguntar",
+  "ask.screen.nosession.hint": "Grave uma sessão ou abra uma ata guardada e depois pergunte à IA sobre ela.",
+  "ask.screen.gorecord": "Ir para Gravar",
+  "ask.screen.error": "Não foi possível carregar as suas sessões."
 }

@@ -43,6 +43,12 @@ export function installTauriMock(seed: MockSeed): void {
       chips: { summary: null, explain: null, action_items: null },
     },
     usageCleared: false,
+    aiConsent: {} as Record<string, boolean>,
+    convs: [] as any[],
+    msgs: {} as Record<number, any[]>,
+    listeners: [] as { event: string; id: number; cb: number }[],
+    nextConv: 1,
+    nextMsg: 1,
   };
   const rlt: any = { calls: [] as { cmd: string; args: any }[], unhandled: [] as string[], state, fail: { ...seed.fail } };
   w.__rlt = rlt;
@@ -54,6 +60,11 @@ export function installTauriMock(seed: MockSeed): void {
     if (!cb) throw new Error("khong co Channel dang mo");
     cb({ index: state.channelIndex++, message: event });
   };
+  // Su kien Tauri (listen): giong `plugin:event|listen`; test phat bang __rlt.emitEvent(ten, payload).
+  rlt.emitEvent = (event: string, payload: unknown) => {
+    for (const l of state.listeners.filter((x: any) => x.event === event)) callbacks.get(l.cb)?.({ event, id: l.id, payload });
+  };
+  w.__TAURI_EVENT_PLUGIN_INTERNALS__ = { unregisterListener() { /* khong can */ } };
   const emitState = (s: string) => { state.run = s; rlt.emit({ kind: "state", state: s }); };
 
   const aiSettings = () => ({
@@ -62,7 +73,7 @@ export function installTauriMock(seed: MockSeed): void {
     context_max_turns: state.ai.context_max_turns,
     providers: (["gemini", "openai", "ollama"] as const).map(p => ({
       provider: p, model_name: state.ai.models[p], has_key: p === "ollama" ? false : !!state.aiKeys[p],
-      base_url: p === "ollama" ? "http://localhost:11434" : null, consented: false,
+      base_url: p === "ollama" ? "http://localhost:11434" : null, consented: !!state.aiConsent[p],
     })),
     chip_prompts: (["summary", "explain", "action_items"] as const).map(c => ({ chip: c, prompt: state.ai.chips[c] })),
   });
@@ -136,6 +147,8 @@ export function installTauriMock(seed: MockSeed): void {
     glossary_list: () => [],
     drive_status: () => ["not_connected", null],
     shell_set_locale: () => undefined,
+    shell_set_recording: () => undefined,
+    shell_set_keep_awake: () => undefined,
     autostart_get: () => false,
     core_version: () => "0.1.0",
     quick_ax_status: () => true,
@@ -183,6 +196,35 @@ export function installTauriMock(seed: MockSeed): void {
     ai_set_api_key: (a) => { state.aiKeys[a.provider] = true; },
     ai_clear_api_key: (a) => { state.aiKeys[a.provider] = false; },
     ai_test_connection: () => undefined,
+    "plugin:event|listen": (a) => { const id = state.listeners.length + 1; state.listeners.push({ event: a.event, id, cb: a.handler }); return id; },
+    "plugin:event|unlisten": (a) => { state.listeners = state.listeners.filter((l: any) => !(l.event === a.event && l.id === a.eventId)); },
+    ai_accept_consent: (a) => { state.aiConsent[a.provider] = true; },
+    ai_list_conversations: (a) => state.convs.filter((c: any) => c.session_id === a.sessionId).map(clone),
+    ai_list_messages: (a) => clone(state.msgs[a.conversationId] ?? []),
+    ai_clear_history: (a) => { const n = (state.msgs[a.conversationId] ?? []).length; state.msgs[a.conversationId] = []; return n; },
+    ai_delete_conversation: (a) => { state.convs = state.convs.filter((c: any) => c.conversation_id !== a.conversationId); return true; },
+    ai_cancel: () => undefined,
+    ai_ask: (a) => {
+      const p = a.params;
+      let conv = state.convs.find((c: any) => c.conversation_id === p.conversation_id);
+      if (!conv) {
+        conv = { conversation_id: state.nextConv++, session_id: p.session_id, provider: p.provider ?? "gemini", model_name: null, title: p.text ?? p.chip, updated_at: "2026-11-14T10:00:00Z" };
+        state.convs.push(conv); state.msgs[conv.conversation_id] = [];
+      }
+      const list = state.msgs[conv.conversation_id];
+      const mk = (role: string, content: string, chip: string | null, reply: number | null) => ({
+        message_id: state.nextMsg++, conversation_id: conv.conversation_id, role, reply_to_message_id: reply, chip_kind: chip,
+        content, status: "completed", model_name: null, error_code: null, context_truncated: null,
+      });
+      const u = mk("user", p.text ?? p.chip, p.chip, null);
+      const reply = "Reply to: " + (p.text ?? p.chip) + " (turn " + (list.filter((m: any) => m.role === "user").length + 1) + ")";
+      const ai = mk("assistant", reply, null, u.message_id);
+      list.push(u, ai);
+      rlt.aiAsks = (rlt.aiAsks ?? []).concat([{ session_id: p.session_id, text: p.text, chip: p.chip, conversation_id: p.conversation_id }]);
+      const ch = a.onUpdate?.id;
+      if (ch !== undefined) callbacks.get(ch)?.({ index: 0, message: { assistant_message_id: ai.message_id, text: reply } });
+      return { conversation_id: conv.conversation_id, user_message_id: u.message_id, assistant_message_id: ai.message_id, status: "completed", error_code: null, text: reply };
+    },
   };
 
   w.__TAURI_INTERNALS__ = {

@@ -2,9 +2,10 @@
   import { onMount } from "svelte";
   import { _, formatDate, currentLocale, locale } from "../i18n/index.ts";
   import Icon from "../lib/Icon.svelte";
+  import AskAiPopup from "../ai/AskAiPopup.svelte";
   import TermContext from "../lib/TermContext.svelte";
   import { DEFAULT_DST } from "../lib/langs.ts";
-  import { app, fmtClock } from "../lib/app.svelte.ts";
+  import { app, fmtClock, openAiSettings } from "../lib/app.svelte.ts";
   import * as api from "../lib/api.ts";
   import type { SessionRow, SessionDetail, SearchOut } from "../lib/api.ts";
 
@@ -18,6 +19,7 @@
   let drive = $state<api.DriveOut | null>(null);
   let renaming = $state<string | null>(null);
   let confirmDel = $state<string | null>(null);
+  let askOpen = $state(false);
 
   const loc = $derived(($locale as "en" | "pt-PT") ?? currentLocale());
   const errKey = (c: string) => api.errKeyOf(c, k => $_(k) !== k);
@@ -49,7 +51,7 @@
   });
 
   async function open(id: string) {
-    error = null; notice = null; drive = null;
+    error = null; notice = null; drive = null; askOpen = false;
     try { detail = await api.sessionGet(id); } catch (e) { error = api.errCode(e); }
   }
   async function guard(fn: () => Promise<void>) {
@@ -94,6 +96,7 @@
       {#each ["md", "txt", "srt"] as const as f (f)}
         <button type="button" class="btn sm" onclick={() => exportAs(f)}><Icon name="download" />{f.toUpperCase()}</button>
       {/each}
+      <button type="button" class="btn sm" aria-pressed={askOpen} onclick={() => (askOpen = !askOpen)}><Icon name="sparkle" />{$_("nav.askai")}</button>
       <button type="button" class="btn sm" onclick={sync}><Icon name="refresh" />{$_("ses.drive.sync")}</button>
     </div>
   </div>
@@ -104,6 +107,13 @@
     {driveLbl(drive ? drive.status : d.session.syncStatus)}
     {#if !(drive?.oauthConnected)} {"·"} {$_("ses.drive.nooauth")}{/if}
   </div>
+  {#if askOpen}
+    <div class="askdock">
+      {#key d.session.sessionId}
+        <AskAiPopup sessionId={d.session.sessionId} onOpenSettings={openAiSettings} onClose={() => (askOpen = false)} />
+      {/key}
+    </div>
+  {/if}
   {#if d.lines.length}
     <TermContext dstLang={d.session.targetLang || DEFAULT_DST}>
     <div class="tr">
@@ -182,3 +192,8 @@
     <div class="empty"><Icon name="clock" /><span>{$_("ses.empty")}</span></div>
   {/if}
 {/if}
+
+<style>
+  .askdock{display:flex;justify-content:center;height:480px;flex:none;padding:8px 18px}
+  .askdock :global(.ask){width:min(720px,100%)}
+</style>

@@ -25,7 +25,7 @@
   "ask.model.title": "AI model (your key)",
   "ask.nocfg.hint": "No AI model has a key and Javis is not connected. Nothing has been sent.",
   "ask.nocfg.title": "Not configured",
-  "ask.open.ai": "Open the AI Assistant tab",
+  "ask.open.ai": "Open Settings: Translation and AI",
   "banner.mic.perm": "Microphone permission missing. The microphone has no signal (x mark), System audio still works.",
   "cfg.arrow.aria": "translate to",
   "cfg.arrow.tip": "Translate to",
@@ -666,5 +666,10 @@
   "set.usage.none.soniox": "Soniox reports no usage for this week (UTC days).",
   "set.usage.none.localreason": "No local estimate either: nothing was recorded on this computer this week.",
   "set.usage.clear.note": "Deletes only the local estimate stored on this computer. It does not delete anything at Soniox, and the figures from Soniox stay the same.",
-  "set.usage.clear.done": "Local usage data deleted."
+  "set.usage.clear.done": "Local usage data deleted.",
+  "ask.screen.pick": "Transcript",
+  "ask.screen.nosession.title": "Nothing to ask about yet",
+  "ask.screen.nosession.hint": "Record a session or open a saved transcript first, then ask the AI about it.",
+  "ask.screen.gorecord": "Go to Record",
+  "ask.screen.error": "Could not load your sessions."
 }

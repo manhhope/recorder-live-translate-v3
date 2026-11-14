@@ -567,6 +567,17 @@ mod tests {
         }
     }
 
+    /// Hỏi AI chạy ngay trong cửa sổ chính (phím tắt/deeplink ask_ai -> màn Hỏi AI), nên `main` phải được gọi các lệnh chat.
+    #[test]
+    fn main_may_run_the_ask_ai_chat_commands() {
+        let main = perms("main");
+        for c in ["ai-list-conversations", "ai-list-messages", "ai-ask", "ai-retry", "ai-cancel", "ai-clear-history", "ai-delete-conversation", "ai-accept-consent", "ai-get-settings"] {
+            assert!(main.contains(&format!("allow-{c}")), "main thieu quyen allow-{c}");
+        }
+        // Khóa API vẫn chỉ đặt/xóa được, không có lệnh đọc lại.
+        assert!(!main.iter().any(|p| p.contains("ai-get-api-key")));
+    }
+
     #[test]
     fn csp_is_strict() {
         let conf: Value = serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
