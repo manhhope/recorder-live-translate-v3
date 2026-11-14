@@ -32,3 +32,56 @@ npx playwright test (toan bo)  -> 63 passed, 19 failed
 
 ## Diff
 Xem `git show` cua commit; tom tat: app.css (3 dong), Record.svelte (them `short`), LangSelect.svelte (them `title`).
+
+## Cap nhat lan 2: Playwright toan bo pass
+
+Lan truoc 19 test fail (63 pass). Nguyen nhan khong phai bo chon ngon ngu: cac spec chua commit (i18n, known-bugs, settings, states, visual) tro toi tab Cai dat cu `set.tab.usagelogs` va `set.tab.ai`, trong khi `Settings.svelte` da commit (8888a62) doi thanh 8 tab (`set.tab.sonioxusage`, `set.tab.translate`). Da sua trong test, khong sua code ung dung:
+
+- Doi ten tab: `set.tab.usagelogs` thanh `set.tab.sonioxusage`, `set.tab.ai` thanh `set.tab.translate` (5 file spec).
+- Nhan `set.usage.week` khong con hien trong UI: doi sang heading `set.tab.usagelogs` (i18n.spec, states.spec).
+- states.spec: `.bd.rec` / `.bd.ok` khop nham them badge `usage-source`, loai bang `:not([data-testid])`.
+- known-bugs.spec: P-03, P-04 bao "Expected to fail, but passed" (loi da duoc sua), bo `test.fail`.
+
+File spec sua: test/e2e/{i18n,known-bugs,settings,states,visual}.spec.ts.
+
+### Output that (chay lai sau khi sua)
+
+```
+### npm run build
+dist/assets/capture-Xrh7vU4z.js      2.34 kB │ gzip:  1.19 kB
+dist/assets/quick-Bv1c8gCq.js        7.60 kB │ gzip:  3.13 kB
+dist/assets/legacy-TRHFlO_d.js      12.56 kB │ gzip:  4.92 kB
+dist/assets/subtitle-BMEVtxNT.js    19.21 kB │ gzip:  5.44 kB
+dist/assets/main-fev6LkoT.js        90.39 kB │ gzip: 26.62 kB
+dist/assets/core-CMkZPlZi.js       168.84 kB │ gzip: 56.38 kB
+
+✓ built in 361ms
+### npm run test:i18n
+✔ locale mac dinh la pt-PT bat ke gia tri luu khong hop le (0.050041ms)
+✔ giao dien chay pt-PT mac dinh, doi sang en ngay, khong con chuoi en o pt-PT (8.75075ms)
+✔ thieu khoa o pt-PT roi ve chu tieng Anh va ghi canh bao (AC-49.3) (0.775625ms)
+✔ dinh dang ngay khac nhau dung theo locale (3.132042ms)
+✔ dinh dang so va tien khac nhau dung theo locale (0.424459ms)
+✔ script quet chuoi cung bat duoc chuoi cung va cho qua ma dung i18n (176.988667ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 336.5375
+### npm run scan:i18n
+
+> recorder-live-translate-v3@0.1.0 scan:i18n
+> node scripts/scan-hardcoded.mjs src
+
+Quet 44 tep trong src/ (bo qua locales, i18n)
+So chuoi cung tim thay: 0
+### npx playwright test
+  ✓  80 [chromium] › test/e2e/visual.spec.ts:35:3 › Chup man hinh de doi chieu thiet ke (pt-PT, 820 x 640) › Phien: danh sach va chi tiet (287ms)
+  ✓  81 [chromium] › test/e2e/visual.spec.ts:45:3 › Chup man hinh de doi chieu thiet ke (pt-PT, 820 x 640) › Cai dat: tab AI (255ms)
+  ✓  82 [chromium] › test/e2e/visual.spec.ts:53:3 › Chup man hinh de doi chieu thiet ke (pt-PT, 820 x 640) › Cai dat: tab Usage Logs (222ms)
+
+  82 passed (8.7s)
+```
