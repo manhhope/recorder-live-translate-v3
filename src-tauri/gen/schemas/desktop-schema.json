@@ -177,6 +177,600 @@
       "description": "Permission identifier",
       "oneOf": [
         {
+          "description": "Enables the ai_accept_consent command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-accept-consent",
+          "markdownDescription": "Enables the ai_accept_consent command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ai_ask command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-ask",
+          "markdownDescription": "Enables the ai_ask command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ai_cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-cancel",
+          "markdownDescription": "Enables the ai_cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ai_clear_api_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-clear-api-key",
+          "markdownDescription": "Enables the ai_clear_api_key command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ai_clear_history command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-clear-history",
+          "markdownDescription": "Enables the ai_clear_history command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ai_delete_conversation command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-delete-conversation",
+          "markdownDescription": "Enables the ai_delete_conversation command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ai_get_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-get-settings",
+          "markdownDescription": "Enables the ai_get_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ai_list_conversations command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-list-conversations",
+          "markdownDescription": "Enables the ai_list_conversations command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ai_list_messages command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-list-messages",
+          "markdownDescription": "Enables the ai_list_messages command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ai_retry command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-retry",
+          "markdownDescription": "Enables the ai_retry command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ai_save_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-save-settings",
+          "markdownDescription": "Enables the ai_save_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ai_set_api_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-set-api-key",
+          "markdownDescription": "Enables the ai_set_api_key command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ai_test_connection command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ai-test-connection",
+          "markdownDescription": "Enables the ai_test_connection command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the autostart_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-autostart-get",
+          "markdownDescription": "Enables the autostart_get command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the autostart_set command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-autostart-set",
+          "markdownDescription": "Enables the autostart_set command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the capture_begin command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-capture-begin",
+          "markdownDescription": "Enables the capture_begin command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the capture_cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-capture-cancel",
+          "markdownDescription": "Enables the capture_cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the capture_commit command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-capture-commit",
+          "markdownDescription": "Enables the capture_commit command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the core_version command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-core-version",
+          "markdownDescription": "Enables the core_version command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the quick_ax_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-quick-ax-status",
+          "markdownDescription": "Enables the quick_ax_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the quick_cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-quick-cancel",
+          "markdownDescription": "Enables the quick_cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the quick_clear_history command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-quick-clear-history",
+          "markdownDescription": "Enables the quick_clear_history command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the quick_hide command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-quick-hide",
+          "markdownDescription": "Enables the quick_hide command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the quick_history command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-quick-history",
+          "markdownDescription": "Enables the quick_history command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the quick_inline_run command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-quick-inline-run",
+          "markdownDescription": "Enables the quick_inline_run command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the quick_ocr_translate command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-quick-ocr-translate",
+          "markdownDescription": "Enables the quick_ocr_translate command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the quick_prefs_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-quick-prefs-get",
+          "markdownDescription": "Enables the quick_prefs_get command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the quick_prefs_set command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-quick-prefs-set",
+          "markdownDescription": "Enables the quick_prefs_set command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the quick_translate command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-quick-translate",
+          "markdownDescription": "Enables the quick_translate command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the quit_app command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-quit-app",
+          "markdownDescription": "Enables the quit_app command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the shell_set_keep_awake command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-shell-set-keep-awake",
+          "markdownDescription": "Enables the shell_set_keep_awake command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the shell_set_locale command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-shell-set-locale",
+          "markdownDescription": "Enables the shell_set_locale command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the shell_set_recording command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-shell-set-recording",
+          "markdownDescription": "Enables the shell_set_recording command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the shortcut_rebind command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-shortcut-rebind",
+          "markdownDescription": "Enables the shortcut_rebind command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the shortcut_set_enabled command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-shortcut-set-enabled",
+          "markdownDescription": "Enables the shortcut_set_enabled command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the shortcuts_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-shortcuts-status",
+          "markdownDescription": "Enables the shortcuts_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the subtitle_close command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-subtitle-close",
+          "markdownDescription": "Enables the subtitle_close command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the subtitle_font_step command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-subtitle-font-step",
+          "markdownDescription": "Enables the subtitle_font_step command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the subtitle_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-subtitle-get",
+          "markdownDescription": "Enables the subtitle_get command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the subtitle_open command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-subtitle-open",
+          "markdownDescription": "Enables the subtitle_open command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the subtitle_reset_colors command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-subtitle-reset-colors",
+          "markdownDescription": "Enables the subtitle_reset_colors command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the subtitle_reset_position command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-subtitle-reset-position",
+          "markdownDescription": "Enables the subtitle_reset_position command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the subtitle_set_color command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-subtitle-set-color",
+          "markdownDescription": "Enables the subtitle_set_color command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the subtitle_set_hidden command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-subtitle-set-hidden",
+          "markdownDescription": "Enables the subtitle_set_hidden command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the subtitle_set_mode command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-subtitle-set-mode",
+          "markdownDescription": "Enables the subtitle_set_mode command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the subtitle_set_opacity command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-subtitle-set-opacity",
+          "markdownDescription": "Enables the subtitle_set_opacity command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_accept_consent command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-accept-consent",
+          "markdownDescription": "Denies the ai_accept_consent command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_ask command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-ask",
+          "markdownDescription": "Denies the ai_ask command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-cancel",
+          "markdownDescription": "Denies the ai_cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_clear_api_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-clear-api-key",
+          "markdownDescription": "Denies the ai_clear_api_key command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_clear_history command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-clear-history",
+          "markdownDescription": "Denies the ai_clear_history command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_delete_conversation command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-delete-conversation",
+          "markdownDescription": "Denies the ai_delete_conversation command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_get_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-get-settings",
+          "markdownDescription": "Denies the ai_get_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_list_conversations command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-list-conversations",
+          "markdownDescription": "Denies the ai_list_conversations command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_list_messages command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-list-messages",
+          "markdownDescription": "Denies the ai_list_messages command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_retry command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-retry",
+          "markdownDescription": "Denies the ai_retry command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_save_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-save-settings",
+          "markdownDescription": "Denies the ai_save_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_set_api_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-set-api-key",
+          "markdownDescription": "Denies the ai_set_api_key command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ai_test_connection command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ai-test-connection",
+          "markdownDescription": "Denies the ai_test_connection command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the autostart_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-autostart-get",
+          "markdownDescription": "Denies the autostart_get command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the autostart_set command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-autostart-set",
+          "markdownDescription": "Denies the autostart_set command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the capture_begin command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-capture-begin",
+          "markdownDescription": "Denies the capture_begin command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the capture_cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-capture-cancel",
+          "markdownDescription": "Denies the capture_cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the capture_commit command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-capture-commit",
+          "markdownDescription": "Denies the capture_commit command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the core_version command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-core-version",
+          "markdownDescription": "Denies the core_version command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the quick_ax_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-quick-ax-status",
+          "markdownDescription": "Denies the quick_ax_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the quick_cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-quick-cancel",
+          "markdownDescription": "Denies the quick_cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the quick_clear_history command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-quick-clear-history",
+          "markdownDescription": "Denies the quick_clear_history command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the quick_hide command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-quick-hide",
+          "markdownDescription": "Denies the quick_hide command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the quick_history command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-quick-history",
+          "markdownDescription": "Denies the quick_history command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the quick_inline_run command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-quick-inline-run",
+          "markdownDescription": "Denies the quick_inline_run command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the quick_ocr_translate command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-quick-ocr-translate",
+          "markdownDescription": "Denies the quick_ocr_translate command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the quick_prefs_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-quick-prefs-get",
+          "markdownDescription": "Denies the quick_prefs_get command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the quick_prefs_set command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-quick-prefs-set",
+          "markdownDescription": "Denies the quick_prefs_set command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the quick_translate command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-quick-translate",
+          "markdownDescription": "Denies the quick_translate command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the quit_app command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-quit-app",
+          "markdownDescription": "Denies the quit_app command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the shell_set_keep_awake command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-shell-set-keep-awake",
+          "markdownDescription": "Denies the shell_set_keep_awake command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the shell_set_locale command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-shell-set-locale",
+          "markdownDescription": "Denies the shell_set_locale command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the shell_set_recording command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-shell-set-recording",
+          "markdownDescription": "Denies the shell_set_recording command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the shortcut_rebind command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-shortcut-rebind",
+          "markdownDescription": "Denies the shortcut_rebind command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the shortcut_set_enabled command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-shortcut-set-enabled",
+          "markdownDescription": "Denies the shortcut_set_enabled command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the shortcuts_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-shortcuts-status",
+          "markdownDescription": "Denies the shortcuts_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the subtitle_close command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-subtitle-close",
+          "markdownDescription": "Denies the subtitle_close command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the subtitle_font_step command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-subtitle-font-step",
+          "markdownDescription": "Denies the subtitle_font_step command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the subtitle_get command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-subtitle-get",
+          "markdownDescription": "Denies the subtitle_get command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the subtitle_open command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-subtitle-open",
+          "markdownDescription": "Denies the subtitle_open command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the subtitle_reset_colors command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-subtitle-reset-colors",
+          "markdownDescription": "Denies the subtitle_reset_colors command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the subtitle_reset_position command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-subtitle-reset-position",
+          "markdownDescription": "Denies the subtitle_reset_position command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the subtitle_set_color command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-subtitle-set-color",
+          "markdownDescription": "Denies the subtitle_set_color command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the subtitle_set_hidden command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-subtitle-set-hidden",
+          "markdownDescription": "Denies the subtitle_set_hidden command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the subtitle_set_mode command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-subtitle-set-mode",
+          "markdownDescription": "Denies the subtitle_set_mode command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the subtitle_set_opacity command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-subtitle-set-opacity",
+          "markdownDescription": "Denies the subtitle_set_opacity command without any pre-configured scope."
+        },
+        {
+          "description": "This permission set configures if your\napplication can enable or disable auto\nstarting the application on boot.\n\n#### Granted Permissions\n\nIt allows all to check, enable and\ndisable the automatic start on boot.\n\n\n#### This default permission set includes:\n\n- `allow-enable`\n- `allow-disable`\n- `allow-is-enabled`",
+          "type": "string",
+          "const": "autostart:default",
+          "markdownDescription": "This permission set configures if your\napplication can enable or disable auto\nstarting the application on boot.\n\n#### Granted Permissions\n\nIt allows all to check, enable and\ndisable the automatic start on boot.\n\n\n#### This default permission set includes:\n\n- `allow-enable`\n- `allow-disable`\n- `allow-is-enabled`"
+        },
+        {
+          "description": "Enables the disable command without any pre-configured scope.",
+          "type": "string",
+          "const": "autostart:allow-disable",
+          "markdownDescription": "Enables the disable command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the enable command without any pre-configured scope.",
+          "type": "string",
+          "const": "autostart:allow-enable",
+          "markdownDescription": "Enables the enable command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the is_enabled command without any pre-configured scope.",
+          "type": "string",
+          "const": "autostart:allow-is-enabled",
+          "markdownDescription": "Enables the is_enabled command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the disable command without any pre-configured scope.",
+          "type": "string",
+          "const": "autostart:deny-disable",
+          "markdownDescription": "Denies the disable command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the enable command without any pre-configured scope.",
+          "type": "string",
+          "const": "autostart:deny-enable",
+          "markdownDescription": "Denies the enable command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the is_enabled command without any pre-configured scope.",
+          "type": "string",
+          "const": "autostart:deny-is-enabled",
+          "markdownDescription": "Denies the is_enabled command without any pre-configured scope."
+        },
+        {
           "description": "Default core plugins set.\n#### This default permission set includes:\n\n- `core:path:default`\n- `core:event:default`\n- `core:window:default`\n- `core:webview:default`\n- `core:app:default`\n- `core:image:default`\n- `core:resources:default`\n- `core:menu:default`\n- `core:tray:default`",
           "type": "string",
           "const": "core:default",
@@ -2215,6 +2809,192 @@
           "type": "string",
           "const": "core:window:deny-unminimize",
           "markdownDescription": "Denies the unminimize command without any pre-configured scope."
+        },
+        {
+          "description": "Allows reading the opened deep link via the get_current command\n#### This default permission set includes:\n\n- `allow-get-current`",
+          "type": "string",
+          "const": "deep-link:default",
+          "markdownDescription": "Allows reading the opened deep link via the get_current command\n#### This default permission set includes:\n\n- `allow-get-current`"
+        },
+        {
+          "description": "Enables the get_current command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:allow-get-current",
+          "markdownDescription": "Enables the get_current command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the is_registered command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:allow-is-registered",
+          "markdownDescription": "Enables the is_registered command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the register command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:allow-register",
+          "markdownDescription": "Enables the register command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the unregister command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:allow-unregister",
+          "markdownDescription": "Enables the unregister command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_current command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:deny-get-current",
+          "markdownDescription": "Denies the get_current command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the is_registered command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:deny-is-registered",
+          "markdownDescription": "Denies the is_registered command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the register command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:deny-register",
+          "markdownDescription": "Denies the register command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the unregister command without any pre-configured scope.",
+          "type": "string",
+          "const": "deep-link:deny-unregister",
+          "markdownDescription": "Denies the unregister command without any pre-configured scope."
+        },
+        {
+          "description": "This permission set configures the types of dialogs\navailable from the dialog plugin.\n\n#### Granted Permissions\n\nAll dialog types are enabled.\n\n\n\n#### This default permission set includes:\n\n- `allow-message`\n- `allow-save`\n- `allow-open`",
+          "type": "string",
+          "const": "dialog:default",
+          "markdownDescription": "This permission set configures the types of dialogs\navailable from the dialog plugin.\n\n#### Granted Permissions\n\nAll dialog types are enabled.\n\n\n\n#### This default permission set includes:\n\n- `allow-message`\n- `allow-save`\n- `allow-open`"
+        },
+        {
+          "description": "Enables the ask command without any pre-configured scope. (**DEPRECATED**: This is now an alias to `allow-message` and will be removed in v3)",
+          "type": "string",
+          "const": "dialog:allow-ask",
+          "markdownDescription": "Enables the ask command without any pre-configured scope. (**DEPRECATED**: This is now an alias to `allow-message` and will be removed in v3)"
+        },
+        {
+          "description": "Enables the confirm command without any pre-configured scope. (**DEPRECATED**: This is now an alias to `allow-message` and will be removed in v3)",
+          "type": "string",
+          "const": "dialog:allow-confirm",
+          "markdownDescription": "Enables the confirm command without any pre-configured scope. (**DEPRECATED**: This is now an alias to `allow-message` and will be removed in v3)"
+        },
+        {
+          "description": "Enables the message command without any pre-configured scope.",
+          "type": "string",
+          "const": "dialog:allow-message",
+          "markdownDescription": "Enables the message command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open command without any pre-configured scope.",
+          "type": "string",
+          "const": "dialog:allow-open",
+          "markdownDescription": "Enables the open command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the save command without any pre-configured scope.",
+          "type": "string",
+          "const": "dialog:allow-save",
+          "markdownDescription": "Enables the save command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ask command without any pre-configured scope. (**DEPRECATED**: This is now an alias to `deny-message` and will be removed in v3)",
+          "type": "string",
+          "const": "dialog:deny-ask",
+          "markdownDescription": "Denies the ask command without any pre-configured scope. (**DEPRECATED**: This is now an alias to `deny-message` and will be removed in v3)"
+        },
+        {
+          "description": "Denies the confirm command without any pre-configured scope. (**DEPRECATED**: This is now an alias to `deny-message` and will be removed in v3)",
+          "type": "string",
+          "const": "dialog:deny-confirm",
+          "markdownDescription": "Denies the confirm command without any pre-configured scope. (**DEPRECATED**: This is now an alias to `deny-message` and will be removed in v3)"
+        },
+        {
+          "description": "Denies the message command without any pre-configured scope.",
+          "type": "string",
+          "const": "dialog:deny-message",
+          "markdownDescription": "Denies the message command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open command without any pre-configured scope.",
+          "type": "string",
+          "const": "dialog:deny-open",
+          "markdownDescription": "Denies the open command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the save command without any pre-configured scope.",
+          "type": "string",
+          "const": "dialog:deny-save",
+          "markdownDescription": "Denies the save command without any pre-configured scope."
+        },
+        {
+          "description": "No features are enabled by default, as we believe\nthe shortcuts can be inherently dangerous and it is\napplication specific if specific shortcuts should be\nregistered or unregistered.\n",
+          "type": "string",
+          "const": "global-shortcut:default",
+          "markdownDescription": "No features are enabled by default, as we believe\nthe shortcuts can be inherently dangerous and it is\napplication specific if specific shortcuts should be\nregistered or unregistered.\n"
+        },
+        {
+          "description": "Enables the is_registered command without any pre-configured scope.",
+          "type": "string",
+          "const": "global-shortcut:allow-is-registered",
+          "markdownDescription": "Enables the is_registered command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the register command without any pre-configured scope.",
+          "type": "string",
+          "const": "global-shortcut:allow-register",
+          "markdownDescription": "Enables the register command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the register_all command without any pre-configured scope.",
+          "type": "string",
+          "const": "global-shortcut:allow-register-all",
+          "markdownDescription": "Enables the register_all command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the unregister command without any pre-configured scope.",
+          "type": "string",
+          "const": "global-shortcut:allow-unregister",
+          "markdownDescription": "Enables the unregister command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the unregister_all command without any pre-configured scope.",
+          "type": "string",
+          "const": "global-shortcut:allow-unregister-all",
+          "markdownDescription": "Enables the unregister_all command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the is_registered command without any pre-configured scope.",
+          "type": "string",
+          "const": "global-shortcut:deny-is-registered",
+          "markdownDescription": "Denies the is_registered command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the register command without any pre-configured scope.",
+          "type": "string",
+          "const": "global-shortcut:deny-register",
+          "markdownDescription": "Denies the register command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the register_all command without any pre-configured scope.",
+          "type": "string",
+          "const": "global-shortcut:deny-register-all",
+          "markdownDescription": "Denies the register_all command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the unregister command without any pre-configured scope.",
+          "type": "string",
+          "const": "global-shortcut:deny-unregister",
+          "markdownDescription": "Denies the unregister command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the unregister_all command without any pre-configured scope.",
+          "type": "string",
+          "const": "global-shortcut:deny-unregister-all",
+          "markdownDescription": "Denies the unregister_all command without any pre-configured scope."
         }
       ]
     },

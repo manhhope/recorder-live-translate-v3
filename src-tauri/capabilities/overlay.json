@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "overlay-window",
+  "description": "Cua so phu de (ADR-10, label 'subtitle'): hien chu nhan dang tu am thanh bat ky nen khong dung duoc phien, bien ban, khoa hay mang.",
+  "windows": ["subtitle"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "core:window:allow-start-dragging",
+    "allow-subtitle-get",
+    "allow-subtitle-font-step",
+    "allow-subtitle-set-mode",
+    "allow-subtitle-set-opacity",
+    "allow-subtitle-reset-colors",
+    "allow-subtitle-set-color",
+    "allow-subtitle-set-hidden",
+    "allow-subtitle-reset-position",
+    "allow-subtitle-close"
+  ]
+}

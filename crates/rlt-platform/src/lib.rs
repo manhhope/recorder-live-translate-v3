@@ -3,6 +3,9 @@
 
 pub mod audio_convert;
 pub mod mic;
+pub mod panel;
+pub mod panel_geometry;
+pub mod power;
 
 use rlt_core::{AudioError, AudioSource, AudioSourceKind, AudioSourceProvider};
 

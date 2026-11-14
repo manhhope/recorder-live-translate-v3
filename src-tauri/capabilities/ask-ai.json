@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "ask-ai-window",
+  "description": "Cua so ask-ai (ADR-10): chat Hoi AI. Khong co lenh dat hay doc khoa API; khoa chi dat duoc tu cua so main.",
+  "windows": [
+    "ask-ai"
+  ],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-ai-get-settings",
+    "allow-ai-accept-consent",
+    "allow-ai-list-conversations",
+    "allow-ai-list-messages",
+    "allow-ai-ask",
+    "allow-ai-retry",
+    "allow-ai-cancel",
+    "allow-ai-clear-history",
+    "allow-ai-delete-conversation"
+  ]
+}

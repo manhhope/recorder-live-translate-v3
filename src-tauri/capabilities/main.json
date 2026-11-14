@@ -1,0 +1,40 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "Cua so chinh (ADR-10): lenh vo ung dung va cai dat. Autostart va deep-link chi di qua lenh Rust nay, khong cap plugin JS.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "allow-core-version",
+    "allow-shell-set-recording",
+    "allow-shell-set-keep-awake",
+    "allow-shell-set-locale",
+    "allow-shortcuts-status",
+    "allow-shortcut-rebind",
+    "allow-shortcut-set-enabled",
+    "allow-autostart-get",
+    "allow-autostart-set",
+    "allow-quit-app",
+    "allow-subtitle-open",
+    "allow-subtitle-close",
+    "allow-subtitle-get",
+    "allow-subtitle-font-step",
+    "allow-subtitle-set-mode",
+    "allow-subtitle-set-opacity",
+    "allow-subtitle-reset-colors",
+    "allow-subtitle-set-color",
+    "allow-subtitle-set-hidden",
+    "allow-subtitle-reset-position",
+    "allow-capture-begin",
+    "allow-capture-cancel",
+    "allow-capture-commit",
+    "allow-ai-get-settings",
+    "allow-ai-save-settings",
+    "allow-ai-set-api-key",
+    "allow-ai-clear-api-key",
+    "allow-ai-accept-consent",
+    "allow-ai-test-connection"
+  ]
+}

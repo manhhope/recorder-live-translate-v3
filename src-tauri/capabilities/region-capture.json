@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "region-capture-window",
+  "description": "Cua so region-capture (ADR-10): chua co lenh rieng (them o M3); tam thoi chi nghe su kien.",
+  "windows": ["region-capture"],
+  "permissions": ["core:event:allow-listen", "core:event:allow-unlisten"]
+}

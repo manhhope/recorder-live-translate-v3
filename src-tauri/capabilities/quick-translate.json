@@ -1,0 +1,19 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "quick-translate-window",
+  "description": "Cua so quick-translate (ADR-10): dich nhanh, lich su, tuy chon. Khong co lenh doc khoa, phim tat hay thoat app.",
+  "windows": ["quick-translate"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-quick-translate",
+    "allow-quick-cancel",
+    "allow-quick-history",
+    "allow-quick-clear-history",
+    "allow-quick-hide",
+    "allow-quick-ax-status",
+    "allow-quick-prefs-get",
+    "allow-quick-prefs-set",
+    "allow-quick-ocr-translate"
+  ]
+}
