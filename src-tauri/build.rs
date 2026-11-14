@@ -59,6 +59,7 @@ pub const APP_COMMANDS: &[&str] = &[
     "capture_begin",
     "capture_cancel",
     "capture_commit",
+    "session_captures",
     "session_start",
     "session_pause",
     "session_resume",

@@ -160,6 +160,11 @@ export const subtitleResetColors = () => invoke<SubtitleSettings>("subtitle_rese
 export const subtitleSetHidden = (hidden: boolean) => invoke<SubtitleSettings>("subtitle_set_hidden", { hidden });
 export const subtitleResetPosition = () => invoke<void>("subtitle_reset_position");
 
+export interface CaptureRow {
+  screenCaptureId: number; offsetMs: number; absPath: string; widthPx: number; heightPx: number; byteSize: number; thumbDataUrl: string;
+}
+/** Anh chup vung cua mot phien, theo moc thoi gian tuong doi (ms). */
+export const sessionCaptures = (sessionId: string) => invoke<CaptureRow[]>("session_captures", { sessionId });
 export const captureBegin = () => invoke<void>("capture_begin");
 export const glossaryAdd = (term: TermInput) => invoke<number>("glossary_add", { term });
 export const glossaryDelete = (id: number) => invoke<boolean>("glossary_delete", { id });

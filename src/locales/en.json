@@ -499,6 +499,7 @@
   "ses.noresults": "Nothing matches your search.",
   "ses.nolines": "This session has no lines.",
   "ses.gap": "Connection lost",
+  "ses.captures": "Screenshots",
   "ses.highlight": "Highlight line",
   "ses.exported": "File saved.",
   "ses.import": "Import from the old app",

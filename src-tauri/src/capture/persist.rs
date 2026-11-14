@@ -108,6 +108,63 @@ pub fn save(
     Ok(Saved { screen_capture_id: id, file_path: rel, thumb_path: rel_thumb, width_px: w, height_px: h, byte_size: png.len(), sha256: sha })
 }
 
+/// Một ảnh chụp của phiên để hiện trong chi tiết phiên (và làm đầu vào xuất Word).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CaptureRow {
+    pub screen_capture_id: i64,
+    /// Mốc thời gian tương đối so với lúc bắt đầu phiên (ms).
+    pub offset_ms: i64,
+    /// Đường dẫn tuyệt đối của ảnh gốc trên đĩa.
+    pub abs_path: String,
+    pub width_px: i64,
+    pub height_px: i64,
+    pub byte_size: i64,
+    /// Thumbnail PNG dạng `data:` URL (CSP chỉ cho `img-src 'self' data:`); rỗng nếu file thumbnail mất.
+    pub thumb_data_url: String,
+}
+
+const B64: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+pub fn base64_encode(b: &[u8]) -> String {
+    let mut o = String::with_capacity(b.len().div_ceil(3) * 4);
+    for c in b.chunks(3) {
+        let n = (c[0] as u32) << 16 | (*c.get(1).unwrap_or(&0) as u32) << 8 | *c.get(2).unwrap_or(&0) as u32;
+        o.push(B64[(n >> 18) as usize & 63] as char);
+        o.push(B64[(n >> 12) as usize & 63] as char);
+        o.push(if c.len() > 1 { B64[(n >> 6) as usize & 63] as char } else { '=' });
+        o.push(if c.len() > 2 { B64[n as usize & 63] as char } else { '=' });
+    }
+    o
+}
+
+/// Ảnh của một phiên theo thứ tự mốc thời gian. `file_path` trong DB là tương đối so với `data_dir`.
+pub fn list_for_session(store: &Store, data_dir: &Path, session_id: &str) -> Result<Vec<CaptureRow>, SaveError> {
+    if !safe_session_id(session_id) {
+        return Err(SaveError::BadSessionId);
+    }
+    let rows = store.list_screen_captures(session_id).map_err(|e| SaveError::Db(e.to_string()))?;
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            let thumb = r.file_path.strip_suffix(".png").map(|stem| format!("{stem}-thumb.png"));
+            let thumb_data_url = thumb
+                .and_then(|t| std::fs::read(data_dir.join(t)).ok())
+                .map(|b| format!("data:image/png;base64,{}", base64_encode(&b)))
+                .unwrap_or_default();
+            CaptureRow {
+                screen_capture_id: r.screen_capture_id,
+                offset_ms: r.offset_ms,
+                abs_path: data_dir.join(&r.file_path).to_string_lossy().into_owned(),
+                width_px: r.width_px,
+                height_px: r.height_px,
+                byte_size: r.byte_size,
+                thumb_data_url,
+            }
+        })
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,6 +256,30 @@ mod tests {
         assert_eq!(store.list_screen_captures(&sid).unwrap().len(), 1);
         let files = std::fs::read_dir(dir.join(format!("sessions/{sid}/captures"))).unwrap().count();
         assert_eq!(files, 2, "bản trùng không để lại file mồ côi (chỉ còn ảnh + thumbnail của lần đầu)");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn base64_matches_rfc4648_vectors() {
+        for (i, o) in [("", ""), ("f", "Zg=="), ("fo", "Zm8="), ("foo", "Zm9v"), ("foob", "Zm9vYg=="), ("fooba", "Zm9vYmE="), ("foobar", "Zm9vYmFy")] {
+            assert_eq!(base64_encode(i.as_bytes()), o);
+        }
+    }
+
+    #[test]
+    fn captures_of_a_session_are_listed_in_timeline_order_with_thumbnail_and_abs_path() {
+        let (store, sid) = store_with_session();
+        let dir = tmp("list");
+        let img = lit(100, 80);
+        save(&store, &dir, &sid, 90_000, &img, None).unwrap();
+        save(&store, &dir, &sid, 15_000, &img, None).unwrap();
+        let rows = list_for_session(&store, &dir, &sid).unwrap();
+        assert_eq!(rows.iter().map(|r| r.offset_ms).collect::<Vec<_>>(), vec![15_000, 90_000]);
+        assert!(rows[0].abs_path.starts_with(dir.to_str().unwrap()) && rows[0].abs_path.ends_with(".png"));
+        assert!(std::path::Path::new(&rows[0].abs_path).exists());
+        assert!(rows[0].thumb_data_url.starts_with("data:image/png;base64,iVBOR"));
+        assert_eq!((rows[0].width_px, rows[0].height_px), (100, 80));
+        assert!(list_for_session(&store, &dir, "../x").is_err());
         let _ = std::fs::remove_dir_all(dir);
     }
 }

@@ -38,6 +38,7 @@
     "allow-capture-begin",
     "allow-capture-cancel",
     "allow-capture-commit",
+    "allow-session-captures",
     "allow-ai-get-settings",
     "allow-ai-save-settings",
     "allow-ai-set-api-key",

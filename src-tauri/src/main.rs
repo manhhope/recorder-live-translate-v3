@@ -94,6 +94,7 @@ fn main() {
             capture::capture_begin,
             capture::capture_cancel,
             capture::capture_commit,
+            capture::session_captures,
             session::session_start,
             session::session_pause,
             session::session_resume,

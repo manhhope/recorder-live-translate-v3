@@ -16,6 +16,7 @@
   let q = $state("");
   let hits = $state<SearchOut | null>(null);
   let detail = $state<SessionDetail | null>(null);
+  let caps = $state<api.CaptureRow[]>([]);
   let drive = $state<api.DriveOut | null>(null);
   let renaming = $state<string | null>(null);
   let confirmDel = $state<string | null>(null);
@@ -53,6 +54,8 @@
   async function open(id: string) {
     error = null; notice = null; drive = null; askOpen = false;
     try { detail = await api.sessionGet(id); } catch (e) { error = api.errCode(e); }
+    caps = [];
+    try { caps = await api.sessionCaptures(id); } catch { /* chi tiet van hien du khi khong doc duoc anh */ }
   }
   async function guard(fn: () => Promise<void>) {
     error = null;
@@ -112,6 +115,17 @@
       {#key d.session.sessionId}
         <AskAiPopup sessionId={d.session.sessionId} onOpenSettings={openAiSettings} onClose={() => (askOpen = false)} />
       {/key}
+    </div>
+  {/if}
+  {#if caps.length}
+    <div class="caps" aria-label={$_("ses.captures")}>
+      <b>{$_("ses.captures")}</b>
+      {#each caps as c (c.screenCaptureId)}
+        <figure class="cap">
+          {#if c.thumbDataUrl}<img src={c.thumbDataUrl} alt={fmtClock(Math.floor(c.offsetMs / 1000))} />{/if}
+          <figcaption class="ts">{fmtClock(Math.floor(c.offsetMs / 1000))}</figcaption>
+        </figure>
+      {/each}
     </div>
   {/if}
   {#if d.lines.length}
@@ -194,6 +208,10 @@
 {/if}
 
 <style>
+  .caps { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; padding: 8px 18px; }
+  .caps > b { flex: 0 0 100%; font-size: 12px; }
+  .cap { margin: 0; text-align: center; }
+  .cap img { display: block; max-width: 160px; max-height: 100px; border-radius: 6px; border: 1px solid var(--rlt-line); }
   .askdock{display:flex;justify-content:center;height:480px;flex:none;padding:8px 18px}
   .askdock :global(.ask){width:min(720px,100%)}
 </style>

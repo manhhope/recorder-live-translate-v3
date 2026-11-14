@@ -215,4 +215,15 @@ mod tests {
         assert_eq!(region_code(e), "too_small");
         assert_eq!(region_code(region_to_pixels(&[], p, Point { x: 400.0, y: 400.0 }).unwrap_err()), "empty");
     }
+
+    #[test]
+    fn overlay_window_accepts_first_click_and_becomes_key() {
+        // Hồi quy lỗi "bấm Chụp vùng lần đầu kéo thả không được, lần hai mới được": WKWebView mặc định
+        // `acceptsFirstMouse = NO` và lớp phủ chưa từng được `makeKeyAndOrderFront`, nên lần nhấn đầu bị nuốt.
+        let src = include_str!("mod.rs");
+        let begin = &src[src.find("pub fn capture_begin").unwrap()..src.find("pub fn capture_cancel").unwrap()];
+        assert!(begin.contains(".accept_first_mouse(true)"));
+        assert!(begin.contains("panel::show_key("));
+        assert!(!begin.contains(".focusable(false)"));
+    }
 }

@@ -46,6 +46,9 @@ pub struct PanelPlan {
     /// `sharingType = .none`: cố gắng ẩn khỏi chia sẻ/ghi màn hình (chỉ mức "cố gắng", ADR-8 quyết định 6).
     pub hidden_from_capture: bool,
     pub hides_on_deactivate: bool,
+    /// Gọi `makeKeyAndOrderFront` ngay sau khi tạo: lớp chọn vùng phải là key window thì lần nhấn chuột ĐẦU mới
+    /// vào thẳng trang web (nếu không, lần nhấn đầu chỉ để lấy tiêu điểm và bị nuốt).
+    pub make_key_on_show: bool,
 }
 
 pub fn plan(kind: PanelKind) -> PanelPlan {
@@ -58,6 +61,7 @@ pub fn plan(kind: PanelKind) -> PanelPlan {
             can_become_key: false,
             hidden_from_capture: true,
             hides_on_deactivate: false,
+            make_key_on_show: false,
         },
         PanelKind::CaptureOverlay => PanelPlan {
             collection_behavior: common,
@@ -66,6 +70,7 @@ pub fn plan(kind: PanelKind) -> PanelPlan {
             can_become_key: true,
             hidden_from_capture: true,
             hides_on_deactivate: false,
+            make_key_on_show: true,
         },
     }
 }
@@ -95,10 +100,14 @@ impl fmt::Display for PanelError {
 impl std::error::Error for PanelError {}
 
 #[cfg(target_os = "macos")]
-pub use macos::{apply, reassert, restore_class, set_hidden_from_capture, window_number};
+pub use macos::{apply, reassert, restore_class, set_hidden_from_capture, show_key, window_number};
 
 #[cfg(not(target_os = "macos"))]
 pub unsafe fn apply(_ns_window: *mut std::ffi::c_void, _kind: PanelKind) -> Result<(), PanelError> {
+    Err(PanelError::Unsupported)
+}
+#[cfg(not(target_os = "macos"))]
+pub unsafe fn show_key(_ns_window: *mut std::ffi::c_void, _kind: PanelKind) -> Result<(), PanelError> {
     Err(PanelError::Unsupported)
 }
 #[cfg(not(target_os = "macos"))]
@@ -260,6 +269,20 @@ mod macos {
         }
     }
 
+    /// Đặt lại cờ rồi cho cửa sổ thành key window và đưa lên trước (`makeKeyAndOrderFront`) mà KHÔNG kích hoạt app
+    /// (nhờ cờ NonactivatingPanel). Chỉ làm khi `plan(kind).make_key_on_show` (lớp chọn vùng); loại khác bỏ qua.
+    ///
+    /// # Safety
+    /// Như `apply`.
+    pub unsafe fn show_key(ns_window: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
+        let win = window_ref(ns_window)?;
+        configure(win, kind);
+        if plan(kind).make_key_on_show {
+            win.makeKeyAndOrderFront(None);
+        }
+        Ok(())
+    }
+
     /// Bật/tắt "ẩn khỏi chia sẻ" (`sharingType`), dùng cho nút ẩn nhanh/cảnh báo AC-M-13.
     ///
     /// # Safety
@@ -304,6 +327,13 @@ mod tests {
         assert_eq!(p.style_mask_add, STYLE_NONACTIVATING_PANEL);
         assert!(p.level > plan(PanelKind::Subtitle).level);
         assert!(p.hidden_from_capture, "lop chon vung cung khong duoc vao anh chup (AC-48.3)");
+    }
+
+    #[test]
+    fn only_capture_overlay_is_made_key_when_shown() {
+        // Hồi quy lỗi "kéo thả lần đầu không được": lớp chọn vùng phải thành key window ngay khi hiện.
+        assert!(plan(PanelKind::CaptureOverlay).make_key_on_show);
+        assert!(!plan(PanelKind::Subtitle).make_key_on_show, "phu de khong bao gio chiem tieu diem");
     }
 
     #[test]

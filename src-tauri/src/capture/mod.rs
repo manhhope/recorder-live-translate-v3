@@ -125,7 +125,8 @@ pub fn capture_begin(app: AppHandle) -> Result<(), String> {
                 .shadow(false)
                 .always_on_top(true)
                 .skip_taskbar(true)
-                .focusable(false)
+                .focusable(true)
+                .accept_first_mouse(true)
                 .resizable(false)
                 .content_protected(true)
                 .position(m.bounds.x, m.bounds.y)
@@ -135,7 +136,10 @@ pub fn capture_begin(app: AppHandle) -> Result<(), String> {
             if let Ok(w) = &built {
                 if let Ok(ptr) = w.ns_window() {
                     // SAFETY: luồng chính, NSWindow vừa tạo còn sống.
-                    let _ = unsafe { rlt_platform::panel::apply(ptr, rlt_platform::panel::PanelKind::CaptureOverlay) };
+                    let kind = rlt_platform::panel::PanelKind::CaptureOverlay;
+                    let _ = unsafe { rlt_platform::panel::apply(ptr, kind) };
+                    // Thành key window ngay (không kích hoạt app) để lần kéo thả ĐẦU TIÊN nhận chuột.
+                    let _ = unsafe { rlt_platform::panel::show_key(ptr, kind) };
                 }
             }
             if let Err(e) = built {
@@ -148,6 +152,14 @@ pub fn capture_begin(app: AppHandle) -> Result<(), String> {
         }
     })
     .map_err(|e| e.to_string())
+}
+
+/// Ảnh chụp của một phiên (chi tiết phiên, Sessions) theo mốc thời gian.
+#[tauri::command]
+pub fn session_captures(app: AppHandle, session_id: String) -> Result<Vec<persist::CaptureRow>, String> {
+    let st = app.state::<CaptureState>();
+    let store = st.store.lock().map_err(|_| "store_poisoned".to_string())?;
+    persist::list_for_session(&store, &st.data_dir, &session_id).map_err(|e| format!("list_failed:{e:?}"))
 }
 
 #[tauri::command]

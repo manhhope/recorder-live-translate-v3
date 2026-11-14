@@ -499,6 +499,7 @@
   "ses.noresults": "Nada corresponde à pesquisa.",
   "ses.nolines": "Esta sessão não tem linhas.",
   "ses.gap": "Ligação perdida",
+  "ses.captures": "Capturas de ecrã",
   "ses.highlight": "Destacar linha",
   "ses.exported": "Ficheiro guardado.",
   "ses.import": "Importar da app antiga",
