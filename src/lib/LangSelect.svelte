@@ -25,7 +25,7 @@
     aria-disabled={locked} disabled={locked}
     aria-label={$_(ariaKey)} data-tip={$_(tipKey) + $_(locked ? "cfg.lock.tip" : "cfg.change.tip")}
     onclick={() => (open = !open)}>
-    <span class="v">
+    <span class="v" title={current ? $_(current.key) : $_("lang.auto")}>
       {#if current}<span class="fl">{current.flag}</span> {label(current.key)}
       {:else}<Icon name="globe" /> {$_("lang.auto")}{/if}
     </span>

@@ -168,7 +168,7 @@
       <button type="button" class="off" role="radio" aria-checked="false" aria-disabled="true" aria-label={$_("cfg.mode.two.aria")} data-tip={$_("cfg.mode.two.tip")}>{$_("cfg.mode.two")}<Icon name="lock" /></button>
     </span>
     <span class="lsub">
-      <LangSelect bind:value={app.src} withAuto cls="sw1" locked={active} ariaKey="cfg.src.aria" tipKey="cfg.src.tip" />
+      <LangSelect bind:value={app.src} withAuto short cls="sw1" locked={active} ariaKey="cfg.src.aria" tipKey="cfg.src.tip" />
       <span class="ar2" role="img" aria-label={$_("cfg.arrow.aria")} data-tip={$_("cfg.arrow.tip")}><Icon name="arrow" /></span>
       <LangSelect bind:value={app.dst} short cls="sw2" locked={active} ariaKey="cfg.dst.aria" tipKey="cfg.dst.tip" />
     </span>

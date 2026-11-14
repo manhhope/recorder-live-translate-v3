@@ -32,7 +32,7 @@ button{font:inherit;color:inherit;cursor:default}
 .tm{font:600 14px var(--rlt-mono);margin-left:6px}
 .hint{font-size:11px;color:var(--rlt-text2);margin:4px 0 0}
 /* thanh cau hinh gon (v3.3): mot dong, khong nhan chu rieng */
-.cfg{display:flex;align-items:center;flex-wrap:nowrap;white-space:nowrap;gap:8px;margin:12px 14px 0;padding:8px 10px;border:1px solid var(--rlt-line);border-radius:var(--rlt-rc);background:var(--rlt-card);font-size:12px}
+.cfg{display:flex;align-items:center;flex-wrap:wrap;white-space:nowrap;gap:6px 8px;margin:12px 14px 0;padding:8px 10px;border:1px solid var(--rlt-line);border-radius:var(--rlt-rc);background:var(--rlt-card);font-size:12px}
 .cg{display:flex;align-items:center;min-width:0}.cg.lg2{flex:1 1 auto;gap:8px}.cg.sr{flex:none;gap:6px}
 .lsub{display:inline-flex;align-items:center;gap:6px;min-width:0}
 .seg{display:inline-flex;flex-wrap:wrap;max-width:100%;gap:2px;padding:2px;border:1px solid var(--rlt-line);border-radius:var(--rlt-rb);background:var(--rlt-ctl);flex:none}
@@ -43,9 +43,11 @@ button{font:inherit;color:inherit;cursor:default}
 .cfg .seg>*{padding:3px 6px}
 .sel{display:inline-flex;align-items:center;justify-content:space-between;gap:8px;height:var(--rlt-hc);padding:0 10px;border:1px solid var(--rlt-line);border-radius:var(--rlt-rb);background:var(--rlt-card);min-width:150px;color:var(--rlt-text);font-size:var(--rlt-fs)}
 .sel .v{display:inline-flex;gap:6px;align-items:center;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.sel>.i{flex:none}
 .sel.open{border-color:var(--rlt-acc);box-shadow:var(--rlt-focus-ring)}
-.cfg .sel{flex:none;min-width:0;padding:0 8px;gap:4px;font-size:12px;overflow:hidden}
-.cfg .sel.sw1{width:104px}.cfg .sel.sw2{width:128px}
+.cfg .sel{flex:none;min-width:0;width:auto;padding:0 8px;gap:6px;font-size:12px;overflow:hidden}
+.cfg .sel .v{flex:1 1 auto;white-space:nowrap}
+.cfg .sel>.i{flex:none}
 .cfg .sel .i{width:14px;height:14px}
 .cfg.lock .sel,.cfg.lock .seg{opacity:.6}
 .ar2{display:inline-flex;flex:none;color:var(--rlt-text2)}
