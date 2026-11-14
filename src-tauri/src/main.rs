@@ -5,6 +5,7 @@ use rlt_platform as _;
 
 mod ai;
 mod capture;
+mod crashlog;
 mod quick;
 mod session;
 mod shell;
@@ -16,10 +17,12 @@ fn core_version() -> String {
 }
 
 fn main() {
+    crashlog::install();
     shell::plugins(tauri::Builder::default())
         .setup(|app| {
             use tauri::Manager;
             let dir = app.path().app_data_dir()?;
+            crashlog::set_dir(&dir);
             let dir_for_shell = dir.clone();
             app.manage(subtitle::SubtitleState::load(dir.clone()));
             std::fs::create_dir_all(&dir)?;
@@ -128,5 +131,7 @@ fn main() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| shell::on_run_event(app, &event));
+        .run(|app, event| {
+            crashlog::guard("run_event", || shell::on_run_event(app, &event));
+        });
 }

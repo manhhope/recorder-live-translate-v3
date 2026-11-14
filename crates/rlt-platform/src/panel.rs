@@ -95,11 +95,15 @@ impl fmt::Display for PanelError {
 impl std::error::Error for PanelError {}
 
 #[cfg(target_os = "macos")]
-pub use macos::{apply, reassert, set_hidden_from_capture, window_number};
+pub use macos::{apply, reassert, restore_class, set_hidden_from_capture, window_number};
 
 #[cfg(not(target_os = "macos"))]
 pub unsafe fn apply(_ns_window: *mut std::ffi::c_void, _kind: PanelKind) -> Result<(), PanelError> {
     Err(PanelError::Unsupported)
+}
+#[cfg(not(target_os = "macos"))]
+pub unsafe fn restore_class(_ns_window: *mut std::ffi::c_void) -> bool {
+    false
 }
 #[cfg(not(target_os = "macos"))]
 pub unsafe fn reassert(_ns_window: *mut std::ffi::c_void, _kind: PanelKind) -> Result<(), PanelError> {
@@ -165,6 +169,38 @@ mod macos {
         }
     );
 
+    // Lớp gốc (có thể là lớp con KVO `NSKVONotifying_...`) của từng cửa sổ trước khi đổi sang panel.
+    // Đổi lớp tại chỗ làm lệch trạng thái KVO của AppKit: khi cửa sổ bị giải phóng, `-[NSWindow dealloc]` gỡ
+    // observer `_windowLayerContext` và ném NSException ("not registered as an observer"). tao không bắt được
+    // ngoại lệ ObjC nên cả app abort (SIGABRT). Vì vậy phải trả lớp gốc về TRƯỚC khi cửa sổ bị huỷ.
+    static ORIGINALS: std::sync::Mutex<Vec<(usize, usize)>> = std::sync::Mutex::new(Vec::new());
+
+    fn remember_original(ns_window: *mut c_void, cls: &AnyClass) {
+        let mut v = ORIGINALS.lock().unwrap_or_else(|e| e.into_inner());
+        v.retain(|(p, _)| *p != ns_window as usize);
+        v.push((ns_window as usize, cls as *const AnyClass as usize));
+    }
+
+    /// Trả lớp gốc cho cửa sổ đã bị `apply` đổi sang panel. Gọi ở sự kiện đóng cửa sổ, trước khi tao giải phóng
+    /// nó. Trả `true` nếu đã khôi phục; `false` nếu cửa sổ chưa từng bị đổi (không làm gì).
+    ///
+    /// # Safety
+    /// `ns_window` phải là con trỏ `NSWindow` còn sống.
+    pub unsafe fn restore_class(ns_window: *mut c_void) -> bool {
+        if ns_window.is_null() || MainThreadMarker::new().is_none() {
+            return false;
+        }
+        let orig = {
+            let mut v = ORIGINALS.lock().unwrap_or_else(|e| e.into_inner());
+            let Some(i) = v.iter().position(|(p, _)| *p == ns_window as usize) else { return false };
+            v.swap_remove(i).1
+        };
+        let cls = &*(orig as *const AnyClass);
+        let obj = &*(ns_window as *const AnyObject);
+        AnyObject::set_class(obj, cls);
+        true
+    }
+
     fn target_class(kind: PanelKind) -> &'static AnyClass {
         match kind {
             PanelKind::Subtitle => SubtitlePanel::class(),
@@ -195,6 +231,7 @@ mod macos {
             if a != b {
                 return Err(PanelError::LayoutMismatch { window: a, panel: b });
             }
+            remember_original(ns_window, current);
             AnyObject::set_class(obj, cls);
         }
         configure(win, kind);
@@ -293,6 +330,26 @@ mod tests {
             let fake = 0x10 as *mut std::ffi::c_void;
             assert_eq!(apply(fake, PanelKind::Subtitle), Err(PanelError::NotMainThread));
         }
+    }
+
+    #[test]
+    fn restore_class_does_nothing_for_window_never_swapped() {
+        // Cửa sổ chưa từng qua `apply` (hoặc gọi ngoài luồng chính) thì không được đụng vào con trỏ.
+        unsafe {
+            assert!(!restore_class(std::ptr::null_mut()));
+            assert!(!restore_class(0x10 as *mut std::ffi::c_void));
+        }
+    }
+
+    #[test]
+    fn source_keeps_original_class_for_restore_before_window_dealloc() {
+        // Hồi quy crash SIGABRT: đổi lớp NSWindow sang panel mà không trả lớp gốc thì `-[NSWindow dealloc]` ném
+        // NSException (KVO) và app abort. `apply` PHẢI nhớ lớp gốc ngay trước `set_class`.
+        let full = include_str!("panel.rs");
+        let src = &full[..full.find("#[cfg(test)]").unwrap()];
+        let apply_at = src.find("remember_original(ns_window, current)").unwrap();
+        let set_at = src[apply_at..].find("AnyObject::set_class(obj, cls)");
+        assert!(set_at.is_some(), "apply phai nho lop goc truoc khi doi lop");
     }
 
     #[test]

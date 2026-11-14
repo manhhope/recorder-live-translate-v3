@@ -41,7 +41,7 @@ impl ShortcutBackend for TauriBackend {
             .global_shortcut()
             .on_shortcut(accelerator, move |_app, _shortcut, event| {
                 if event.state() == ShortcutState::Pressed {
-                    run_action(&app, action);
+                    crate::crashlog::guard("global_shortcut", || run_action(&app, action));
                 }
             })
             .map_err(|e| e.to_string())
@@ -205,21 +205,25 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .tooltip(i18n::t(&loc, "shell.tray.idle"))
-        .on_menu_event(|app, ev| match ev.id().as_ref() {
-            "tray-open" => show_main(app),
-            "tray-subtitle" => {
-                let _ = crate::subtitle::subtitle_open(app.clone());
-            }
-            "tray-capture" => {
-                let _ = crate::capture::capture_begin(app.clone());
-            }
-            "tray-quit" => request_quit(app),
-            _ => {}
+        .on_menu_event(|app, ev| {
+            crate::crashlog::guard("tray_menu", || match ev.id().as_ref() {
+                "tray-open" => show_main(app),
+                "tray-subtitle" => {
+                    let _ = crate::subtitle::subtitle_open(app.clone());
+                }
+                "tray-capture" => {
+                    let _ = crate::capture::capture_begin(app.clone());
+                }
+                "tray-quit" => request_quit(app),
+                _ => {}
+            });
         })
         .on_tray_icon_event(|tray, ev| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = ev {
-                show_main(tray.app_handle());
-            }
+            crate::crashlog::guard("tray_icon", || {
+                if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = ev {
+                    show_main(tray.app_handle());
+                }
+            });
         });
     if let Some(icon) = app.default_window_icon() {
         b = b.icon(icon.clone());
@@ -236,7 +240,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 pub fn plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     builder
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            show_main(app);
+            crate::crashlog::guard("single_instance", || show_main(app));
             // macOS nhận URL qua Apple Event (on_open_url), không qua argv; xử lý argv ở đó sẽ trùng 2 lần.
             #[cfg(not(target_os = "macos"))]
             for u in deeplink::urls_from_args(&argv) {
@@ -250,14 +254,32 @@ pub fn plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                if on_close_requested(window.label()) == CloseDecision::HideWindow {
-                    api.prevent_close();
-                    let _ = window.hide();
+            crate::crashlog::guard("window_event", || {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    if on_close_requested(window.label()) == CloseDecision::HideWindow {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    } else {
+                        restore_panel_class(window);
+                    }
                 }
-            }
+            });
         })
 }
+
+/// Cửa sổ phụ đề và lớp chọn vùng bị `rlt_platform::panel::apply` đổi lớp sang NSPanel. Cửa sổ sắp bị huỷ phải
+/// được trả lớp gốc trước, nếu không `-[NSWindow dealloc]` ném NSException (KVO) và app abort. Xem
+/// docs/crash-mo-app-bao-cao.md.
+#[cfg(target_os = "macos")]
+fn restore_panel_class(window: &tauri::Window) {
+    if let Ok(ptr) = window.ns_window() {
+        // SAFETY: con trỏ NSWindow do Tauri cấp, cửa sổ còn sống ở sự kiện CloseRequested; luồng chính.
+        let _ = unsafe { rlt_platform::panel::restore_class(ptr) };
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn restore_panel_class(_window: &tauri::Window) {}
 
 /// Gọi trong `setup`.
 pub fn setup(app: &AppHandle, data_dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
@@ -287,9 +309,11 @@ pub fn setup(app: &AppHandle, data_dir: PathBuf) -> Result<(), Box<dyn std::erro
     // Deep-link: URL đến khi app đang chạy, và URL đã đưa app lên lúc khởi động.
     let h = app.clone();
     app.deep_link().on_open_url(move |ev| {
-        for u in ev.urls() {
-            handle_url(&h, u.as_str());
-        }
+        crate::crashlog::guard("deep_link", || {
+            for u in ev.urls() {
+                handle_url(&h, u.as_str());
+            }
+        });
     });
     if let Ok(Some(urls)) = app.deep_link().get_current() {
         for u in urls {

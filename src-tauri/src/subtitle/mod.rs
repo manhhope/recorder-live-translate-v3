@@ -95,7 +95,7 @@ pub fn open(app: &AppHandle) -> Result<(), String> {
     let handle = app.clone();
     w.on_window_event(move |ev| {
         if matches!(ev, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
-            remember_position(&handle);
+            crate::crashlog::guard("subtitle_window_event", || remember_position(&handle));
         }
     });
     Ok(())
