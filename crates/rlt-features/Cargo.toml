@@ -1,0 +1,11 @@
+[package]
+name = "rlt-features"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Tinh nang M2 tren rlt-store: thuat ngu va tu vung (context Soniox), highlight, xuat md/txt/srt, tim kiem, Usage Logs, dong bo Drive (trait), nhap DB .NET"
+
+[dependencies]
+rlt-store = { path = "../rlt-store" }
+rusqlite = { version = "0.32", features = ["bundled", "functions"] }
+serde_json = "1"

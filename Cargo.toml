@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/rlt-core", "crates/rlt-platform", "crates/rlt-store", "crates/rlt-segment", "crates/rlt-soniox", "crates/rlt-secrets", "src-tauri"]
+members = ["crates/rlt-core", "crates/rlt-platform", "crates/rlt-store", "crates/rlt-segment", "crates/rlt-soniox", "crates/rlt-secrets", "crates/rlt-features", "src-tauri"]
 
 [workspace.package]
 version = "0.1.0"
