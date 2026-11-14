@@ -313,10 +313,10 @@ fn csv_field(s: &str) -> String {
     }
 }
 
-/// CSV (AC-32.6): thoi diem, nha cung cap, loai, giay am thanh, ky tu, chi phi uoc tinh (USD).
-/// 100% dong du 6 cot.
+/// CSV (AC-32.6, AC-32.10): thoi diem, nha cung cap, loai, giay am thanh, ky tu, chi phi uoc tinh (USD), nguon.
+/// Du lieu o day luon la `local_estimate` (bang `usage_logs` cuc bo). 100% dong du 7 cot.
 pub fn export_csv(store: &Store) -> Result<String> {
-    let mut out = String::from("occurred_at,provider,usage_kind,audio_seconds,chars_translated,est_cost_usd\n");
+    let mut out = String::from("occurred_at,provider,usage_kind,audio_seconds,chars_translated,est_cost_usd,source\n");
     let mut st = store.conn().prepare(
         "SELECT occurred_at, provider, usage_kind, audio_ms, chars_translated, est_cost_usd_micros
          FROM usage_logs ORDER BY occurred_at, usage_log_id",
@@ -327,7 +327,7 @@ pub fn export_csv(store: &Store) -> Result<String> {
     for row in rows {
         let (t, p, k, a, c, m) = row?;
         out.push_str(&format!(
-            "{},{},{},{}.{:03},{},{}.{:06}\n",
+            "{},{},{},{}.{:03},{},{}.{:06},local_estimate\n",
             csv_field(&t), csv_field(&p), csv_field(&k), a / 1000, a % 1000, c, m / 1_000_000, m % 1_000_000
         ));
     }

@@ -74,6 +74,16 @@ export const highlightToggle = (sessionId: string, captionLineId: number, note: 
 export const glossaryList = () => invoke<TermRow[]>("glossary_list");
 export const usageWeek = (date: string, provider: string | null = "soniox") => invoke<WeekOut>("usage_week", { date, provider });
 export const usageExportCsv = () => invoke<string>("usage_export_csv");
+export interface UsageDayOut { date: string; audioMs: number; costUsdMicros: number; apiCostUsdMicros: number; playgroundCostUsdMicros: number; requests: number }
+export interface UsageModelOut { model: string; costUsdMicros: number; audioMs: number; requests: number }
+/** `source`: soniox (API that, ngay UTC) | local (uoc tinh cuc bo, ngay gio may). `reason`: ly do roi ve cuc bo. */
+export interface UsageSourceOut {
+  source: "soniox" | "local"; basis: "utc" | "local"; reason: string | null; weekStart: string; weekEnd: string;
+  days: UsageDayOut[]; totalCostUsdMicros: number; totalAudioMs: number; apiCostUsdMicros: number; playgroundCostUsdMicros: number;
+  totalRequests: number; models: UsageModelOut[]; estimated: boolean; cached: boolean; fetchedAt: number; sessionsCount: number; failedStartCount: number;
+}
+export const usageWeekSource = (weeksAgo: number) => invoke<UsageSourceOut>("usage_week_source", { weeksAgo });
+export const usageExportWeekCsv = (weeksAgo: number) => invoke<string>("usage_export_week_csv", { weeksAgo });
 export const usageClear = () => invoke<number>("usage_clear");
 export const driveStatus = (sessionId: string) => invoke<[string, string | null]>("drive_status", { sessionId });
 export const driveSync = (sessionId: string) => invoke<DriveOut>("drive_sync", { sessionId });

@@ -11,6 +11,7 @@ pub mod glossary;
 pub mod highlights;
 pub mod import_dotnet;
 pub mod search;
+pub mod soniox_usage;
 pub mod usage;
 
 pub use error::{FeatureError, Result};

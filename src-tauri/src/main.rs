@@ -120,6 +120,8 @@ fn main() {
             session::usage_week,
             session::usage_export_csv,
             session::usage_clear,
+            session::usage_week_source,
+            session::usage_export_week_csv,
             session::drive_status,
             session::drive_sync,
             session::drive_connection_status,

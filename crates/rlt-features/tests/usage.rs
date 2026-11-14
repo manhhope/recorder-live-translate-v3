@@ -93,15 +93,17 @@ fn tran_theo_ngay_tu_cai_dat() {
 }
 
 #[test]
-fn csv_6_cot_va_xoa_toan_bo() {
+fn csv_7_cot_co_nguon_va_xoa_toan_bo() {
     let s = new_store();
     record_usage(&s, &rec("2026-11-14", "2026-11-14T10:00:00.000Z", "soniox", "session", None, 1_234_567)).unwrap();
     record_usage(&s, &rec("2026-11-14", "2026-11-14T10:01:00.000Z", "gemini", "ai_assistant", None, 0)).unwrap();
     let csv = export_csv(&s).unwrap();
     let lines: Vec<&str> = csv.lines().collect();
     assert_eq!(lines.len(), 3);
-    assert!(lines.iter().all(|l| l.split(',').count() == 6), "{csv}");
-    assert!(lines[1].ends_with(",1.234567"), "{}", lines[1]);
+    assert!(lines.iter().all(|l| l.split(',').count() == 7), "{csv}");
+    assert!(lines[0].ends_with(",source"));
+    assert!(lines[1..].iter().all(|l| l.ends_with(",local_estimate")));
+    assert!(lines[1].ends_with(",1.234567,local_estimate"), "{}", lines[1]);
     assert!(lines[1].contains(",60.000,"));
     assert_eq!(clear_all(&s).unwrap(), 2);
     assert_eq!(export_csv(&s).unwrap().lines().count(), 1);

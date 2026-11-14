@@ -1,0 +1,47 @@
+{
+  "usage_logs": [
+    {
+      "uuid": "0d1e2f3a-4b5c-6d7e-8f90-1234567890ab",
+      "request_scope": "api",
+      "client_reference_id": "some_internal_id",
+      "model": "stt-async-v3",
+      "start_time": "2026-04-28T09:00:00Z",
+      "end_time": "2026-04-28T09:00:12Z",
+      "input_text_tokens": 42,
+      "input_audio_tokens": 12345,
+      "input_audio_duration_ms": 12000,
+      "output_text_tokens": 678,
+      "output_audio_tokens": 256,
+      "output_audio_duration_ms": 4500,
+      "cost_usd": "0.0081000000",
+      "input_cost_usd": "0.0011000000",
+      "input_text_cost_usd": "0.0001000000",
+      "input_audio_cost_usd": "0.0010000000",
+      "output_cost_usd": "0.0070000000",
+      "output_text_cost_usd": "0.0050000000",
+      "output_audio_cost_usd": "0.0020000000"
+    },
+    {
+      "uuid": "1d1e2f3a-4b5c-6d7e-8f90-1234567890ac",
+      "request_scope": "playground",
+      "client_reference_id": "",
+      "model": "stt-rt-v3",
+      "start_time": "2026-04-29T10:00:00Z",
+      "end_time": "2026-04-29T10:30:00Z",
+      "input_text_tokens": 0,
+      "input_audio_tokens": 90000,
+      "input_audio_duration_ms": 1800000,
+      "output_text_tokens": 1000,
+      "output_audio_tokens": 0,
+      "output_audio_duration_ms": 0,
+      "cost_usd": "0.0600000000",
+      "input_cost_usd": "0.0500000000",
+      "input_text_cost_usd": "0.0000000000",
+      "input_audio_cost_usd": "0.0500000000",
+      "output_cost_usd": "0.0100000000",
+      "output_text_cost_usd": "0.0100000000",
+      "output_audio_cost_usd": "0.0000000000"
+    }
+  ],
+  "next_page_cursor": "cursor-page-2"
+}

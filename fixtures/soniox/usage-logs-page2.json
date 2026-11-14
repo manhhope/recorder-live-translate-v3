@@ -1,0 +1,26 @@
+{
+  "usage_logs": [
+    {
+      "uuid": "2d1e2f3a-4b5c-6d7e-8f90-1234567890ad",
+      "request_scope": "api",
+      "client_reference_id": "",
+      "model": "stt-rt-v3",
+      "start_time": "2026-04-30T23:30:00Z",
+      "end_time": "2026-05-01T00:30:00Z",
+      "input_text_tokens": 0,
+      "input_audio_tokens": 180000,
+      "input_audio_duration_ms": 3600000,
+      "output_text_tokens": 2000,
+      "output_audio_tokens": 0,
+      "output_audio_duration_ms": 0,
+      "cost_usd": "0.1200000000",
+      "input_cost_usd": "0.1000000000",
+      "input_text_cost_usd": "0.0000000000",
+      "input_audio_cost_usd": "0.1000000000",
+      "output_cost_usd": "0.0200000000",
+      "output_text_cost_usd": "0.0200000000",
+      "output_audio_cost_usd": "0.0000000000"
+    }
+  ],
+  "next_page_cursor": null
+}

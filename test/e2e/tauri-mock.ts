@@ -158,6 +158,18 @@ export function installTauriMock(seed: MockSeed): void {
         estimated: true,
       };
     },
+    usage_week_source: (a) => {
+      const wk = a.weeksAgo as number;
+      const ms = wk === 0 && !state.usageCleared ? [0, 1_800_000, 3_600_000, 900_000, 5_400_000, 0, 0] : [0, 0, 0, 0, 0, 0, 0];
+      const total = ms.reduce((x, y) => x + y, 0);
+      return {
+        source: "local", basis: "local", reason: "no_key", weekStart: "2026-11-09", weekEnd: "2026-11-15",
+        days: ms.map((audioMs, i) => ({ date: "2026-11-" + String(9 + i).padStart(2, "0"), audioMs, costUsdMicros: Math.round(audioMs * 0.07), apiCostUsdMicros: 0, playgroundCostUsdMicros: 0, requests: audioMs ? 1 : 0 })),
+        totalCostUsdMicros: Math.round(total * 0.07), totalAudioMs: total, apiCostUsdMicros: 0, playgroundCostUsdMicros: 0, totalRequests: total ? 4 : 0,
+        models: [], estimated: true, cached: false, fetchedAt: 0, sessionsCount: total ? 4 : 0, failedStartCount: 0,
+      };
+    },
+    usage_export_week_csv: () => "source,day_basis,date,audio_seconds,requests,cost_usd,api_cost_usd,playground_cost_usd\nlocal_estimate,local,2026-11-09,1800,1,0.126,0,0\n",
     usage_export_csv: () => "date,audio_ms,cost\n2026-11-09,1800000,0.126\n",
     usage_clear: () => { state.usageCleared = true; return 4; },
 

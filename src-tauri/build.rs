@@ -86,6 +86,8 @@ pub const APP_COMMANDS: &[&str] = &[
     "usage_week",
     "usage_export_csv",
     "usage_clear",
+    "usage_week_source",
+    "usage_export_week_csv",
     "drive_status",
     "drive_sync",
     "drive_connection_status",

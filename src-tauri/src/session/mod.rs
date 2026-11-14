@@ -5,6 +5,7 @@
 
 pub mod records;
 pub mod service;
+pub mod usage_soniox;
 
 #[cfg(test)]
 mod integration_tests;
@@ -48,6 +49,8 @@ pub const SESSION_COMMANDS: &[&str] = &[
     "usage_week",
     "usage_export_csv",
     "usage_clear",
+    "usage_week_source",
+    "usage_export_week_csv",
     "drive_status",
     "drive_sync",
     "drive_connection_status",
@@ -268,6 +271,39 @@ pub fn usage_week(s: State<'_, SessionState>, date: String, provider: Option<Str
 #[tauri::command]
 pub fn usage_export_csv(s: State<'_, SessionState>) -> Res<String> {
     s.with_store(usage_csv)
+}
+
+fn usage_cache() -> &'static usage_soniox::UsageCache {
+    static C: std::sync::OnceLock<usage_soniox::UsageCache> = std::sync::OnceLock::new();
+    C.get_or_init(Default::default)
+}
+
+/// So lieu tuan `weeks_ago` (0 = tuan nay) tu API usage cua Soniox (ngay UTC); loi/thieu khoa/mat mang thi roi ve
+/// bang `usage_logs` cuc bo, kem `source` va `reason`. Khoa doc trong Rust tu Keychain, khong ra frontend.
+/// Goi mang chay tren luong rieng de khong chan giao dien.
+#[tauri::command]
+pub async fn usage_week_source(s: State<'_, SessionState>, weeks_ago: i64) -> Res<usage_soniox::UsageSourceOut> {
+    if !(0..=3).contains(&weeks_ago) {
+        return Err("invalid_week".into());
+    }
+    let now = usage_soniox::now_secs();
+    let net = tauri::async_runtime::spawn_blocking(move || {
+        let client = rlt_features::soniox_usage::SonioxUsageClient::new(rlt_features::soniox_usage::DEFAULT_BASE_URL)?;
+        usage_soniox::soniox_week(usage_cache(), &client, crate::ai::secret_store().as_ref(), now, weeks_ago)
+    })
+    .await
+    .map_err(|_| "task_failed".to_string())?;
+    match net {
+        Ok(o) => Ok(o),
+        Err(e) => s.with_store(|st| usage_soniox::local_week(st, now, weeks_ago, e.code())),
+    }
+}
+
+/// CSV cua tuan dang xem, dung so lieu va nguon nhu `usage_week_source` (co cot `source`).
+#[tauri::command]
+pub async fn usage_export_week_csv(s: State<'_, SessionState>, weeks_ago: i64) -> Res<String> {
+    let w = usage_week_source(s, weeks_ago).await?;
+    Ok(usage_soniox::week_csv(&w))
 }
 
 #[tauri::command]
