@@ -117,6 +117,11 @@ fn main() {
             session::usage_clear,
             session::drive_status,
             session::drive_sync,
+            session::drive_connection_status,
+            session::drive_save_client_config,
+            session::drive_connect,
+            session::drive_disconnect,
+            session::mic_permission_request,
             session::import_dotnet_pick
         ])
         .build(tauri::generate_context!())

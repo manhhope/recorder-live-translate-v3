@@ -50,6 +50,11 @@ pub const SESSION_COMMANDS: &[&str] = &[
     "usage_clear",
     "drive_status",
     "drive_sync",
+    "drive_connection_status",
+    "drive_save_client_config",
+    "drive_connect",
+    "drive_disconnect",
+    "mic_permission_request",
     "import_dotnet_pick",
 ];
 
@@ -145,8 +150,9 @@ pub async fn soniox_test_connection(s: State<'_, SessionState>) -> Res<()> {
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionsOut {
-    /// `granted` | `denied` | `unknown`. Quyen micro chua do duoc o M3 nen la `unknown`.
+    /// `notDetermined` | `denied` | `restricted` | `authorized` (AVCaptureDevice.authorizationStatus).
     pub mic: &'static str,
+    /// `granted` | `denied` | `unknown` (ngoai macOS).
     pub screen: &'static str,
 }
 
@@ -156,7 +162,15 @@ pub fn permissions_status() -> PermissionsOut {
     let screen = if crate::capture::sck::has_permission() { "granted" } else { "denied" };
     #[cfg(not(target_os = "macos"))]
     let screen = "unknown";
-    PermissionsOut { mic: "unknown", screen }
+    PermissionsOut { mic: rlt_platform::mic_permission().as_str(), screen }
+}
+
+/// Xin quyen micro (hien hop thoai he thong khi con `notDetermined`). Tra trang thai sau khi nguoi dung chon.
+#[tauri::command]
+pub async fn mic_permission_request() -> Res<&'static str> {
+    tauri::async_runtime::spawn_blocking(|| rlt_platform::request_mic_permission(std::time::Duration::from_secs(120)).as_str())
+        .await
+        .map_err(|_| "permission_request_failed".to_string())
 }
 
 #[tauri::command]
@@ -261,16 +275,54 @@ pub fn usage_clear(s: State<'_, SessionState>) -> Res<usize> {
     s.with_store(records::usage_clear)
 }
 
-// ---------------------------------------------------------------- Drive (OAuth chua noi)
+// ---------------------------------------------------------------- Drive (OAuth that)
+
+fn google_drive() -> Arc<rlt_features::drive_google::GoogleDrive> {
+    Arc::new(rlt_features::drive_google::GoogleDrive::new(crate::ai::secret_store()))
+}
 
 #[tauri::command]
 pub fn drive_status(s: State<'_, SessionState>, session_id: String) -> Res<(String, Option<String>)> {
     s.with_store(|st| records::drive_status(st, &session_id))
 }
 
+/// Gui that, co the mat vai phut khi phai thu lai (cho 5/15/30/60/120 giay) nen chay tren luong nen.
 #[tauri::command]
-pub fn drive_sync(s: State<'_, SessionState>, session_id: String) -> Res<DriveOut> {
-    s.with_store(|st| records::drive_sync(st, &session_id, &UnconnectedDrive))
+pub async fn drive_sync(s: State<'_, SessionState>, session_id: String) -> Res<DriveOut> {
+    let store = s.svc.store.clone();
+    let g = google_drive();
+    tauri::async_runtime::spawn_blocking(move || records::drive_sync_blocking(&store, &session_id, g.as_ref()))
+        .await
+        .map_err(|_| "drive_sync_failed".to_string())?
+}
+
+#[tauri::command]
+pub fn drive_connection_status() -> DriveConnOut {
+    records::drive_connection(&google_drive())
+}
+
+/// Luu Client ID (cua chu app) va client secret tuy chon vao Keychain. Rong = xoa.
+#[tauri::command]
+pub fn drive_save_client_config(client_id: String, client_secret: Option<String>) -> Res<DriveConnOut> {
+    records::drive_save_config(&google_drive(), &client_id, client_secret.as_deref())
+}
+
+/// Mo trinh duyet, cho Google goi lai `127.0.0.1`, doi token. Toi da 3 phut.
+#[tauri::command]
+pub async fn drive_connect() -> Res<DriveConnOut> {
+    let g = google_drive();
+    tauri::async_runtime::spawn_blocking(move || records::drive_connect(&g, records::open_in_browser))
+        .await
+        .map_err(|_| "drive_connect_failed".to_string())?
+}
+
+/// Thu hoi token tren Google (neu duoc) va xoa token cuc bo.
+#[tauri::command]
+pub async fn drive_disconnect() -> Res<DriveDisconnectOut> {
+    let g = google_drive();
+    tauri::async_runtime::spawn_blocking(move || records::drive_disconnect(&g))
+        .await
+        .map_err(|_| "drive_disconnect_failed".to_string())?
 }
 
 // ---------------------------------------------------------------- nhap DB .NET

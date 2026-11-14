@@ -16,7 +16,11 @@ export type UiEvent =
 
 export interface StartParams { targetLang: string; listenLangs: string[]; mode: RecordMode; title?: string | null }
 export interface RecordPrefs { targetLang: string; listenLangs: string[]; mode: RecordMode; uiLanguage: string }
+/** `mic`: notDetermined | denied | restricted | authorized. */
 export interface PermissionsOut { mic: string; screen: string }
+export type DriveConnState = "not_configured" | "disconnected" | "connected";
+export interface DriveConnOut { state: DriveConnState }
+export interface DriveDisconnectOut { revoked: boolean }
 
 export interface SessionRow {
   sessionId: string; title: string; startedAt: string; durationMs: number | null; status: string;
@@ -73,6 +77,12 @@ export const usageExportCsv = () => invoke<string>("usage_export_csv");
 export const usageClear = () => invoke<number>("usage_clear");
 export const driveStatus = (sessionId: string) => invoke<[string, string | null]>("drive_status", { sessionId });
 export const driveSync = (sessionId: string) => invoke<DriveOut>("drive_sync", { sessionId });
+export const micPermissionRequest = () => invoke<string>("mic_permission_request");
+export const driveConnectionStatus = () => invoke<DriveConnOut>("drive_connection_status");
+export const driveSaveClientConfig = (clientId: string, clientSecret: string | null = null) =>
+  invoke<DriveConnOut>("drive_save_client_config", { clientId, clientSecret });
+export const driveConnect = () => invoke<DriveConnOut>("drive_connect");
+export const driveDisconnect = () => invoke<DriveDisconnectOut>("drive_disconnect");
 export const importDotnetPick = () => invoke<ImportOut | null>("import_dotnet_pick");
 
 /** Ma loi tra ve la chuoi ngan (vd `key_missing`); dua ve mot khoa i18n `err.*`, khong ro thi `err.generic`. */

@@ -71,6 +71,11 @@
     "allow-usage-clear",
     "allow-drive-status",
     "allow-drive-sync",
+    "allow-drive-connection-status",
+    "allow-drive-save-client-config",
+    "allow-drive-connect",
+    "allow-drive-disconnect",
+    "allow-mic-permission-request",
     "allow-import-dotnet-pick"
   ]
 }

@@ -6,6 +6,7 @@ pub mod mic;
 pub mod mix;
 pub mod panel;
 pub mod panel_geometry;
+pub mod permission;
 pub mod power;
 #[cfg(target_os = "macos")]
 pub mod system;
@@ -13,6 +14,7 @@ pub mod system;
 use rlt_core::{AudioError, AudioSource, AudioSourceKind, AudioSourceProvider};
 
 pub use mic::MicSource;
+pub use permission::{mic_permission, request_mic_permission, MicPermission};
 
 /// Nhà máy nguồn âm thanh của nền tảng hiện tại.
 #[derive(Default)]

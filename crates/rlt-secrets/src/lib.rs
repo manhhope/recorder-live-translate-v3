@@ -17,12 +17,26 @@ pub enum SecretKind {
     Soniox,
     Gemini,
     OpenAi,
+    /// Refresh token OAuth cua Google Drive (US-10). Chi nam trong Keychain.
+    DriveRefreshToken,
+    /// Client ID OAuth cua chu ung dung (khong bi mat, nhung gom chung vao kho de khong can file cau hinh).
+    DriveClientId,
+    /// Client secret tuy chon do nguoi dung tu nhap luc chay (KHONG nhung trong ma).
+    DriveClientSecret,
     /// Khoa DeepL API (dich chu: Quick, Inline, OCR). Chi nam trong Keychain, BYOK.
     DeepL,
 }
 
 impl SecretKind {
-    pub const ALL: [SecretKind; 4] = [SecretKind::Soniox, SecretKind::Gemini, SecretKind::OpenAi, SecretKind::DeepL];
+    pub const ALL: [SecretKind; 7] = [
+        SecretKind::Soniox,
+        SecretKind::Gemini,
+        SecretKind::OpenAi,
+        SecretKind::DriveRefreshToken,
+        SecretKind::DriveClientId,
+        SecretKind::DriveClientSecret,
+        SecretKind::DeepL,
+    ];
 
     /// Ten account trong Keychain.
     pub fn account(self) -> &'static str {
@@ -30,6 +44,9 @@ impl SecretKind {
             SecretKind::Soniox => "soniox-api-key",
             SecretKind::Gemini => "gemini-api-key",
             SecretKind::OpenAi => "openai-api-key",
+            SecretKind::DriveRefreshToken => "drive-refresh-token",
+            SecretKind::DriveClientId => "drive-client-id",
+            SecretKind::DriveClientSecret => "drive-client-secret",
             SecretKind::DeepL => "deepl-api-key",
         }
     }

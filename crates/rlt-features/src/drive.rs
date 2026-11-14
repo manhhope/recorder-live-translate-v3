@@ -1,6 +1,6 @@
 //! Dong bo bien ban len Google Drive (US-10) qua trait `DriveClient`.
 //!
-//! KHONG co ma OAuth hay HTTP that o day: ban that (Tauri) tu hien thuc `DriveClient`; test dung ban gia.
+//! Hang doi/thu lai khong biet HTTP: client that la `drive_google::GoogleDrive`; test dung ban gia.
 //! Quy tac gui (AC-10.4, Q-B1): 1 lan gui dau + toi da 5 lan thu lai = toi da 6 lan; gian cach truoc moi
 //! lan thu lai la 5, 15, 30, 60, 120 giay; lan thu 6 van loi thi trang thai "Loi".
 //! Mat mang (`Offline`) khong tinh lan thu: viec chuyen "Cho mang" va chay lai khi co mang (reconnect).
@@ -41,6 +41,8 @@ pub enum DriveError {
     TokenRevoked,
     /// `drive_client_config_missing`: giu "Chua ket noi".
     ClientConfigMissing,
+    /// `drive_not_connected`: co Client ID nhung chua dang nhap Google. Giu "Chua ket noi".
+    NotConnected,
 }
 
 pub trait DriveClient {
@@ -196,9 +198,10 @@ pub fn run_job(store: &Store, job_id: i64, client: &dyn DriveClient, sleeper: &d
                 set_sync(store, &session_id, "error", None, Some("drive_token_revoked"))?;
                 return Ok(SyncOutcome::Failed { attempts, last_error: "drive_token_revoked".into() });
             }
-            Err(DriveError::ClientConfigMissing) => {
-                set_job(store, job_id, "cancelled", attempts, None, Some("drive_client_config_missing"))?;
-                set_sync(store, &session_id, "not_connected", None, Some("drive_client_config_missing"))?;
+            Err(e @ (DriveError::ClientConfigMissing | DriveError::NotConnected)) => {
+                let code = if e == DriveError::NotConnected { "drive_not_connected" } else { "drive_client_config_missing" };
+                set_job(store, job_id, "cancelled", attempts, None, Some(code))?;
+                set_sync(store, &session_id, "not_connected", None, Some(code))?;
                 return Ok(SyncOutcome::NotConnected);
             }
             Err(DriveError::Transient(code)) => {

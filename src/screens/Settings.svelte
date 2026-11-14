@@ -3,10 +3,12 @@
   import Icon from "../lib/Icon.svelte";
   import AiAssistantTab from "./AiAssistantTab.svelte";
   import UsageLogsTab from "./UsageLogsTab.svelte";
+  import DriveTab from "./DriveTab.svelte";
 
-  let { tab = $bindable("ai") }: { tab?: "ai" | "usage" } = $props();
+  let { tab = $bindable("ai") }: { tab?: "ai" | "drive" | "usage" } = $props();
   const tabs = [
     { id: "ai" as const, key: "set.tab.ai", icon: "sparkle", group: "set.tab.basic" },
+    { id: "drive" as const, key: "set.tab.drive", icon: "link", group: "set.tab.basic" },
     { id: "usage" as const, key: "set.tab.usagelogs", icon: "list", group: "set.tab.advanced" },
   ];
 </script>
@@ -21,6 +23,6 @@
     {/each}
   </nav>
   <div class="sbody">
-    {#if tab === "ai"}<AiAssistantTab />{:else}<UsageLogsTab />{/if}
+    {#if tab === "ai"}<AiAssistantTab />{:else if tab === "drive"}<DriveTab />{:else}<UsageLogsTab />{/if}
   </div>
 </div>

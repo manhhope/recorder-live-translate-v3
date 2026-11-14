@@ -3657,10 +3657,15 @@ dependencies = [
 name = "rlt-features"
 version = "0.1.0"
 dependencies = [
+ "getrandom 0.3.4",
  "libc",
+ "reqwest",
+ "rlt-secrets",
  "rlt-store",
  "rusqlite",
  "serde_json",
+ "sha2",
+ "url",
 ]
 
 [[package]]

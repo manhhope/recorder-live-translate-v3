@@ -303,6 +303,54 @@
           "markdownDescription": "Enables the core_version command without any pre-configured scope."
         },
         {
+          "description": "Enables the deepl_clear_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-deepl-clear-key",
+          "markdownDescription": "Enables the deepl_clear_key command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the deepl_has_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-deepl-has-key",
+          "markdownDescription": "Enables the deepl_has_key command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the deepl_save_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-deepl-save-key",
+          "markdownDescription": "Enables the deepl_save_key command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the deepl_test_connection command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-deepl-test-connection",
+          "markdownDescription": "Enables the deepl_test_connection command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the drive_connect command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-drive-connect",
+          "markdownDescription": "Enables the drive_connect command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the drive_connection_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-drive-connection-status",
+          "markdownDescription": "Enables the drive_connection_status command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the drive_disconnect command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-drive-disconnect",
+          "markdownDescription": "Enables the drive_disconnect command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the drive_save_client_config command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-drive-save-client-config",
+          "markdownDescription": "Enables the drive_save_client_config command without any pre-configured scope."
+        },
+        {
           "description": "Enables the drive_status command without any pre-configured scope.",
           "type": "string",
           "const": "allow-drive-status",
@@ -349,6 +397,12 @@
           "type": "string",
           "const": "allow-import-dotnet-pick",
           "markdownDescription": "Enables the import_dotnet_pick command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the mic_permission_request command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-mic-permission-request",
+          "markdownDescription": "Enables the mic_permission_request command without any pre-configured scope."
         },
         {
           "description": "Enables the permissions_status command without any pre-configured scope.",
@@ -771,6 +825,54 @@
           "markdownDescription": "Denies the core_version command without any pre-configured scope."
         },
         {
+          "description": "Denies the deepl_clear_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-deepl-clear-key",
+          "markdownDescription": "Denies the deepl_clear_key command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the deepl_has_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-deepl-has-key",
+          "markdownDescription": "Denies the deepl_has_key command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the deepl_save_key command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-deepl-save-key",
+          "markdownDescription": "Denies the deepl_save_key command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the deepl_test_connection command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-deepl-test-connection",
+          "markdownDescription": "Denies the deepl_test_connection command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the drive_connect command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-drive-connect",
+          "markdownDescription": "Denies the drive_connect command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the drive_connection_status command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-drive-connection-status",
+          "markdownDescription": "Denies the drive_connection_status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the drive_disconnect command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-drive-disconnect",
+          "markdownDescription": "Denies the drive_disconnect command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the drive_save_client_config command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-drive-save-client-config",
+          "markdownDescription": "Denies the drive_save_client_config command without any pre-configured scope."
+        },
+        {
           "description": "Denies the drive_status command without any pre-configured scope.",
           "type": "string",
           "const": "deny-drive-status",
@@ -817,6 +919,12 @@
           "type": "string",
           "const": "deny-import-dotnet-pick",
           "markdownDescription": "Denies the import_dotnet_pick command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the mic_permission_request command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-mic-permission-request",
+          "markdownDescription": "Denies the mic_permission_request command without any pre-configured scope."
         },
         {
           "description": "Denies the permissions_status command without any pre-configured scope.",

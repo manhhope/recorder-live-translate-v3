@@ -1,7 +1,8 @@
 //! Test tich hop M3: nguon am GIA + server Soniox GIA tren loopback + store THAT (SQLite trong bo nho).
 //! Chay ca luong: bat dau, chu chay, dung (drain), doc lai bien ban, tim, xuat. Khong dung khoa Soniox that.
 
-use super::records::{self, UnconnectedDrive};
+use super::records;
+use rlt_features::drive_google::GoogleDrive;
 use super::service::{RecordMode, SessionService, StartParams, UiEvent, UiSink};
 use futures_util::{SinkExt, StreamExt};
 use rlt_core::{AudioError, AudioMessage, AudioSink, AudioSource, AudioSourceKind, AudioSourceProvider, PcmFrame};
@@ -178,8 +179,9 @@ async fn full_flow_start_lines_stop_read_search_export() {
     let week = records::usage_week(&store, &rlt_features::usage::local_date_now(), Some("soniox")).unwrap();
     assert!(week.estimated);
     assert!(week.total_audio_ms > 0, "{week:?}");
-    // Drive chua noi OAuth: khong gia lap da dong bo
-    let d = records::drive_sync(&store, &id, &UnconnectedDrive).unwrap();
+    // Chua co Client ID: GoogleDrive that khong goi mang va khong gia lap da dong bo
+    let drive = GoogleDrive::new(std::sync::Arc::new(rlt_secrets::InMemorySecretStore::new()));
+    let d = records::drive_sync(&store, &id, &drive).unwrap();
     assert_eq!(d.status, "not_connected");
     assert!(!d.oauth_connected);
     // xoa

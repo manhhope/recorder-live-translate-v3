@@ -86,6 +86,11 @@ pub const APP_COMMANDS: &[&str] = &[
     "usage_clear",
     "drive_status",
     "drive_sync",
+    "drive_connection_status",
+    "drive_save_client_config",
+    "drive_connect",
+    "drive_disconnect",
+    "mic_permission_request",
     "import_dotnet_pick",
 ];
 

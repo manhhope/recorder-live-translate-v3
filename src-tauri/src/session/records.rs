@@ -1,7 +1,8 @@
 //! Lenh doc/ghi bien ban (M3): danh sach phien, chi tiet, tim, xuat, thuat ngu, highlight, Usage Logs, Drive,
 //! nhap DB .NET, cai dat ghi. Khong phu thuoc Tauri; moi ham nhan `&Store`. Loi la ma chuoi on dinh.
 
-use rlt_features::drive::{self, DriveClient, DriveError, DriveFile, Sleeper, SyncOutcome, UploadRequest};
+use rlt_features::drive::{self, DriveClient, Sleeper, SyncOutcome};
+use rlt_features::drive_google::GoogleDrive;
 use rlt_features::export::{export_session, ExportFormat, Labels};
 use rlt_features::{glossary, highlights, import_dotnet, search, usage, FeatureError};
 use rlt_store::Store;
@@ -322,18 +323,12 @@ pub fn usage_clear(store: &Store) -> Res<usize> {
     usage::clear_all(store).map_err(err)
 }
 
-// ---------------------------------------------------------------- Drive (DriveClient chua noi OAuth)
+// ---------------------------------------------------------------- Drive (US-10, OAuth that qua `GoogleDrive`)
 
-/// Chua co OAuth that: moi lan gui tra `ClientConfigMissing`, nen trang thai phien la "Chua ket noi".
-/// KHONG gia lap "da dong bo" (se noi doi voi nguoi dung).
-pub struct UnconnectedDrive;
-impl DriveClient for UnconnectedDrive {
-    fn upload(&self, _: &UploadRequest) -> Result<DriveFile, DriveError> {
-        Err(DriveError::ClientConfigMissing)
-    }
-}
-
+/// Khong ngu: chi dung cho test.
+#[cfg(test)]
 pub struct NoSleep;
+#[cfg(test)]
 impl Sleeper for NoSleep {
     fn sleep(&self, _: u64) {}
 }
@@ -343,19 +338,90 @@ impl Sleeper for NoSleep {
 pub struct DriveOut {
     pub status: String,
     pub attempts: i64,
-    /// Luon true o M3: OAuth Drive chua duoc noi.
+    /// true khi lan gui da toi duoc buoc OAuth that (co Client ID va da dang nhap). false = "chua ket noi".
     pub oauth_connected: bool,
 }
 
-pub fn drive_sync(store: &Store, session_id: &str, client: &dyn DriveClient) -> Res<DriveOut> {
-    let o = drive::sync_session(store, session_id, "manual", client, &NoSleep).map_err(err)?;
-    let (status, attempts) = match o {
-        SyncOutcome::Synced { attempts, .. } => ("synced", attempts),
-        SyncOutcome::Failed { attempts, .. } => ("error", attempts),
-        SyncOutcome::WaitingNetwork { attempts } => ("waiting_network", attempts),
-        SyncOutcome::NotConnected => ("not_connected", 0),
+/// Chay mot viec dong bo voi `sleeper` cho truoc (lich thu lai 5, 15, 30, 60, 120 giay).
+pub fn drive_sync_with(store: &Store, session_id: &str, client: &dyn DriveClient, sleeper: &dyn Sleeper) -> Res<DriveOut> {
+    let o = drive::sync_session(store, session_id, "manual", client, sleeper).map_err(err)?;
+    let (status, attempts, connected) = match o {
+        SyncOutcome::Synced { attempts, .. } => ("synced", attempts, true),
+        SyncOutcome::Failed { attempts, .. } => ("error", attempts, true),
+        SyncOutcome::WaitingNetwork { attempts } => ("waiting_network", attempts, true),
+        SyncOutcome::NotConnected => ("not_connected", 0, false),
     };
-    Ok(DriveOut { status: status.into(), attempts, oauth_connected: false })
+    Ok(DriveOut { status: status.into(), attempts, oauth_connected: connected })
+}
+
+/// Nhu `drive_sync_with` nhung khong cho (test).
+#[cfg(test)]
+pub fn drive_sync(store: &Store, session_id: &str, client: &dyn DriveClient) -> Res<DriveOut> {
+    drive_sync_with(store, session_id, client, &NoSleep)
+}
+
+/// Gui that, co cho giua cac lan thu. KHONG giu khoa kho du lieu chung trong luc cho: mo mot ket noi rieng toi
+/// cung file DB (WAL), neu DB trong bo nho thi moi dung kho chung.
+pub fn drive_sync_blocking(shared: &std::sync::Mutex<Store>, session_id: &str, client: &dyn DriveClient) -> Res<DriveOut> {
+    let path = {
+        let g = shared.lock().unwrap_or_else(|e| e.into_inner());
+        g.conn().path().filter(|p| !p.is_empty()).map(std::path::PathBuf::from)
+    };
+    match path.and_then(|p| Store::open(p).ok()) {
+        Some(own) => drive_sync_with(&own, session_id, client, &drive::ThreadSleeper),
+        None => {
+            let g = shared.lock().unwrap_or_else(|e| e.into_inner());
+            drive_sync_with(&g, session_id, client, &drive::ThreadSleeper)
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DriveConnOut {
+    /// `not_configured` | `disconnected` | `connected`.
+    pub state: String,
+}
+
+pub fn drive_connection(g: &GoogleDrive) -> DriveConnOut {
+    DriveConnOut { state: g.connection().as_str().into() }
+}
+
+pub fn drive_save_config(g: &GoogleDrive, client_id: &str, client_secret: Option<&str>) -> Res<DriveConnOut> {
+    if client_id.len() > 256 || client_secret.is_some_and(|s| s.len() > 256) {
+        return Err("drive_config_invalid".into());
+    }
+    g.save_client_config(client_id, client_secret).map_err(|_| "keychain_error".to_string())?;
+    Ok(drive_connection(g))
+}
+
+/// Mo URL trong trinh duyet mac dinh (chi macOS o M3).
+pub fn open_in_browser(url: &str) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open").arg(url).status().map(|s| s.success()).unwrap_or(false)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = url;
+        false
+    }
+}
+
+pub fn drive_connect(g: &GoogleDrive, open: impl FnOnce(&str) -> bool) -> Res<DriveConnOut> {
+    g.connect(open, std::time::Duration::from_secs(180)).map_err(|e| e.code())?;
+    Ok(drive_connection(g))
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DriveDisconnectOut {
+    /// true khi Google xac nhan da thu hoi token. false = da xoa token tren may nhung chua thu hoi duoc tu xa.
+    pub revoked: bool,
+}
+
+pub fn drive_disconnect(g: &GoogleDrive) -> Res<DriveDisconnectOut> {
+    g.disconnect().map(|revoked| DriveDisconnectOut { revoked }).map_err(|e| e.code())
 }
 
 pub fn drive_status(store: &Store, session_id: &str) -> Res<(String, Option<String>)> {
