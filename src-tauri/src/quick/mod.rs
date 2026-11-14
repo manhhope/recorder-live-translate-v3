@@ -1,9 +1,11 @@
 //! Quick Translate, Inline Translate, toolbar chon chu va OCR (M3-01, M3-02, M3-03, M3-06; US-31, 37, 38, 41, 42).
 //!
 //! Logic thuan o crate `rlt-quick` (co test). Thu muc nay chi la lop Tauri/macOS: cua so NSPanel, Accessibility,
-//! NSPasteboard, CGEvent. OCR doc chu bang mo hinh AI co vision (rlt-ai), khong con Vision cua Apple. Bo dich la `SonioxWsTranslator::planned` (CQ-v3-11 con mo): chua dich that,
-//! tra loi `NotVerified`; giao dien hien dung loi do, khong gia vo chay.
+//! NSPasteboard, CGEvent. OCR doc chu bang mo hinh AI co vision (rlt-ai), khong con Vision cua Apple.
+//! Bo dich chu la `DeepLTranslator` (BYOK, khoa trong Keychain, xem `deepl.rs`; US-29 mo lai mot phan chi cho dich
+//! chu). Chua co khoa thi bao 'chua cau hinh DeepL' (`TranslateError::NotConfigured`), khong gia vo dich.
 
+pub mod deepl;
 #[cfg(target_os = "macos")]
 pub mod ax;
 #[cfg(target_os = "macos")]
@@ -18,7 +20,7 @@ pub mod selection_monitor;
 use rlt_quick::history;
 use rlt_quick::queue::{JobId, JobOutcome, Origin, TranslateQueue, Worker};
 use rlt_quick::toolbar::ToolbarSettings;
-use rlt_quick::translator::{SonioxWsTranslator, TextTranslator, TranslateRequest};
+use rlt_quick::translator::{TextTranslator, TranslateRequest};
 use rlt_quick::TranslateError;
 use rlt_store::Store;
 use serde::{Deserialize, Serialize};
@@ -88,13 +90,19 @@ pub struct QuickState {
     waiters: Waiters,
     prefs: Mutex<QuickPrefs>,
     dir: PathBuf,
+    deepl: deepl::DeeplKeys,
     _worker: Worker,
 }
 
 impl QuickState {
     pub fn new(dir: PathBuf, store: Store) -> Self {
-        // CQ-v3-11 con mo: chi co ban "planned", khong khoa API nao duoc nap o day.
-        let translator: Arc<dyn TextTranslator> = Arc::new(SonioxWsTranslator::planned(None));
+        Self::with_secrets(dir, store, crate::ai::secret_store())
+    }
+
+    /// Bo dich chu mac dinh la DeepL, doc khoa tu kho khoa moi lan dich.
+    pub fn with_secrets(dir: PathBuf, store: Store, secrets: Arc<dyn rlt_secrets::SecretStore>) -> Self {
+        let deepl = deepl::DeeplKeys::new(secrets);
+        let translator: Arc<dyn TextTranslator> = Arc::new(deepl.translator());
         let queue = Arc::new(TranslateQueue::new());
         let store = Arc::new(Mutex::new(store));
         let waiters: Waiters = Arc::new(Mutex::new(HashMap::new()));
@@ -108,7 +116,7 @@ impl QuickState {
             }
         });
         let prefs = QuickPrefs::load(&dir.join(PREFS_FILE));
-        Self { store, queue, waiters, prefs: Mutex::new(prefs), dir, _worker: worker }
+        Self { store, queue, waiters, prefs: Mutex::new(prefs), dir, deepl, _worker: worker }
     }
 
     /// Nop mot yeu cau va cho ket qua cua CHINH no (chay tren luong chan, khong phai luong chinh).
@@ -276,7 +284,7 @@ pub async fn quick_ocr_translate(
             if recognized.is_empty() {
                 return Err("ocr_no_text".to_string());
             }
-            // Dich van di qua TextTranslator (mac dinh Soniox, CQ-v3-11 chua dong); khong dung mo hinh AI de dich.
+            // Dich van di qua TextTranslator (mac dinh DeepL); khong dung mo hinh AI de dich.
             let t = st
                 .translate_blocking(Origin::Ocr, TranslateRequest::new(recognized.clone(), source_lang.as_deref(), &target_lang))
                 .map_err(|e| e.code().to_string())?;

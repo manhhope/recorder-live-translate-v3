@@ -8,6 +8,10 @@
   "permissions": [
     "core:default",
     "allow-core-version",
+    "allow-deepl-save-key",
+    "allow-deepl-has-key",
+    "allow-deepl-clear-key",
+    "allow-deepl-test-connection",
     "allow-shell-set-recording",
     "allow-shell-set-keep-awake",
     "allow-shell-set-locale",

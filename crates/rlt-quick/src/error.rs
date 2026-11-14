@@ -21,6 +21,12 @@ pub enum TranslateError {
     Cancelled,
     /// Duong dich chu thuan cua Soniox CHUA xac nhan (CQ-v3-11): khong duoc gia vo chay duoc.
     NotVerified,
+    /// Chua nhap khoa DeepL ("chua cau hinh DeepL"): khong gui gi di.
+    NotConfigured,
+    /// 429: gui qua nhieu yeu cau, thu lai sau.
+    RateLimited,
+    /// 5xx tu DeepL.
+    ServerError,
 }
 
 impl TranslateError {
@@ -36,6 +42,9 @@ impl TranslateError {
             TranslateError::Provider(_) => "provider",
             TranslateError::Cancelled => "cancelled",
             TranslateError::NotVerified => "not_verified",
+            TranslateError::NotConfigured => "not_configured",
+            TranslateError::RateLimited => "rate_limited",
+            TranslateError::ServerError => "server_error",
         }
     }
 
@@ -51,6 +60,9 @@ impl TranslateError {
             TranslateError::Provider(_) => "quick.err.provider",
             TranslateError::Cancelled => "quick.err.cancelled",
             TranslateError::NotVerified => "quick.err.notverified",
+            TranslateError::NotConfigured => "quick.err.notconfigured",
+            TranslateError::RateLimited => "quick.err.ratelimited",
+            TranslateError::ServerError => "quick.err.server",
         }
     }
 }

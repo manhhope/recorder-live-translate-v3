@@ -96,6 +96,8 @@ impl fmt::Debug for ApiKey {
     }
 }
 
+/// GHI CHU: khong con nam tren duong dich chu (da chuyen sang DeepL, xem `crate::deepl`); chi giu code tham khao.
+///
 /// **DU KIEN, CHUA XAC NHAN CHAY DUOC.** Dich chu thuan qua WebSocket cua Soniox. Dieu kien: CQ-v3-11 (Soniox
 /// co API dich chu khong kem am thanh hay khong) chua dong; chua co khoa Soniox tren may dev de kiem (ADR-18).
 /// Cho den khi chu dong CQ-v3-11 va cho phep dung khoa that, `translate` KHONG mo ket noi nao va luon tra

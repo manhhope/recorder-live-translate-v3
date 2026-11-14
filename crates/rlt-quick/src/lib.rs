@@ -6,12 +6,14 @@
 //! Nho vay moi quy tac (gioi han clipboard, khong ghi de khi bi doi giua chung, hang doi huy, lich su) test duoc
 //! tren moi may ma khong can GUI hay quyen Accessibility.
 //!
-//! **CQ-v3-11 CHUA DONG.** Chua co xac nhan Soniox co duong dich chu thuan (text-to-text). Vi vay chi co hai ban
-//! `TextTranslator`: ban gia de test (`mock`) va `SonioxWsTranslator` danh dau DU KIEN, chua xac nhan chay duoc.
+//! **Dich chu = DeepL (US-29 mo lai MOT PHAN, chi cho dich chu).** Ban phat hanh dung `deepl::DeepLTranslator`
+//! (BYOK). Dich giong noi trong phien van chi dung Soniox. `SonioxWsTranslator` (DU KIEN, CQ-v3-11) giu lai chi
+//! de tham khao, KHONG nam tren duong dich chu; `mock` chi de test.
 //!
 //! Noi dung nguoi dung go/chon/chup la nhay cam: khong kieu nao o day in no ra qua `Debug`, khong ghi nhat ky.
 
 pub mod clipboard;
+pub mod deepl;
 pub mod error;
 pub mod history;
 pub mod image_prep;
@@ -25,4 +27,5 @@ pub mod translator;
 
 pub use error::TranslateError;
 pub use queue::{CancelToken, JobOutcome, Origin, TranslateQueue};
+pub use deepl::DeepLTranslator;
 pub use translator::{SonioxWsTranslator, TextTranslator, TranslateRequest, Translation, TranslatorStatus, MAX_CHARS};
