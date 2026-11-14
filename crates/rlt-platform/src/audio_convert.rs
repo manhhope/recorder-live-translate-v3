@@ -119,10 +119,8 @@ pub fn wav_bytes_mono_s16(samples: &[i16], sample_rate: u32) -> Vec<u8> {
 
 /// Đọc f32 little-endian từ byte thô (SCK trả f32). Bỏ phần dư không đủ 4 byte.
 pub fn bytes_to_f32(bytes: &[u8]) -> Vec<f32> {
-    bytes
-        .chunks_exact(4)
-        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
-        .collect()
+    let (chunks, _rest) = bytes.as_chunks::<4>();
+    chunks.iter().map(|c| f32::from_le_bytes(*c)).collect()
 }
 
 #[cfg(test)]

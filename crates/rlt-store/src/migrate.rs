@@ -2,7 +2,7 @@ use crate::error::{Result, StoreError};
 use rusqlite::Connection;
 
 /// Noi dung schema, nhung luc bien dich.
-pub const SCHEMA_SQL: &str = include_str!("../migrations/schema-v3.sql");
+pub const SCHEMA_SQL: &str = include_str!("../../../docs/schema-v3.sql");
 
 /// Cat file theo cap dau `-- @@MIGRATION <n> BEGIN` / `END`. Tra ve (n, sql) tang dan.
 pub fn migrations(sql: &str) -> Result<Vec<(i64, String)>> {

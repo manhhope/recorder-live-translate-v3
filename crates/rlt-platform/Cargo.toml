@@ -7,6 +7,7 @@ description = "Adapter he dieu hanh (cpal, ScreenCaptureKit, Keychain, cua so na
 
 [dependencies]
 rlt-core.workspace = true
+cpal = "0.18"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 screencapturekit = { version = "=11.1.2", features = ["macos_14_0"] }

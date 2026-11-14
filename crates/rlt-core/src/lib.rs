@@ -1,26 +1,22 @@
 //! `rlt-core`: lõi thuần Rust (ADR-1). Không import Tauri, không import API hệ điều hành.
-//! Mọi thứ phụ thuộc OS nằm sau trait và được cài trong `rlt-platform`.
+//! Mọi thứ phụ thuộc OS nằm sau trait [`AudioSource`] và được cài trong `rlt-platform`.
+//!
+//! - [`audio`]: trait nguồn âm thanh và cổng nguồn hệ thống (chỉ trừu tượng).
+//! - [`state`]: máy trạng thái Idle / Recording / Paused / Stopping.
+//! - [`session`]: điều phối `rlt-soniox` + `rlt-segment` + `rlt-store`, phát [`CoreEvent`] ra kênh.
 
-/// Một khung PCM 16 kHz mono s16le gửi lên Soniox.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PcmFrame {
-    pub samples: Vec<i16>,
-}
+pub mod audio;
+pub mod session;
+pub mod state;
 
-/// Loại sự kiện thiết bị âm thanh (cắm rút tai nghe, đổi thiết bị mặc định).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DeviceEvent {
-    DeviceChanged,
-    PermissionRevoked,
-}
-
-/// Ranh giới nguồn âm thanh (kiến trúc mục 3). Cài đặt thật nằm trong `rlt-platform`.
-pub trait AudioSource {
-    fn start(&mut self) -> Result<(), String>;
-    fn stop(&mut self);
-    fn next_frame(&mut self) -> Option<PcmFrame>;
-    fn next_event(&mut self) -> Option<DeviceEvent>;
-}
+pub use audio::{
+    AudioError, AudioMessage, AudioSink, AudioSource, AudioSourceKind, AudioSourceProvider,
+    DeviceEvent, PcmFrame,
+};
+pub use session::{
+    start_session, CoreError, CoreEvent, PauseLedger, SessionConfig, SessionHandle, StoredLine,
+};
+pub use state::{InvalidTransition, SessionState, Transition};
 
 /// Phiên bản lõi, dùng cho kiểm tra khung.
 pub fn core_version() -> &'static str {
@@ -34,11 +30,5 @@ mod tests {
     #[test]
     fn core_version_is_set() {
         assert!(!core_version().is_empty());
-    }
-
-    #[test]
-    fn pcm_frame_equality() {
-        let a = PcmFrame { samples: vec![1, 2, 3] };
-        assert_eq!(a.clone(), a);
     }
 }

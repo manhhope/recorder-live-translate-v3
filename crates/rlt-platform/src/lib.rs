@@ -1,29 +1,26 @@
-//! `rlt-platform`: adapter nền tảng. M0/M1 sẽ thêm ScreenCaptureKit, cpal, Keychain, NSPanel.
-//! Hiện chỉ có nguồn âm thanh giả để chứng minh chiều phụ thuộc (platform -> core).
+//! `rlt-platform`: adapter nền tảng (chiều phụ thuộc platform -> core).
+//! M2: nguồn micro cpal (`mic`). Âm thanh hệ thống chỉ là cổng: `PlatformSources::open(System)` trả `Unsupported`.
 
 pub mod audio_convert;
+pub mod mic;
 
-use rlt_core::{AudioSource, DeviceEvent, PcmFrame};
+use rlt_core::{AudioError, AudioSource, AudioSourceKind, AudioSourceProvider};
 
-/// Nguồn âm thanh giả dùng cho test; không chạm phần cứng.
+pub use mic::MicSource;
+
+/// Nhà máy nguồn âm thanh của nền tảng hiện tại.
 #[derive(Default)]
-pub struct SilentSource {
-    started: bool,
-}
+pub struct PlatformSources;
 
-impl AudioSource for SilentSource {
-    fn start(&mut self) -> Result<(), String> {
-        self.started = true;
-        Ok(())
-    }
-    fn stop(&mut self) {
-        self.started = false;
-    }
-    fn next_frame(&mut self) -> Option<PcmFrame> {
-        self.started.then(|| PcmFrame { samples: vec![0; 320] })
-    }
-    fn next_event(&mut self) -> Option<DeviceEvent> {
-        None
+impl AudioSourceProvider for PlatformSources {
+    fn open(&self, kind: AudioSourceKind) -> Result<Box<dyn AudioSource>, AudioError> {
+        match kind {
+            AudioSourceKind::Microphone => Ok(Box::new(MicSource::new())),
+            // Cổng trừu tượng: chưa cài (ScreenCaptureKit nằm ở spike S1, chưa nối vào lõi).
+            AudioSourceKind::System => Err(AudioError::Unsupported(
+                "am thanh he thong chua duoc cai dat".into(),
+            )),
+        }
     }
 }
 
@@ -32,12 +29,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn silent_source_yields_frames_only_when_started() {
-        let mut s = SilentSource::default();
-        assert!(s.next_frame().is_none());
-        s.start().unwrap();
-        assert_eq!(s.next_frame().unwrap().samples.len(), 320);
-        s.stop();
-        assert!(s.next_frame().is_none());
+    fn system_audio_is_only_an_abstract_gate() {
+        let err = PlatformSources.open(AudioSourceKind::System).err().unwrap();
+        assert!(matches!(err, AudioError::Unsupported(_)));
+    }
+
+    #[test]
+    fn microphone_source_can_be_created_without_touching_hardware() {
+        assert!(PlatformSources.open(AudioSourceKind::Microphone).is_ok());
     }
 }

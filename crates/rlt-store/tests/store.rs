@@ -32,13 +32,37 @@ fn migration_ap_dung_dung_mot_lan_va_bang_ton_tai() {
     assert_eq!(m[0].0, 10);
 }
 
+fn repo_root() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
 #[test]
-fn schema_nhung_giong_het_file_goc_neu_co() {
-    let orig = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../recorder-live-translate/docs/schema-v3.sql");
-    if let Ok(text) = std::fs::read_to_string(orig) {
-        assert_eq!(text, SCHEMA_SQL, "ban sao schema lech file goc docs/schema-v3.sql");
+fn schema_nhung_giong_het_file_duy_nhat_o_docs() {
+    let text = std::fs::read_to_string(repo_root().join("docs/schema-v3.sql")).unwrap();
+    assert_eq!(text, SCHEMA_SQL, "SCHEMA_SQL lech docs/schema-v3.sql (can bien dich lai)");
+}
+
+fn find_schema_copies(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+    for e in std::fs::read_dir(dir).unwrap().flatten() {
+        let p = e.path();
+        let name = e.file_name().to_string_lossy().into_owned();
+        if p.is_dir() {
+            if !matches!(name.as_str(), "target" | "node_modules" | ".git" | "dist" | "obj") {
+                find_schema_copies(&p, out);
+            }
+        } else if name == "schema-v3.sql" {
+            out.push(p);
+        }
     }
+}
+
+#[test]
+fn chi_con_mot_file_schema_v3_trong_repo() {
+    let root = repo_root().canonicalize().unwrap();
+    let mut found = Vec::new();
+    find_schema_copies(&root, &mut found);
+    let want = root.join("docs/schema-v3.sql");
+    assert_eq!(found, vec![want], "phai co dung mot schema-v3.sql, tim thay: {found:?}");
 }
 
 #[test]

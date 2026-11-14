@@ -3,6 +3,15 @@ name = "rlt-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Loi thuan Rust: khong import Tauri hay API he dieu hanh (ADR-1)"
+description = "Loi thuan Rust: trait AudioSource, may trang thai phien ghi dieu phoi rlt-soniox/rlt-segment/rlt-store (ADR-1, khong import Tauri hay API he dieu hanh)"
 
 [dependencies]
+rlt-soniox = { path = "../rlt-soniox" }
+rlt-segment = { path = "../rlt-segment" }
+rlt-store = { path = "../rlt-store" }
+tokio = { version = "1", features = ["rt", "macros", "sync", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
+tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
