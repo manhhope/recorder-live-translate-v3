@@ -1,0 +1,11 @@
+[package]
+name = "rlt-segment"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Port Rust cua SegmentTracker, bo tach cau (bo quet tay) va TranscriptLineMerger tu ban .NET (M1)"
+
+[dependencies]
+
+[dev-dependencies]
+serde_json = "1"
