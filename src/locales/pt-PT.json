@@ -349,6 +349,7 @@
   "shell.tray.quit": "Sair",
   "shell.tray.recording": "A gravar",
   "shell.tray.stop": "Parar a gravação",
+  "cap.cancel": "Cancelar",
   "cap.err.allblack": "A captura está totalmente preta, por isso não foi guardada. Verifique a permissão de gravação do ecrã.",
   "cap.err.empty": "Não foi selecionada nenhuma área.",
   "cap.err.limitreached": "Esta sessão já tem 200 capturas de ecrã.",

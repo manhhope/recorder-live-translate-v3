@@ -18,3 +18,15 @@ const KNOWN = new Set(["no_permission", "no_monitor", "empty", "too_small", "all
 export function errorKey(code: string): string {
   return KNOWN.has(code) ? `cap.err.${code.replace(/_/g, "")}` : "cap.err.unknown";
 }
+
+export type Intent = "cancel" | "drag" | "none";
+
+/** Phim tren lop phu: Esc huy, phim khac bo qua. */
+export function keyIntent(key: string): Intent {
+  return key === "Escape" ? "cancel" : "none";
+}
+
+/** Nut chuot (MouseEvent.button): chuot phai (2) huy, chuot trai (0) bat dau keo, nut khac bo qua. */
+export function mouseIntent(button: number): Intent {
+  return button === 2 ? "cancel" : button === 0 ? "drag" : "none";
+}

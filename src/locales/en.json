@@ -349,6 +349,7 @@
   "shell.tray.quit": "Quit",
   "shell.tray.recording": "Recording in progress",
   "shell.tray.stop": "Stop recording",
+  "cap.cancel": "Cancel",
   "cap.err.allblack": "The screenshot is completely black, so it was not saved. Check the screen recording permission.",
   "cap.err.empty": "No area was selected.",
   "cap.err.limitreached": "This session already has 200 screenshots.",

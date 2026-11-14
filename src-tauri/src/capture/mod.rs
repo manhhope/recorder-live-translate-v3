@@ -3,15 +3,17 @@
 //! app), lưu qua rlt-store vào `screen_captures` kèm thumbnail.
 
 pub mod image;
+pub mod overlay;
 pub mod persist;
 #[cfg(target_os = "macos")]
 pub mod sck;
 
-use rlt_platform::panel_geometry::{monitor_key, region_to_pixels, MonitorInfo, Point, Rect, RegionError};
+use rlt_platform::panel_geometry::{monitor_key, region_to_pixels, MonitorInfo, Point, Rect};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 pub const OVERLAY_PREFIX: &str = "capture-overlay-";
 
@@ -45,7 +47,50 @@ fn monitors(app: &AppHandle) -> Vec<MonitorInfo> {
         .collect()
 }
 
+/// Phím Esc toàn cục tạm thời (chỉ sống khi lớp phủ mở). Đăng ký/gỡ luôn trên luồng chính.
+struct TauriEsc(AppHandle);
+
+impl overlay::EscHook for TauriEsc {
+    fn register(&mut self) -> Result<(), String> {
+        let app = self.0.clone();
+        self.0
+            .global_shortcut()
+            .on_shortcut(overlay::ESC_ACCELERATOR, move |_app, _sc, ev| {
+                if ev.state() == ShortcutState::Pressed {
+                    let a = app.clone();
+                    crate::crashlog::guard("capture_esc", move || close_overlays(&a));
+                }
+            })
+            .map_err(|e| e.to_string())
+    }
+    fn unregister(&mut self) -> Result<(), String> {
+        self.0.global_shortcut().unregister(overlay::ESC_ACCELERATOR).map_err(|e| e.to_string())
+    }
+}
+
+static ESC: Mutex<Option<overlay::EscScope<TauriEsc>>> = Mutex::new(None);
+
+fn esc_open(app: &AppHandle) {
+    let mut g = ESC.lock().unwrap_or_else(|e| e.into_inner());
+    let scope = g.get_or_insert_with(|| overlay::EscScope::new(TauriEsc(app.clone())));
+    if let Err(e) = scope.open() {
+        // Không đăng ký được Esc toàn cục thì vẫn còn chuột phải và nút Hủy trên lớp phủ.
+        eprintln!("capture: khong dang ky duoc Esc toan cuc: {e}");
+    }
+}
+
+fn esc_close() {
+    let mut g = ESC.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(scope) = g.as_mut() {
+        if let Err(e) = scope.close() {
+            eprintln!("capture: khong go duoc Esc toan cuc: {e}");
+        }
+    }
+}
+
+/// Đóng mọi lớp phủ và gỡ phím Esc toàn cục. Gọi lặp lại không sao.
 fn close_overlays(app: &AppHandle) {
+    esc_close();
     for (label, w) in app.webview_windows() {
         if label.starts_with(OVERLAY_PREFIX) {
             let _ = w.close();
@@ -57,13 +102,16 @@ fn close_overlays(app: &AppHandle) {
 #[tauri::command]
 pub fn capture_begin(app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
-    if !sck::has_permission() {
-        let _ = sck::request_permission();
-        return Err("no_permission".into());
-    }
+    let allowed = sck::has_permission();
+    #[cfg(not(target_os = "macos"))]
+    let allowed = true;
     let mons = monitors(&app);
-    if mons.is_empty() {
-        return Err("no_monitor".into());
+    if let Err(code) = overlay::begin_check(allowed, mons.len()) {
+        #[cfg(target_os = "macos")]
+        if !allowed {
+            let _ = sck::request_permission();
+        }
+        return Err(code.into());
     }
     close_overlays(&app);
     let a = app.clone();
@@ -93,6 +141,10 @@ pub fn capture_begin(app: AppHandle) -> Result<(), String> {
                 eprintln!("capture: khong mo duoc lop phu {i}: {e}");
             }
         }
+        // Có lớp phủ thì Esc toàn cục phải sống, kể cả khi NSPanel không nhận phím.
+        if a.webview_windows().keys().any(|l| l.starts_with(OVERLAY_PREFIX)) {
+            esc_open(&a);
+        }
     })
     .map_err(|e| e.to_string())
 }
@@ -103,30 +155,36 @@ pub fn capture_cancel(app: AppHandle) {
 }
 
 /// Chốt vùng (toạ độ logic GLOBAL, điểm bắt đầu quyết định màn). Đóng lớp phủ trước khi chụp để ảnh sạch.
+/// Lệnh `async` + `spawn_blocking`: lệnh đồng bộ của Tauri chạy trên luồng chính, nơi `own_window_numbers` chờ
+/// chính luồng chính (kẹt 2 giây) và ScreenCaptureKit cũng chặn. Mọi lỗi trả về mã chuỗi, đồng thời gửi thông báo
+/// tới cửa sổ chính (lớp phủ đã đóng nên không còn chỗ hiện lỗi).
 #[tauri::command]
-pub fn capture_commit(
+pub async fn capture_commit(
     app: AppHandle,
     session_id: String,
     offset_ms: i64,
     start: (f64, f64),
     end: (f64, f64),
 ) -> Result<CaptureResult, String> {
+    let a = app.clone();
+    let r = tauri::async_runtime::spawn_blocking(move || commit_blocking(&a, &session_id, offset_ms, start, end))
+        .await
+        .unwrap_or_else(|e| Err(format!("capture_failed:task: {e}")));
+    if let Err(code) = &r {
+        crate::shell::notify_capture_error(&app, code);
+    }
+    r
+}
+
+fn commit_blocking(app: &AppHandle, session_id: &str, offset_ms: i64, start: (f64, f64), end: (f64, f64)) -> Result<CaptureResult, String> {
     // Số cửa sổ của app (để loại khỏi ảnh) phải lấy TRƯỚC khi đóng lớp phủ.
     #[cfg(target_os = "macos")]
-    let own = own_window_numbers(&app);
-    close_overlays(&app);
-    let mons = monitors(&app);
-    let (idx, px) = region_to_pixels(&mons, Point { x: start.0, y: start.1 }, Point { x: end.0, y: end.1 })
-        .map_err(|e| match e {
-            RegionError::Empty => "empty".to_string(),
-            RegionError::TooSmall => "too_small".to_string(),
-        })?;
+    let own = own_window_numbers(app);
+    close_overlays(app);
+    let mons = monitors(app);
+    let (idx, px) = region_to_pixels(&mons, Point { x: start.0, y: start.1 }, Point { x: end.0, y: end.1 }).map_err(overlay::region_code)?;
     #[cfg(target_os = "macos")]
-    let img = sck::capture(&mons[idx], px, &own).map_err(|e| match e {
-        sck::CaptureError::NoPermission => "no_permission".to_string(),
-        sck::CaptureError::NoDisplay => "no_monitor".to_string(),
-        sck::CaptureError::Sck(m) => format!("capture_failed:{m}"),
-    })?;
+    let img = overlay::guarded(|| sck::capture(&mons[idx], px, &own)).map_err(overlay::capture_code)?;
     #[cfg(not(target_os = "macos"))]
     let img: image::Rgba = {
         let _ = (idx, px);
@@ -134,7 +192,7 @@ pub fn capture_commit(
     };
     let st = app.state::<CaptureState>();
     let store = st.store.lock().map_err(|_| "store_poisoned".to_string())?;
-    persist::save(&store, &st.data_dir, &session_id, offset_ms, &img, None)
+    persist::save(&store, &st.data_dir, session_id, offset_ms, &img, None)
         .map(|s| CaptureResult {
             screen_capture_id: s.screen_capture_id,
             file_path: s.file_path,

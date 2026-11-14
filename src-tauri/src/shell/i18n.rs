@@ -29,6 +29,13 @@ pub const KEYS: &[&str] = &[
     "shell.shortcut.err.unavailable",
     "shell.shortcut.err.unknown",
     "shell.power.err",
+    "cap.err.nopermission",
+    "cap.err.nomonitor",
+    "cap.err.empty",
+    "cap.err.toosmall",
+    "cap.err.allblack",
+    "cap.err.limitreached",
+    "cap.err.unknown",
 ];
 
 type Table = HashMap<String, String>;

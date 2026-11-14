@@ -64,7 +64,7 @@ fn run_action(app: &AppHandle, action: ShortcutAction) {
         }
         Dispatch::RegionCaptureBegin => {
             if let Err(code) = crate::capture::capture_begin(app.clone()) {
-                notice(app, "shell.shortcut.err.capture", Some(code));
+                notify_capture_error(app, &code);
             }
             let _ = app.emit_to("main", EV_SHORTCUT, action.as_str());
         }
@@ -118,6 +118,11 @@ fn state(app: &AppHandle) -> tauri::State<'_, ShellState> {
 fn notice(app: &AppHandle, key: &str, detail: Option<String>) {
     let text = i18n::t(&state(app).locale(), key);
     let _ = app.emit_to("main", EV_NOTICE, serde_json::json!({ "key": key, "text": text, "detail": detail }));
+}
+
+/// Lỗi chụp vùng (thiếu quyền, không có màn hình, chụp hỏng...) thành thông báo có nghĩa ở cửa sổ chính.
+pub fn notify_capture_error(app: &AppHandle, code: &str) {
+    notice(app, crate::capture::overlay::error_key(code), Some(code.to_string()));
 }
 
 pub fn show_main(app: &AppHandle) {
@@ -212,7 +217,9 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                     let _ = crate::subtitle::subtitle_open(app.clone());
                 }
                 "tray-capture" => {
-                    let _ = crate::capture::capture_begin(app.clone());
+                    if let Err(code) = crate::capture::capture_begin(app.clone()) {
+                        notify_capture_error(app, &code);
+                    }
                 }
                 "tray-quit" => request_quit(app),
                 _ => {}

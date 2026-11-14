@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { dragBox, errorKey, toGlobal } from "./model.ts";
+import { dragBox, errorKey, keyIntent, mouseIntent, toGlobal } from "./model.ts";
 
 test("global point adds the window origin, including negative origins of a left monitor", () => {
   assert.deepEqual(toGlobal({ x: 1512, y: 0 }, { x: 10, y: 20 }), { x: 1522, y: 20 });
@@ -18,4 +18,20 @@ test("known backend codes map to their key, anything else is unknown", () => {
   }
   assert.equal(errorKey("capture_failed:boom"), "cap.err.unknown");
   assert.equal(errorKey("save_failed:Db(x)"), "cap.err.unknown");
+});
+
+test("Esc cancels the overlay, other keys do nothing", () => {
+  assert.equal(keyIntent("Escape"), "cancel");
+  assert.equal(keyIntent("Enter"), "none");
+  assert.equal(keyIntent("s"), "none");
+});
+
+test("right click cancels, left click starts a drag, other buttons are ignored", () => {
+  assert.equal(mouseIntent(2), "cancel");
+  assert.equal(mouseIntent(0), "drag");
+  assert.equal(mouseIntent(1), "none");
+});
+
+test("the missing-permission error maps to its own message key", () => {
+  assert.equal(errorKey("no_permission"), "cap.err.nopermission");
 });

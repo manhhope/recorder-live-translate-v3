@@ -8,12 +8,7 @@ use screencapturekit::cg::CGRect;
 use screencapturekit::prelude::*;
 use screencapturekit::screenshot_manager::{CGImageExt, SCScreenshotManager};
 
-#[derive(Debug)]
-pub enum CaptureError {
-    NoPermission,
-    NoDisplay,
-    Sck(String),
-}
+pub use super::overlay::CaptureError;
 
 extern "C" {
     fn CGPreflightScreenCaptureAccess() -> bool;
