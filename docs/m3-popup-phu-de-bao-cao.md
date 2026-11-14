@@ -40,3 +40,16 @@ Playwright chạy chromium với lớp Tauri giả; chưa đo trên NSPanel th�
 4. Khi thanh hiện: bấm A-/A+, đổi chế độ, kéo thanh để di chuyển cửa sổ, bấm "..." (menu mở thì thanh không tự ẩn).
 5. Bật Reduce motion trong System Settings: thanh đổi tức thì. Tab chưa chắc vào được popup vì panel không nhận focus: kiểm và ghi lại.
 6. Dừng ghi, đóng rồi mở lại popup: các dòng của phiên vừa rồi vẫn hiện; ghi phiên mới thì bộ đệm được xoá.
+
+## Bổ sung: commit 39f89d4 (kiểm lại độc lập)
+
+`9a9b642` thiếu bốn file nối `session_start` và giao diện popup (`session/mod.rs`, `SubtitleApp.svelte`, `model.ts`, `model.test.ts`). `39f89d4` bổ sung đúng phần của task popup (reset_feed + tee, replay `subtitle_lines`, `mergeSnapshot`, thanh nút opacity), không gồm chữ tạm (`subtitle://live`, `liveRows`) của t_6aa2be618bc7.
+
+Kiểm trên worktree sạch ở `39f89d4` (chạy một mình, không cần phần của task khác):
+- `cargo test --workspace`: tất cả `test result: ok`, 0 failed.
+- `cargo clippy --workspace --all-targets`: không cảnh báo.
+- `npm run build`: built OK. `npm run test:i18n`: pass 12, fail 0. `npm run scan:i18n`: 45 tệp, 0 chuỗi cứng.
+- `node --test src/subtitle/model.test.ts`: 12 pass.
+- Playwright `popup-phu-de`: 16 passed (en và pt-PT).
+
+NSPanel thật: chưa đo. Kịch bản cho chủ: chạy app, bấm "Open subtitles" giữa lúc đang ghi, thấy ngay các dòng đã có và dòng mới; rê chuột vào/ra panel thấy thanh nút hiện/ẩn mượt; nhấn Tab thấy thanh hiện; kéo thanh để di chuyển cửa sổ.
