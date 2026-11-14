@@ -11,7 +11,8 @@
     opacity_percent: 0, hidden_from_capture: true,
   });
   let line = $state<Line | null>(null);
-  let toolsOpen = $state(false);
+  let hover = $state(false);
+  let menuOpen = $state(false);
   let err = $state("");
 
   const rows = $derived(rowsFor(s.display_mode, line));
@@ -35,29 +36,37 @@
     try { await invoke("subtitle_set_color", { which, hex: (e.target as HTMLInputElement).value }); }
     catch (code) { const c = colorError(String(code)); err = $_(c.key, { values: c.values }); }
   }
-  const startDrag = (e: MouseEvent) => { if (e.button === 0 && !(e.target as HTMLElement).closest(".tools")) getCurrentWindow().startDragging(); };
+  const startDrag = (e: MouseEvent) => { if (e.button === 0 && !(e.target as HTMLElement).closest("button, select, input, label, .menu")) getCurrentWindow().startDragging(); };
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="sub" style:background={backgroundCss(s.opacity_percent)} onmousedown={startDrag}
-     onmouseenter={() => (toolsOpen = true)} onmouseleave={() => (toolsOpen = false)} role="presentation">
-  {#if toolsOpen}
-    <div class="tools">
-      <button onclick={() => step(-1)} disabled={s.font_size_pt <= 12} title={$_("sub.font.decrease")}>{$_("sub.font.decrease.short")}</button>
-      <span>{s.font_size_pt}{$_("sub.font.unit")}</span>
-      <button onclick={() => step(1)} disabled={s.font_size_pt >= 36} title={$_("sub.font.increase")}>{$_("sub.font.increase.short")}</button>
-      <select aria-label={$_("sub.mode.label")} value={s.display_mode} onchange={e => setMode((e.target as HTMLSelectElement).value as DisplayMode)}>
-        {#each MODES as m}<option value={m.mode}>{$_(m.key)}</option>{/each}
-      </select>
-      <input type="color" aria-label={$_("sub.color.source")} title={$_("sub.color.source")} value={s.source_color} onchange={e => setColor("source", e)} />
-      <input type="color" aria-label={$_("sub.color.translation")} title={$_("sub.color.translation")} value={s.translation_color} onchange={e => setColor("translation", e)} />
-      <button onclick={() => invoke("subtitle_reset_colors")}>{$_("sub.color.reset")}</button>
-      <input type="range" min="0" max="80" step="5" aria-label={$_("sub.opacity")} title={$_("sub.opacity")} value={s.opacity_percent} onchange={setOpacity} />
-      <label title={$_("sub.hideshare.note")}><input type="checkbox" checked={s.hidden_from_capture} onchange={setHidden} /> {$_("sub.hideshare")}</label>
-      <button onclick={() => invoke("subtitle_reset_position")}>{$_("sub.resetposition")}</button>
-      <button onclick={() => invoke("subtitle_close")} aria-label={$_("sub.close")}>{$_("sub.close.short")}</button>
+     onmouseenter={() => (hover = true)} onmouseleave={() => { hover = false; menuOpen = false; }} role="presentation">
+  <div class="tools" class:dim={!hover && !menuOpen} data-drag>
+    <button class="mini" onclick={() => step(-1)} disabled={s.font_size_pt <= 12} title={$_("sub.font.decrease")} aria-label={$_("sub.font.decrease")}>{$_("sub.font.decrease.short")}</button>
+    <span class="pt">{s.font_size_pt}{$_("sub.font.unit")}</span>
+    <button class="mini" onclick={() => step(1)} disabled={s.font_size_pt >= 36} title={$_("sub.font.increase")} aria-label={$_("sub.font.increase")}>{$_("sub.font.increase.short")}</button>
+    <select aria-label={$_("sub.mode.label")} title={$_("sub.mode.label")} value={s.display_mode} onchange={e => setMode((e.target as HTMLSelectElement).value as DisplayMode)}>
+      {#each MODES as m}<option value={m.mode}>{$_(m.key)}</option>{/each}
+    </select>
+    <input class="sw" type="color" aria-label={$_("sub.color.source")} title={$_("sub.color.source")} value={s.source_color} onchange={e => setColor("source", e)} />
+    <input class="sw" type="color" aria-label={$_("sub.color.translation")} title={$_("sub.color.translation")} value={s.translation_color} onchange={e => setColor("translation", e)} />
+    <input class="rg" type="range" min="0" max="80" step="5" aria-label={$_("sub.opacity")} title={$_("sub.opacity")} value={s.opacity_percent} onchange={setOpacity} />
+    <span class="grow"></span>
+    <div class="more">
+      <button class="mini" onclick={() => (menuOpen = !menuOpen)} title={$_("sub.more")} aria-label={$_("sub.more")} aria-expanded={menuOpen}>
+        <svg class="i" viewBox="0 0 16 16"><circle cx="3" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="13" cy="8" r="1"/></svg>
+      </button>
+      {#if menuOpen}
+        <div class="menu" role="menu">
+          <button role="menuitem" onclick={() => { invoke("subtitle_reset_colors"); menuOpen = false; }}>{$_("sub.color.reset")}</button>
+          <button role="menuitem" onclick={() => { invoke("subtitle_reset_position"); menuOpen = false; }}>{$_("sub.resetposition")}</button>
+          <label title={$_("sub.hideshare.note")}><input type="checkbox" checked={s.hidden_from_capture} onchange={setHidden} /> {$_("sub.hideshare")}</label>
+        </div>
+      {/if}
     </div>
-  {/if}
+    <button class="mini" onclick={() => invoke("subtitle_close")} title={$_("sub.close")} aria-label={$_("sub.close")}>{$_("sub.close.short")}</button>
+  </div>
   {#if err}<p class="err" role="alert">{err}</p>{/if}
   <div class="text" style:font-size="{s.font_size_pt}px">
     {#each rows as r}
@@ -70,9 +79,22 @@
 
 <style>
   :global(html), :global(body) { margin: 0; background: transparent; overflow: hidden; font-family: -apple-system, system-ui, sans-serif; }
-  .sub { box-sizing: border-box; height: 100vh; padding: 10px 16px; border-radius: 10px; display: flex; flex-direction: column; justify-content: flex-end; user-select: none; }
-  .tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; color: #d0d6dc; margin-bottom: 6px; }
-  .tools button, .tools select { font-size: 12px; }
+  .sub { box-sizing: border-box; height: 100vh; padding: 0 14px 8px; border-radius: 12px; display: flex; flex-direction: column; user-select: none; }
+  .tools { flex: none; height: 24px; display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; font-size: 11px; color: #d9d9de; transition: opacity 0.15s; position: relative; }
+  .tools.dim { opacity: 0.25; }
+  .tools .pt { min-width: 28px; text-align: center; }
+  .tools .grow { flex: 1; min-width: 0; }
+  .mini { min-width: 22px; height: 22px; padding: 0 4px; display: inline-grid; place-items: center; font-size: 11px; color: #fff; background: transparent; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 5px; cursor: pointer; }
+  .mini:disabled { opacity: 0.4; cursor: not-allowed; }
+  .i { width: 14px; height: 14px; fill: currentColor; }
+  .tools select { font-size: 11px; height: 22px; max-width: 120px; }
+  .sw { width: 22px; height: 22px; padding: 0; border: 1px solid rgba(255, 255, 255, 0.35); border-radius: 50%; background: none; cursor: pointer; }
+  .rg { width: 56px; min-width: 0; }
+  .more { position: relative; }
+  .menu { position: absolute; right: 0; top: 26px; z-index: 5; display: flex; flex-direction: column; gap: 2px; padding: 4px; min-width: 190px; background: rgba(16, 16, 18, 0.96); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; }
+  .menu button, .menu label { text-align: left; font-size: 12px; color: #fff; background: transparent; border: 0; padding: 5px 8px; border-radius: 5px; cursor: pointer; display: flex; gap: 6px; align-items: center; }
+  .menu button:hover, .menu label:hover { background: rgba(255, 255, 255, 0.12); }
+  .text { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: flex-end; }
   .text p { margin: 0; line-height: 1.35; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
   .wait { color: #8a939c; font-size: 14px; }
   .err { color: #ffb4a8; font-size: 12px; margin: 0 0 4px; }
