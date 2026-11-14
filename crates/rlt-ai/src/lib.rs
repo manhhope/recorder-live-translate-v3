@@ -5,6 +5,7 @@
 //! - Chat nhieu luot luu trong `rlt-store` (`ai_conversations`, `ai_messages`), gan voi bien ban.
 //! - Moi chu do mo hinh tra ve di qua `sanitize_model_output`.
 
+mod b64;
 pub mod error;
 pub mod gemini;
 pub mod history;
@@ -17,9 +18,10 @@ pub mod service;
 pub mod settings;
 
 pub use error::{AiError, Result};
+pub use provider::complete_text;
 pub use provider::{
-    make_provider, CancelFlag, ChatMessage, ChatRequest, LlmProvider, ProviderConfig, ProviderKind, Role, Usage,
+    make_provider, CancelFlag, ChatMessage, ChatRequest, ImagePart, LlmProvider, ProviderConfig, ProviderKind, Role, Usage,
 };
 pub use sanitize::sanitize_model_output;
-pub use service::{AiService, AskOutcome, AskParams, Endpoints, StreamUpdate};
+pub use service::{AiService, AskOutcome, AskParams, Endpoints, OcrTarget, StreamUpdate};
 pub use settings::{AiSettings, AiSettingsInput, Chip};

@@ -22,7 +22,11 @@ impl Gemini {
             .iter()
             .map(|m| {
                 let role = if m.role == Role::User { "user" } else { "model" };
-                json!({ "role": role, "parts": [{ "text": m.content }] })
+                let mut parts = vec![json!({ "text": m.content })];
+                for img in &m.images {
+                    parts.push(json!({ "inline_data": { "mime_type": img.mime, "data": img.base64() } }));
+                }
+                json!({ "role": role, "parts": parts })
             })
             .collect();
         let mut body = json!({ "contents": contents });

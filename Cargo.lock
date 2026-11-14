@@ -3669,7 +3669,11 @@ dependencies = [
 name = "rlt-quick"
 version = "0.1.0"
 dependencies = [
+ "png 0.17.16",
+ "rlt-ai",
+ "rlt-secrets",
  "rlt-store",
+ "tokio",
 ]
 
 [[package]]

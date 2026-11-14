@@ -26,6 +26,8 @@ pub enum AiError {
     InvalidInput(String),
     /// Loi luu tru.
     Store(String),
+    /// Mo hinh duoc chon khong nhan anh (Ollama khong co vision).
+    VisionUnsupported,
 }
 
 impl AiError {
@@ -41,6 +43,7 @@ impl AiError {
             AiError::ConsentRequired => "consent_required",
             AiError::InvalidInput(_) => "invalid_input",
             AiError::Store(_) => "store_error",
+            AiError::VisionUnsupported => "provider_no_vision",
         }
     }
 }

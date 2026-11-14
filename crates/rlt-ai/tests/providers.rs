@@ -448,3 +448,65 @@ async fn thu_ket_noi_bao_ma_loi() {
     assert_eq!(svc.test_connection(ProviderKind::OpenAi).await.unwrap_err(), AiError::Unauthorized);
     assert!(svc.test_connection(ProviderKind::OpenAi).await.is_ok());
 }
+
+// ---------- tin nhan co anh (OCR vision, US-42) ----------
+
+fn img_req() -> ChatRequest {
+    ChatRequest {
+        model: "m".into(),
+        system: None,
+        messages: vec![ChatMessage::user_with_images("doc chu", vec![ImagePart::new("image/png", vec![0xff, 0xfe, 0xfd])])],
+    }
+}
+
+async fn run_img(kind: ProviderKind, url: &str, key: Option<&str>) -> Result<String> {
+    let cfg = ProviderConfig::new(url, key.map(SecretValue::new)).with_timeout(Duration::from_millis(3000));
+    let p = make_provider(kind, cfg).unwrap();
+    complete_text(p.as_ref(), &img_req(), &CancelFlag::new()).await
+}
+
+#[tokio::test]
+async fn tin_co_anh_dung_dinh_dang_rieng_cua_tung_nha_cung_cap() {
+    let g = fake(vec![gemini_stream()]).await;
+    assert_eq!(run_img(ProviderKind::Gemini, &g.url, Some(KEY)).await.unwrap(), "Xin chao");
+    assert!(g.requests.lock().unwrap()[0].contains("\"inline_data\":{\"data\":\"//79\",\"mime_type\":\"image/png\"}"));
+
+    let o = fake(vec![openai_stream()]).await;
+    assert_eq!(run_img(ProviderKind::OpenAi, &o.url, Some(KEY)).await.unwrap(), "Xin chao");
+    assert!(o.requests.lock().unwrap()[0].contains("\"image_url\":{\"url\":\"data:image/png;base64,//79\"}"));
+
+    let l = fake(vec![Reply::Status(200, "{\"capabilities\":[\"vision\"]}".into()), ollama_stream()]).await;
+    assert_eq!(run_img(ProviderKind::Ollama, &l.url, None).await.unwrap(), "Xin chao");
+    assert!(l.requests.lock().unwrap()[1].contains("\"images\":[\"//79\"]"));
+}
+
+#[tokio::test]
+async fn tin_khong_anh_van_nhu_cu_khong_co_truong_anh() {
+    let o = fake(vec![openai_stream()]).await;
+    let _ = run(ProviderKind::OpenAi, &o.url, Some(KEY), 5000).await;
+    let rq = o.requests.lock().unwrap()[0].clone();
+    assert!(rq.contains("\"content\":\"hi\"") && !rq.contains("image_url"));
+    let l = fake(vec![ollama_stream()]).await;
+    let _ = run(ProviderKind::Ollama, &l.url, None, 5000).await;
+    let rq = l.requests.lock().unwrap();
+    assert_eq!(rq.len(), 1, "khong co anh thi khong hoi /api/show");
+    assert!(!rq[0].contains("\"images\""));
+}
+
+#[tokio::test]
+async fn ollama_khong_vision_va_khong_co_khoa_cho_nha_cung_cap_can_khoa() {
+    let l = fake(vec![Reply::Status(200, "{\"capabilities\":[\"completion\"]}".into())]).await;
+    assert_eq!(run_img(ProviderKind::Ollama, &l.url, None).await, Err(AiError::VisionUnsupported));
+    assert_eq!(AiError::VisionUnsupported.code(), "provider_no_vision");
+    assert_eq!(l.requests.lock().unwrap().len(), 1);
+    let g = fake(vec![gemini_stream()]).await;
+    assert_eq!(run_img(ProviderKind::Gemini, &g.url, None).await, Err(AiError::NoKey));
+    assert!(g.requests.lock().unwrap().is_empty());
+}
+
+#[test]
+fn debug_cua_anh_chi_in_kich_thuoc() {
+    let m = ChatMessage::user_with_images("x", vec![ImagePart::new("image/png", vec![1, 2, 3])]);
+    assert!(format!("{m:?}").contains("ImagePart(image/png, 3 byte)"));
+    assert!(!format!("{m:?}").contains("[1, 2, 3]"));
+}

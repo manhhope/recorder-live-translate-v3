@@ -66,18 +66,53 @@ pub enum Role {
     Assistant,
 }
 
+/// Anh dinh kem tin nhan (OCR bang mo hinh co vision, US-42). Chi o trong bo nho; `Debug` chi in mime va kich thuoc.
+#[derive(Clone, PartialEq, Eq)]
+pub struct ImagePart {
+    /// `image/png` hoac `image/jpeg`.
+    pub mime: String,
+    pub data: Vec<u8>,
+}
+
+impl ImagePart {
+    pub fn new(mime: impl Into<String>, data: Vec<u8>) -> Self {
+        Self { mime: mime.into(), data }
+    }
+    pub(crate) fn base64(&self) -> String {
+        crate::b64::encode(&self.data)
+    }
+}
+
+impl fmt::Debug for ImagePart {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ImagePart({}, {} byte)", self.mime, self.data.len())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChatMessage {
     pub role: Role,
     pub content: String,
+    /// Rong voi chat thuong. Chi tin nguoi dung moi co anh.
+    pub images: Vec<ImagePart>,
 }
 
 impl ChatMessage {
     pub fn user(c: impl Into<String>) -> Self {
-        Self { role: Role::User, content: c.into() }
+        Self { role: Role::User, content: c.into(), images: Vec::new() }
     }
     pub fn assistant(c: impl Into<String>) -> Self {
-        Self { role: Role::Assistant, content: c.into() }
+        Self { role: Role::Assistant, content: c.into(), images: Vec::new() }
+    }
+    /// Tin nguoi dung kem anh (Gemini, OpenAI, Ollama co vision).
+    pub fn user_with_images(c: impl Into<String>, images: Vec<ImagePart>) -> Self {
+        Self { role: Role::User, content: c.into(), images }
+    }
+}
+
+impl ChatRequest {
+    pub fn has_images(&self) -> bool {
+        self.messages.iter().any(|m| !m.images.is_empty())
     }
 }
 
@@ -161,4 +196,12 @@ pub fn make_provider(kind: ProviderKind, cfg: ProviderConfig) -> Result<Box<dyn 
         ProviderKind::OpenAi => Box::new(crate::openai::OpenAi::new(http, cfg)),
         ProviderKind::Ollama => Box::new(crate::ollama::Ollama::new(http, cfg)),
     })
+}
+
+/// Goi mot luot va gom het chu tra ve (khong can stream). Dung cho OCR: ket qua la chu tho, khong qua sanitizer.
+pub async fn complete_text(provider: &dyn LlmProvider, req: &ChatRequest, cancel: &CancelFlag) -> Result<String> {
+    let mut out = String::new();
+    let mut sink = |d: &str| out.push_str(d);
+    provider.stream_chat(req, cancel, &mut sink).await?;
+    Ok(out)
 }

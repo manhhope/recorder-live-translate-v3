@@ -1,8 +1,8 @@
 //! `rlt-quick` (M3-01, M3-02, M3-03, M3-06): phan logic thuan cua Quick Translate (US-31), Inline Translate
 //! (US-37), khong lam mat clipboard (US-38), toolbar khi boi chon (US-41) va OCR roi dich (US-42).
 //!
-//! Crate nay KHONG goi AppKit, Accessibility hay Vision: moi thu cham he dieu hanh nam sau trait
-//! (`ClipboardBackend`, `KeyInjector`, `SelectionReader`, `OcrEngine`) va duoc cai o `src-tauri/src/quick/`.
+//! Crate nay KHONG goi AppKit hay Accessibility: moi thu cham he dieu hanh nam sau trait
+//! (`ClipboardBackend`, `KeyInjector`, `SelectionReader`, `OcrEngine`; OCR that la mo hinh AI co vision qua `rlt-ai`) va duoc cai o `src-tauri/src/quick/`.
 //! Nho vay moi quy tac (gioi han clipboard, khong ghi de khi bi doi giua chung, hang doi huy, lich su) test duoc
 //! tren moi may ma khong can GUI hay quyen Accessibility.
 //!
@@ -14,9 +14,11 @@
 pub mod clipboard;
 pub mod error;
 pub mod history;
+pub mod image_prep;
 pub mod inline;
 pub mod mock;
 pub mod ocr;
+pub mod ocr_ai;
 pub mod queue;
 pub mod toolbar;
 pub mod translator;

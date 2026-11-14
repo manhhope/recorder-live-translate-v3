@@ -1,5 +1,6 @@
-//! OCR roi dich (US-42, M3-06): nhan chu TREN MAY (Vision cua macOS) roi chi gui CHU di dich qua `TextTranslator`.
-//! Anh chi o trong bo nho, khong ghi dia, khong gui ra ngoai (AC-42.4, AC-42.8).
+//! OCR roi dich (US-42, M3-06): doc chu bang mo hinh AI co vision (BYOK, `ocr_ai::AiVisionOcr`), roi chi gui CHU
+//! di dich qua `TextTranslator`. Anh chi o trong bo nho, khong ghi dia; anh RA KHOI MAY toi nha cung cap AI chi
+//! khi co khoa API va nguoi dung da dong y (xem `ocr_ai`). Mo hinh AI KHONG BAO GIO duoc dung de dich.
 
 use crate::error::TranslateError;
 use crate::queue::CancelToken;
@@ -22,9 +23,19 @@ impl fmt::Debug for OcrImage {
 pub enum OcrError {
     /// Anh khong doc duoc.
     BadImage,
-    /// Engine bao loi (Vision khong chay duoc).
+    /// Anh qua lon va khong thu nho duoc (xem `image_prep`).
+    ImageTooLarge,
+    /// Chua co khoa API cua nha cung cap: khong gui anh.
+    NoKey,
+    /// Chua dong y gui anh ra ngoai may: khong gui anh.
+    ConsentRequired,
+    /// Mo hinh duoc chon khong nhan anh (Ollama khong co vision).
+    VisionUnsupported,
+    /// Nha cung cap AI bao loi; mang ma on dinh cua `rlt_ai::AiError::code`.
+    Provider(&'static str),
+    /// Engine bao loi.
     Engine(String),
-    /// Khong phai macOS / engine chua cai.
+    /// Nen tang khong ho tro.
     Unsupported,
 }
 
@@ -32,6 +43,11 @@ impl fmt::Display for OcrError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             OcrError::BadImage => f.write_str("ocr_bad_image"),
+            OcrError::ImageTooLarge => f.write_str("ocr_image_too_large"),
+            OcrError::NoKey => f.write_str("ocr_no_key"),
+            OcrError::ConsentRequired => f.write_str("ocr_consent_required"),
+            OcrError::VisionUnsupported => f.write_str("ocr_vision_unsupported"),
+            OcrError::Provider(code) => write!(f, "ocr_{code}"),
             OcrError::Engine(_) => f.write_str("ocr_engine"),
             OcrError::Unsupported => f.write_str("ocr_unsupported"),
         }
@@ -67,7 +83,17 @@ impl fmt::Debug for OcrTranslation {
 
 /// Don chu OCR: bo dong rong, cat khoang trang thua o dau/cuoi moi dong.
 pub fn normalize(text: &str) -> String {
-    text.lines().map(str::trim).filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n")
+    strip_code_fence(text)
+        .lines().map(str::trim).filter(|l| !l.is_empty()).collect::<Vec<_>>().join("\n")
+}
+
+/// Mot so mo hinh boc ket qua trong hang rao ``` du da dan chi tra chu tho: bo hang rao do, giu nguyen noi dung.
+fn strip_code_fence(text: &str) -> &str {
+    let t = text.trim();
+    let Some(rest) = t.strip_prefix("```") else { return text };
+    let Some(body) = rest.strip_suffix("```") else { return text };
+    // Bo dong "```lang" dau tien.
+    body.split_once('\n').map_or("", |(_, b)| b)
 }
 
 /// Nhan chu roi dich. Khong thay chu thi KHONG goi translator.

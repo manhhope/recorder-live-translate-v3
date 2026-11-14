@@ -17,6 +17,21 @@ use std::time::Duration;
 /// Toi da 20 cuoc chat moi bien ban (khop khoa i18n `ask.chat.max`).
 pub const MAX_CONVERSATIONS_PER_SESSION: i64 = 20;
 
+/// Dich den cua OCR anh (xem `AiService::ocr_target`).
+pub struct OcrTarget {
+    pub kind: ProviderKind,
+    pub model: String,
+    pub base_url: String,
+    pub api_key: Option<SecretValue>,
+    pub timeout: Duration,
+}
+
+impl std::fmt::Debug for OcrTarget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OcrTarget").field("kind", &self.kind).field("model", &self.model).field("has_key", &self.api_key.is_some()).finish()
+    }
+}
+
 /// Ghi de dia chi goc (dung cho test voi may chu gia). `None` = dia chi that.
 #[derive(Debug, Clone)]
 pub struct Endpoints {
@@ -191,14 +206,32 @@ impl AiService {
                 Some(v.filter(|v| !v.is_empty()).ok_or(AiError::NoKey)?)
             }
         };
-        let base = match kind {
-            ProviderKind::Gemini => self.endpoints.gemini.clone(),
-            ProviderKind::OpenAi => self.endpoints.openai.clone(),
-            ProviderKind::Ollama => self.endpoints.ollama.clone().or(ps.base_url.clone()),
-        }
-        .unwrap_or_else(|| kind.default_base_url().to_string());
+        let base = self.base_url_for(kind, ps.base_url.clone());
         let cfg = ProviderConfig::new(base, key).with_timeout(self.endpoints.timeout);
         Ok((make_provider(kind, cfg)?, ps.model_name))
+    }
+
+    fn base_url_for(&self, kind: ProviderKind, ollama_url: Option<String>) -> String {
+        match kind {
+            ProviderKind::Gemini => self.endpoints.gemini.clone(),
+            ProviderKind::OpenAi => self.endpoints.openai.clone(),
+            ProviderKind::Ollama => self.endpoints.ollama.clone().or(ollama_url),
+        }
+        .unwrap_or_else(|| kind.default_base_url().to_string())
+    }
+
+    /// Nha cung cap mac dinh cho OCR anh (US-42): loai, model, dia chi va khoa (neu co). Khoa chi di trong tien
+    /// trinh, toi `rlt_quick::ocr_ai`; khong co lenh Tauri nao tra no ra giao dien. Thieu khoa KHONG la loi o day:
+    /// cong chan cua OCR se chan truoc khi gui.
+    pub fn ocr_target(&self) -> Result<OcrTarget> {
+        let s = self.get_settings()?;
+        let kind = s.default_provider.ok_or(AiError::NotConfigured)?;
+        let ps = s.providers.iter().find(|p| p.provider == kind).ok_or(AiError::NotConfigured)?;
+        let api_key = match secret_kind(kind) {
+            None => None,
+            Some(sk) => self.secrets.get(sk).map_err(|_| AiError::Store("secret_backend".into()))?.filter(|v| !v.is_empty()),
+        };
+        Ok(OcrTarget { kind, model: ps.model_name.clone(), base_url: self.base_url_for(kind, ps.base_url.clone()), api_key, timeout: self.endpoints.timeout })
     }
 
     /// Thu ket noi (US-47): gui mot cau rat ngan, bo ket qua.

@@ -1,7 +1,7 @@
 //! Quick Translate, Inline Translate, toolbar chon chu va OCR (M3-01, M3-02, M3-03, M3-06; US-31, 37, 38, 41, 42).
 //!
 //! Logic thuan o crate `rlt-quick` (co test). Thu muc nay chi la lop Tauri/macOS: cua so NSPanel, Accessibility,
-//! NSPasteboard, CGEvent, Vision. Bo dich la `SonioxWsTranslator::planned` (CQ-v3-11 con mo): chua dich that,
+//! NSPasteboard, CGEvent. OCR doc chu bang mo hinh AI co vision (rlt-ai), khong con Vision cua Apple. Bo dich la `SonioxWsTranslator::planned` (CQ-v3-11 con mo): chua dich that,
 //! tra loi `NotVerified`; giao dien hien dung loi do, khong gia vo chay.
 
 #[cfg(target_os = "macos")]
@@ -14,8 +14,6 @@ pub mod panel;
 pub mod pasteboard;
 #[cfg(target_os = "macos")]
 pub mod selection_monitor;
-#[cfg(target_os = "macos")]
-pub mod vision;
 
 use rlt_quick::history;
 use rlt_quick::queue::{JobId, JobOutcome, Origin, TranslateQueue, Worker};
@@ -57,11 +55,14 @@ pub struct QuickPrefs {
     /// `None` = tu nhan.
     pub source_lang: Option<String>,
     pub target_lang: String,
+    /// Da dong y de anh chup ROI KHOI MAY toi nha cung cap AI (OCR, US-42). Mac dinh chua dong y.
+    #[serde(default)]
+    pub ocr_image_consent: bool,
 }
 
 impl Default for QuickPrefs {
     fn default() -> Self {
-        Self { toolbar_enabled: false, excluded_apps: vec![], source_lang: None, target_lang: "pt-PT".into() }
+        Self { toolbar_enabled: false, excluded_apps: vec![], source_lang: None, target_lang: "pt-PT".into(), ocr_image_consent: false }
     }
 }
 
@@ -240,39 +241,69 @@ pub fn quick_inline_run(app: AppHandle) {
     inline_run(&app);
 }
 
-/// OCR vung chup (anh PNG/JPEG trong bo nho) roi dich; anh khong ghi dia, khong gui di (AC-42.4).
+/// OCR vung chup (anh PNG/JPEG trong bo nho): mo hinh AI co vision CHI doc chu, roi chu di dich qua `TextTranslator`.
+/// Anh ROI KHOI MAY toi nha cung cap AI, nen: chua co khoa thi bao `ocr_no_key`; chua dong y thi hien hop thoai
+/// noi ro roi moi gui (tu choi -> `ocr_consent_required`, khong gui gi). Anh khong ghi dia.
 #[tauri::command]
 pub async fn quick_ocr_translate(
+    app: AppHandle,
     state: State<'_, QuickState>,
+    ai: State<'_, crate::ai::AiState>,
     image: Vec<u8>,
     source_lang: Option<String>,
     target_lang: String,
 ) -> Result<OcrOut, String> {
-    #[cfg(target_os = "macos")]
-    {
-        let st: &QuickState = &state;
-        let img = rlt_quick::ocr::OcrImage { bytes: image };
-        let r = std::thread::scope(|s| {
-            s.spawn(|| {
-                let recognized = rlt_quick::ocr::normalize(&rlt_quick::ocr::OcrEngine::recognize(&vision::VisionOcr, &img, &[]).map_err(|e| e.to_string())?);
-                if recognized.is_empty() {
-                    return Err("ocr_no_text".to_string());
-                }
-                let t = st
-                    .translate_blocking(Origin::Ocr, TranslateRequest::new(recognized.clone(), source_lang.as_deref(), &target_lang))
-                    .map_err(|e| e.code().to_string())?;
-                Ok(OcrOut { recognized, text: t.text })
+    let st: &QuickState = &state;
+    let target = ai.svc.ocr_target().map_err(|e| e.code().to_string())?;
+    let has_key = target.api_key.as_ref().is_some_and(|k| !k.expose().is_empty());
+    // Thieu khoa thi khong hoi dong y lam gi: se khong gui duoc.
+    rlt_quick::ocr_ai::check_gate(target.kind, has_key, true).map_err(|e| e.to_string())?;
+    let consent = st.prefs.lock().unwrap_or_else(|e| e.into_inner()).ocr_image_consent;
+    std::thread::scope(|s| {
+        s.spawn(|| {
+            let consent = consent || ask_ocr_consent(&app, st, target.kind, &target.model);
+            let engine = rlt_quick::ocr_ai::AiVisionOcr::new(rlt_quick::ocr_ai::OcrAiConfig {
+                kind: target.kind,
+                model: target.model.clone(),
+                base_url: Some(target.base_url.clone()),
+                api_key: target.api_key.clone(),
+                image_consent: consent,
+                timeout: target.timeout,
             })
-            .join()
-            .unwrap_or(Err("cancelled".into()))
-        });
-        r
+            .map_err(|e| e.to_string())?;
+            let img = rlt_quick::ocr::OcrImage { bytes: image };
+            let recognized = rlt_quick::ocr::normalize(&rlt_quick::ocr::OcrEngine::recognize(&engine, &img, &[]).map_err(|e| e.to_string())?);
+            if recognized.is_empty() {
+                return Err("ocr_no_text".to_string());
+            }
+            // Dich van di qua TextTranslator (mac dinh Soniox, CQ-v3-11 chua dong); khong dung mo hinh AI de dich.
+            let t = st
+                .translate_blocking(Origin::Ocr, TranslateRequest::new(recognized.clone(), source_lang.as_deref(), &target_lang))
+                .map_err(|e| e.code().to_string())?;
+            Ok(OcrOut { recognized, text: t.text })
+        })
+        .join()
+        .unwrap_or(Err("cancelled".into()))
+    })
+}
+
+/// Hop thoai goc cua he dieu hanh (chan luong goi, KHONG chay tren luong chinh). Dong y thi luu co vao prefs.
+fn ask_ocr_consent(app: &AppHandle, st: &QuickState, kind: rlt_ai::ProviderKind, model: &str) -> bool {
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+    let (title, body) = rlt_quick::ocr_ai::consent_text(kind, model);
+    let ok = app
+        .dialog()
+        .message(body)
+        .title(title)
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom("OK / Concordo".into(), "Cancel / Cancelar".into()))
+        .blocking_show();
+    if ok {
+        let mut p = st.prefs.lock().unwrap_or_else(|e| e.into_inner());
+        p.ocr_image_consent = true;
+        p.save(&st.dir.join(PREFS_FILE));
     }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = (state, image, source_lang, target_lang);
-        Err("ocr_unsupported".into())
-    }
+    ok
 }
 
 #[derive(Debug, Serialize)]

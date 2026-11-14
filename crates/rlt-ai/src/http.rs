@@ -31,6 +31,17 @@ pub(crate) async fn send(
     cancel: &CancelFlag,
     bad_key_in_400: bool,
 ) -> Result<reqwest::Response> {
+    send_ex(rb, timeout, cancel, bad_key_in_400, false).await
+}
+
+/// Nhu `send`. `vision_in_400`: Ollama tra 400 kem loi chu khi model khong nhan anh.
+pub(crate) async fn send_ex(
+    rb: reqwest::RequestBuilder,
+    timeout: Duration,
+    cancel: &CancelFlag,
+    bad_key_in_400: bool,
+    vision_in_400: bool,
+) -> Result<reqwest::Response> {
     if cancel.is_cancelled() {
         return Err(AiError::Cancelled);
     }
@@ -44,6 +55,14 @@ pub(crate) async fn send(
         200..=299 => Ok(resp),
         401 | 403 => Err(AiError::Unauthorized),
         429 => Err(AiError::RateLimited),
+        400 if vision_in_400 => {
+            let body = resp.text().await.unwrap_or_default().to_ascii_lowercase();
+            if body.contains("image") || body.contains("vision") || body.contains("multimodal") {
+                Err(AiError::VisionUnsupported)
+            } else {
+                Err(AiError::BadResponse("http 400".to_string()))
+            }
+        }
         400 if bad_key_in_400 => {
             let body = resp.text().await.unwrap_or_default();
             if body.contains("API_KEY_INVALID") || body.contains("API key not valid") {

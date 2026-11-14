@@ -25,7 +25,16 @@ pub(crate) fn chat_messages(req: &ChatRequest) -> Vec<Value> {
     }
     for m in &req.messages {
         let role = if m.role == Role::User { "user" } else { "assistant" };
-        out.push(json!({ "role": role, "content": m.content }));
+        if m.images.is_empty() {
+            out.push(json!({ "role": role, "content": m.content }));
+        } else {
+            let mut parts = vec![json!({ "type": "text", "text": m.content })];
+            for img in &m.images {
+                let url = format!("data:{};base64,{}", img.mime, img.base64());
+                parts.push(json!({ "type": "image_url", "image_url": { "url": url } }));
+            }
+            out.push(json!({ "role": role, "content": parts }));
+        }
     }
     out
 }

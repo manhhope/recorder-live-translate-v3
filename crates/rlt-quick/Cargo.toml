@@ -3,7 +3,11 @@ name = "rlt-quick"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Quick Translate, Inline Translate, toolbar boi chon va OCR dich (M3, US-31/37/38/41/42): logic thuan, khong phu thuoc he dieu hanh"
+description = "Quick Translate, Inline Translate, toolbar boi chon va OCR dich bang AI vision (M3, US-31/37/38/41/42): logic thuan, khong phu thuoc he dieu hanh"
 
 [dependencies]
 rlt-store = { path = "../rlt-store" }
+rlt-ai = { path = "../rlt-ai" }
+rlt-secrets = { path = "../rlt-secrets" }
+png = "0.17"
+tokio = { version = "1", features = ["rt", "time"] }
