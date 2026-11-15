@@ -243,6 +243,7 @@ export function installTauriMock(seed: MockSeed): void {
     quick_ax_status: () => state.perms.ax,
     shortcuts_status: () => ["quick_translate", "inline_translate", "ask_ai", "region_capture"].map((action, i) => ({ action, accelerator: ["CmdOrCtrl+Shift+T", "CmdOrCtrl+Shift+I", "CmdOrCtrl+Shift+A", "CmdOrCtrl+Shift+R"][i], enabled: true, registered: true, error_key: null, error_detail: null })),
     subtitle_font_step: () => undefined,
+    subtitle_set_color: () => undefined,
     subtitle_set_opacity: () => undefined,
     subtitle_lines: () => clone(rlt.subtitleLines ?? []),
     subtitle_get: () => ({ display_mode: "bilingual", font_size_pt: 24, source_color: "#FFFFFF", translation_color: "#FFD60A", opacity_percent: 80, hidden_from_capture: false }),

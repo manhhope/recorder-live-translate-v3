@@ -46,6 +46,10 @@
     return () => offs.forEach(p => p.then(f => f()));
   });
 
+  // Chi tieu diem ban phim that (:focus-visible) moi giu thanh hien. Bam chuot vao nut/mau/co chu van focus nut do
+  // nhung khong phai ban phim; neu tinh nhu vay thi focusIn ket true va thanh khong bao gio tu an khi con tro roi di.
+  const isKeyboardFocus = (t: EventTarget | null) => t instanceof HTMLElement && t.matches(":focus-visible");
+
   const step = (delta: number) => invoke("subtitle_font_step", { delta });
   const setMode = (mode: DisplayMode) => invoke("subtitle_set_mode", { mode });
   const setOpacity = (e: Event) => invoke("subtitle_set_opacity", { percent: Number((e.target as HTMLInputElement).value) });
@@ -64,7 +68,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="sub" style:background={backgroundCss(s.opacity_percent)} onmousedown={startDrag}
      onpointerenter={() => (hover = true)} onpointerleave={() => { hover = false; if (!rustHover) menuOpen = false; }} role="presentation">
-  <div class="tools" class:show={barOn} data-drag onfocusin={() => (focusIn = true)} onfocusout={e => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) focusIn = false; }}>
+  <div class="tools" class:show={barOn} data-drag onfocusin={e => { if (isKeyboardFocus(e.target)) focusIn = true; }} onfocusout={e => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) focusIn = false; }}>
     <button class="mini" onclick={() => step(-1)} disabled={s.font_size_pt <= 12} title={$_("sub.font.decrease")} aria-label={$_("sub.font.decrease")}>{$_("sub.font.decrease.short")}</button>
     <span class="pt">{s.font_size_pt}{$_("sub.font.unit")}</span>
     <button class="mini" onclick={() => step(1)} disabled={s.font_size_pt >= 36} title={$_("sub.font.increase")} aria-label={$_("sub.font.increase")}>{$_("sub.font.increase.short")}</button>
