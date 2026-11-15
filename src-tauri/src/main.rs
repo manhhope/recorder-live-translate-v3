@@ -135,6 +135,8 @@ fn main() {
             session::drive_save_client_config,
             session::drive_connect,
             session::drive_disconnect,
+            session::drive_connect_cancel,
+            session::drive_sync_now,
             session::mic_permission_request,
             session::import_dotnet_pick
         ])

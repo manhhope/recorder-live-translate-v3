@@ -59,6 +59,8 @@ pub const SESSION_COMMANDS: &[&str] = &[
     "drive_save_client_config",
     "drive_connect",
     "drive_disconnect",
+    "drive_connect_cancel",
+    "drive_sync_now",
     "mic_permission_request",
     "import_dotnet_pick",
 ];
@@ -431,8 +433,20 @@ pub fn usage_clear(s: State<'_, SessionState>) -> Res<usize> {
 
 // ---------------------------------------------------------------- Drive (OAuth that)
 
+/// Client ID OAuth dung san, nap LUC BUILD tu bien moi truong `RLT_DRIVE_BUILTIN_CLIENT_ID` (mac dinh rong;
+/// khong commit gia tri that). Khong co thi nut Connect bi khoa cho den khi nguoi dung nhap Client ID o Nang cao.
+const BUILTIN_DRIVE_CLIENT_ID: Option<&str> = option_env!("RLT_DRIVE_BUILTIN_CLIENT_ID");
+
+/// Co `true` khi nguoi dung vua bam Huy luc dang cho trinh duyet.
+static DRIVE_CANCEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Chi cho mot luot ket noi cung luc.
+static DRIVE_CONNECTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 fn google_drive() -> Arc<rlt_features::drive_google::GoogleDrive> {
-    Arc::new(rlt_features::drive_google::GoogleDrive::new(crate::ai::secret_store()))
+    Arc::new(
+        rlt_features::drive_google::GoogleDrive::new(crate::ai::secret_store())
+            .with_builtin_client_id(BUILTIN_DRIVE_CLIENT_ID),
+    )
 }
 
 #[tauri::command]
@@ -464,10 +478,36 @@ pub fn drive_save_client_config(client_id: String, client_secret: Option<String>
 /// Mo trinh duyet, cho Google goi lai `127.0.0.1`, doi token. Toi da 3 phut.
 #[tauri::command]
 pub async fn drive_connect() -> Res<DriveConnOut> {
+    use std::sync::atomic::Ordering;
+    if DRIVE_CONNECTING.swap(true, Ordering::SeqCst) {
+        return Err("drive_connect_busy".into());
+    }
+    DRIVE_CANCEL.store(false, Ordering::SeqCst);
     let g = google_drive();
-    tauri::async_runtime::spawn_blocking(move || records::drive_connect(&g, records::open_in_browser))
+    let r = tauri::async_runtime::spawn_blocking(move || {
+        records::drive_connect(&g, records::open_in_browser, records::CONNECT_TIMEOUT, &DRIVE_CANCEL)
+    })
+    .await
+    .map_err(|_| "drive_connect_failed".to_string())
+    .and_then(|x| x);
+    DRIVE_CONNECTING.store(false, Ordering::SeqCst);
+    r
+}
+
+/// Nut Huy: dung viec cho trinh duyet cua `drive_connect` (neu dang chay).
+#[tauri::command]
+pub fn drive_connect_cancel() {
+    DRIVE_CANCEL.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// "Sync ngay": gui cac phien da dung ma chua dong bo.
+#[tauri::command]
+pub async fn drive_sync_now(s: State<'_, SessionState>) -> Res<records::DriveSyncAllOut> {
+    let store = s.svc.store.clone();
+    let g = google_drive();
+    tauri::async_runtime::spawn_blocking(move || records::drive_sync_all_blocking(&store, g.as_ref()))
         .await
-        .map_err(|_| "drive_connect_failed".to_string())?
+        .map_err(|_| "drive_sync_failed".to_string())?
 }
 
 /// Thu hoi token tren Google (neu duoc) va xoa token cuc bo.

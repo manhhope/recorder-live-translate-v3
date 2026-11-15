@@ -92,6 +92,8 @@
     "allow-drive-save-client-config",
     "allow-drive-connect",
     "allow-drive-disconnect",
+    "allow-drive-connect-cancel",
+    "allow-drive-sync-now",
     "allow-mic-permission-request",
     "allow-import-dotnet-pick",
     "allow-open-system-settings"

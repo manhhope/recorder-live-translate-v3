@@ -435,10 +435,19 @@ pub fn drive_sync_blocking(shared: &std::sync::Mutex<Store>, session_id: &str, c
 pub struct DriveConnOut {
     /// `not_configured` | `disconnected` | `connected`.
     pub state: String,
+    /// Email tai khoan Google khi da ket noi (None neu chua biet).
+    pub email: Option<String>,
+    /// App co Client ID dung san luc build (khong lo gia tri).
+    pub builtin: bool,
 }
 
 pub fn drive_connection(g: &GoogleDrive) -> DriveConnOut {
-    DriveConnOut { state: g.connection().as_str().into() }
+    let c = g.connection();
+    DriveConnOut {
+        state: c.as_str().into(),
+        email: if c == rlt_features::drive_google::Connection::Connected { g.account_email() } else { None },
+        builtin: g.has_builtin_client_id(),
+    }
 }
 
 pub fn drive_save_config(g: &GoogleDrive, client_id: &str, client_secret: Option<&str>) -> Res<DriveConnOut> {
@@ -462,9 +471,58 @@ pub fn open_in_browser(url: &str) -> bool {
     }
 }
 
-pub fn drive_connect(g: &GoogleDrive, open: impl FnOnce(&str) -> bool) -> Res<DriveConnOut> {
-    g.connect(open, std::time::Duration::from_secs(180)).map_err(|e| e.code())?;
+/// Thoi gian toi da cho nguoi dung xac nhan o trinh duyet.
+pub const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(180);
+
+/// `cancel` bat = nut Huy: dung viec cho, tra `drive_auth_cancelled`.
+pub fn drive_connect(
+    g: &GoogleDrive,
+    open: impl FnOnce(&str) -> bool,
+    timeout: std::time::Duration,
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Res<DriveConnOut> {
+    g.connect_cancellable(open, timeout, cancel).map_err(|e| e.code())?;
     Ok(drive_connection(g))
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DriveSyncAllOut {
+    /// So phien da thu gui (chua dong bo, da dung).
+    pub total: i64,
+    pub synced: i64,
+    pub failed: i64,
+    pub waiting: i64,
+    /// false khi chua ket noi: khong phien nao duoc gui.
+    pub oauth_connected: bool,
+}
+
+/// "Sync ngay": gui moi phien da dung ma chua dong bo. Dung o loi dau tien thuoc loai "chua ket noi".
+pub fn drive_sync_all_blocking(shared: &std::sync::Mutex<Store>, client: &dyn DriveClient) -> Res<DriveSyncAllOut> {
+    let ids: Vec<String> = {
+        let g = shared.lock().unwrap_or_else(|e| e.into_inner());
+        g.list_sessions(500, 0)
+            .map_err(se)?
+            .into_iter()
+            .filter(|x| matches!(x.status.as_str(), "stopped" | "interrupted") && sync_of(&g, &x.session_id) != "synced")
+            .map(|x| x.session_id)
+            .collect()
+    };
+    let mut out = DriveSyncAllOut { oauth_connected: true, ..Default::default() };
+    for id in ids {
+        let d = drive_sync_blocking(shared, &id, client)?;
+        if !d.oauth_connected {
+            out.oauth_connected = false;
+            break;
+        }
+        out.total += 1;
+        match d.status.as_str() {
+            "synced" => out.synced += 1,
+            "waiting_network" => out.waiting += 1,
+            _ => out.failed += 1,
+        }
+    }
+    Ok(out)
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
