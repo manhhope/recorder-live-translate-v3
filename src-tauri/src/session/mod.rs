@@ -428,8 +428,6 @@ pub async fn usage_week_source(s: State<'_, SessionState>, weeks_ago: i64) -> Re
     }
 }
 
-/// CSV cua tuan dang xem, dung so lieu va nguon nhu `usage_week_source` (co cot `source`).
-#[tauri::command]
 /// Ban dau cho tab Usage Logs, KHONG dung mang: so Soniox da luu (`cached = true`, `fetchedAt` = luc lay that) hoac,
 /// neu chua co, uoc tinh cuc bo voi ly do `no_cache`. Giao dien hien ngay roi goi `usage_week_source` o nen.
 #[tauri::command]
@@ -440,6 +438,8 @@ pub fn usage_week_cached(s: State<'_, SessionState>, weeks_ago: i64) -> Res<usag
     s.with_store(|st| usage_soniox::week_cached_or_local(st, usage_soniox::now_secs(), weeks_ago))
 }
 
+/// CSV cua tuan dang xem, dung so lieu va nguon nhu `usage_week_source` (co cot `source`).
+#[tauri::command]
 pub async fn usage_export_week_csv(s: State<'_, SessionState>, weeks_ago: i64) -> Res<String> {
     let w = usage_week_source(s, weeks_ago).await?;
     Ok(usage_soniox::week_csv(&w))

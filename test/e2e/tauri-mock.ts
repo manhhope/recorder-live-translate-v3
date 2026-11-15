@@ -94,7 +94,6 @@ export function installTauriMock(seed: MockSeed): void {
 
   const lineText = (l: any) => `${l.sourceText ?? ""} ${l.translatedText ?? ""}`.toLowerCase();
 
-  const handlers: Record<string, (a: any) => unknown> = {
   const localWeek = (wk: number, reason: string) => {
     const ms = wk === 0 && !state.usageCleared ? [0, 1_800_000, 3_600_000, 900_000, 5_400_000, 0, 0] : [0, 0, 0, 0, 0, 0, 0];
     const total = ms.reduce((x, y) => x + y, 0);
@@ -115,6 +114,7 @@ export function installTauriMock(seed: MockSeed): void {
     };
   };
 
+  const handlers: Record<string, (a: any) => unknown> = {
     consent_get: () => state.consent,
     consent_accept: () => { state.consent = true; },
     soniox_has_api_key: () => state.hasKey,

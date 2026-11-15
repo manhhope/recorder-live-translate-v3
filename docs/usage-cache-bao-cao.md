@@ -98,14 +98,24 @@ Các test usage-swr:
   ✓  155 [chromium] › test/e2e/usage-swr.spec.ts:95:3 › Usage Logs: stale-while-revalidate › Xoa du lieu muc dung xoa ca cache: mo lai chua co ban luu, hien skeleton + so cuc bo (AC-32.6, AC-32.12) (337ms)
 ```
 
-### npm run scan:i18n: exit 1, không phải do task này
+### Kiểm lại trên bản commit sạch (lượt nghiệm thu thứ hai)
+Chạy trong `git worktree` tách từ HEAD (không lẫn thay đổi Drive chưa commit). Phát hiện: commit `956ca68` KHÔNG build được vì cắt hunk sai (`#[tauri::command]` bị nhân đôi trước `usage_week_cached`, `usage_export_week_csv` mất thuộc tính; `tauri-mock.ts` có `const handlers` đặt trước `localWeek`). Đã sửa cả hai trong commit này rồi chạy lại.
+
+npm run scan:i18n:
 ```
 Quet 56 tep trong src/ (bo qua locales, i18n)
-src/screens/DriveTab.svelte:99: van ban cung: "{conn?.email ? $_("set.drive.account", { values:                       }) : $_("set.drive.account.unknown")}"
-So chuoi cung tim thay: 1
-exit=1
+So chuoi cung tim thay: 0
+EXIT=0
 ```
-Dòng báo lỗi nằm ở `src/screens/DriveTab.svelte:99`, thay đổi chưa commit của tác vụ Drive chạy song song, không thuộc commit này. Kiểm chứng: sao chép `src/` sang thư mục tạm, thay `DriveTab.svelte` bằng bản HEAD rồi quét lại thì **0 chuỗi cứng, exit 0**. Các file của task này không có chuỗi cứng.
+npm run test:i18n: `tests 12, pass 12, fail 0`. npm run test:unit: `tests 41, pass 41, fail 0`. npm run build: `built in 274ms`.
+
+Trước khi sửa, `cargo test --workspace` báo `error[E0428]: the name __tauri_command_name_usage_week_cached is defined multiple times` và `error[E0433]: cannot find __cmd__usage_export_week_csv`. Sau khi sửa:
+```
+cargo test --workspace: mọi dòng "test result: ok." (ví dụ 166 passed; 93 passed; 158 passed), không có FAILED
+cargo clippy --workspace --all-targets -- -D warnings: Finished `dev` profile, không cảnh báo
+npx playwright test: 147 passed (16.1s)  (gồm 7 test usage-swr: có cache, không cache, lỗi giữ số cũ, tải xong thay số, mỗi tuần cache riêng, pt-PT, xóa dữ liệu)
+```
+(Playwright 147 thay vì 160 vì worktree sạch không có các spec Drive chưa commit.)
 
 ## Ghi chú và đề xuất ngoài phạm vi
 
