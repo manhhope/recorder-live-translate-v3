@@ -17,6 +17,10 @@ objc2-app-kit = "0.3"
 objc2-foundation = "0.3"
 block2 = "0.6"
 
+[target.'cfg(windows)'.dependencies]
+# Chi cho spike S2 (src/bin/s2_win_capture.rs). Loi rlt-platform chua dung.
+wasapi = "0.27"
+
 [[test]]
 name = "panel_real_window"
 path = "tests/panel_real_window.rs"
