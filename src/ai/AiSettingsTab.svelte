@@ -4,6 +4,8 @@
   import { onMount } from "svelte";
   import { _, locale } from "svelte-i18n";
   import Icon from "../lib/Icon.svelte";
+  import LoadError from "../lib/LoadError.svelte";
+  import { withTimeout } from "../lib/ipc.ts";
   import * as api from "./api.ts";
   import type { AiSettings, ChipKind, Provider } from "./api.ts";
 
@@ -27,6 +29,8 @@
   let test = $state<Record<string, "idle" | "running" | "ok" | string>>({});
   let saved = $state(false);
   let error = $state<string | null>(null);
+  let loading = $state(true);
+  let loadErr = $state<string | null>(null);
 
   const hasKey = (p: Provider) => s?.providers.find(x => x.provider === p)?.has_key ?? false;
   const defModel = (p: Provider) => ({ gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b" })[p];
@@ -38,7 +42,12 @@
     ollamaUrl = v.providers.find(p => p.provider === "ollama")?.base_url ?? "";
     for (const c of v.chip_prompts) prompts[c.chip] = c.prompt ?? defPrompt(c.chip);
   }
-  async function refresh() { load(await api.getSettings()); }
+  async function refresh() { load(await withTimeout(api.getSettings())); }
+  async function firstLoad() {
+    loading = true; loadErr = null;
+    try { await refresh(); } catch (e) { loadErr = e === "ipc_timeout" ? "set.load.timeout" : "set.load.err"; }
+    loading = false;
+  }
 
   async function saveKey(p: Provider) {
     const v = keyInput[p].trim();
@@ -66,7 +75,7 @@
       })),
       chip_prompts: CHIPS.map(c => ({ chip: c.kind, prompt: prompts[c.kind]?.trim() && prompts[c.kind].trim() !== defPrompt(c.kind) ? prompts[c.kind].trim() : null })),
     };
-    await api.saveSettings(input);
+    await withTimeout(api.saveSettings(input));
   }
   async function save() {
     error = null; saved = false;
@@ -89,7 +98,7 @@
   // Doi ngon ngu thi prompt mac dinh (chua sua) doi theo.
   $effect(() => { void $locale; if (s) for (const c of s.chip_prompts) if (c.prompt === null) prompts[c.chip] = defPrompt(c.chip); });
 
-  onMount(() => { refresh().catch(e => (error = String(e))); });
+  onMount(() => { void firstLoad(); });
 </script>
 
 {#if s}
@@ -169,6 +178,10 @@
   <button type="button" class="btn" onclick={resetTab}><Icon name="refresh" />{$_("set.reset.tab")}</button>
   <span class="hint">{$_("set.reset.nokey")}</span>
   {#if saved}<span class="bd ok" role="status">{$_("ai.settings.saved")}</span>{/if}
-  {#if error}<span class="bd rec" role="alert">{$_(api.errKey(error))}</span>{/if}
+  {#if error}<span class="bd rec" role="alert">{$_(error === "ipc_timeout" ? "set.load.timeout" : api.errKey(error))}</span>{/if}
 </div>
+{:else if loadErr}
+  <LoadError message={$_(loadErr)} busy={loading} onretry={firstLoad} />
+{:else}
+  <p class="hint" role="status">{$_("common.loading")}</p>
 {/if}

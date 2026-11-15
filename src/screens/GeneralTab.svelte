@@ -5,32 +5,38 @@
   import { _, locale, setLocale } from "../i18n/index.ts";
   import Icon from "../lib/Icon.svelte";
   import * as api from "../lib/api.ts";
-
-  const lockNote = $derived($_("set.locked.backend", { values: { cmd: "recording_notify_set" } }));
+  import { withTimeout } from "../lib/ipc.ts";
 
   let autostart = $state<boolean | null>(null);
   let keepAwake = $state(false);
-  let err = $state(false);
+  let err = $state<string | null>(null);
+  let autoLoadErr = $state(false);
+  let autoBusy = $state(false);
   const isPt = $derived($locale === "pt-PT");
 
   const readKeep = () => { try { return globalThis.localStorage?.getItem(api.KEEP_AWAKE_KEY) === "1"; } catch { return false; } };
 
-  onMount(async () => {
-    keepAwake = readKeep();
-    try { autostart = await api.autostartGet(); } catch { err = true; }
-  });
+  const errKey = (e: unknown) => (e === "ipc_timeout" ? "set.load.timeout" : "set.gen.err");
+  async function loadAutostart() {
+    autoLoadErr = false; err = null; autoBusy = true;
+    try { autostart = await withTimeout(api.autostartGet()); } catch (e) { autoLoadErr = true; err = errKey(e); }
+    autoBusy = false;
+  }
+  onMount(() => { keepAwake = readKeep(); void loadAutostart(); });
 
   const pick = (l: "en" | "pt-PT") => api.setUiLocale(setLocale, l);
-  async function toggleAutostart(on: boolean) {
-    err = false;
-    try { autostart = await api.autostartSet(on); } catch { err = true; autostart = !on; }
+  async function toggleAutostart(on: boolean, box: HTMLInputElement) {
+    err = null; autoBusy = true;
+    try { autostart = await withTimeout(api.autostartSet(on)); } catch (e) { err = errKey(e); autostart = !on; }
+    box.checked = autostart ?? false; // that bai thi cong tat ve dung trang thai that
+    autoBusy = false;
   }
   async function toggleKeep(on: boolean) {
-    err = false; keepAwake = on;
+    err = null; keepAwake = on;
     try {
       await api.shellSetKeepAwake(on);
       try { globalThis.localStorage?.setItem(api.KEEP_AWAKE_KEY, on ? "1" : "0"); } catch { /* bo qua */ }
-    } catch { err = true; keepAwake = !on; }
+    } catch { err = "set.gen.err"; keepAwake = !on; }
   }
 </script>
 
@@ -49,8 +55,8 @@
   <div class="rw">
     <div><b>{$_("set.gen.autostart")}</b><small>{$_("set.gen.autostart.hint")}</small></div>
     <div class="rr">
-      <input type="checkbox" class="chk" role="switch" aria-label={$_("set.gen.autostart")} disabled={autostart === null}
-        checked={autostart ?? false} onchange={(e) => toggleAutostart(e.currentTarget.checked)} />
+      <input type="checkbox" class="chk" role="switch" aria-label={$_("set.gen.autostart")} disabled={autostart === null || autoBusy}
+        checked={autostart ?? false} onchange={(e) => toggleAutostart(e.currentTarget.checked, e.currentTarget)} />
     </div>
   </div>
   <div class="rw">
@@ -61,10 +67,11 @@
   </div>
   <div class="rw lockrow">
     <div><b>{$_("set.gen.notify")}</b><small>{$_("set.gen.notify.hint")}</small>
-      <small><Icon name="lock" /> {lockNote}</small></div>
+      <small><Icon name="lock" /> {$_("set.gen.notify.na")}</small></div>
     <div class="rr">
-      <input type="checkbox" class="chk" role="switch" aria-label={$_("set.gen.notify")} disabled title={$_("set.locked.backend", { values: { cmd: "recording_notify_set" } })} />
+      <input type="checkbox" class="chk" role="switch" aria-label={$_("set.gen.notify")} disabled title={$_("set.gen.notify.na")} />
     </div>
   </div>
-  {#if err}<div class="hint" role="alert"><span class="bd rec"><Icon name="warn" />{$_("set.gen.err")}</span></div>{/if}
+  {#if err}<div class="hint" role="alert"><span class="bd rec"><Icon name="warn" />{$_(err)}</span>
+    {#if autoLoadErr}<button type="button" class="btn sm" disabled={autoBusy} onclick={loadAutostart}><Icon name="refresh" />{$_("common.retry")}</button>{/if}</div>{/if}
 </div>

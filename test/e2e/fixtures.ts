@@ -63,6 +63,10 @@ export class Rlt {
   setFail(cmd: string, code: string | null) {
     return this.page.evaluate(([c, v]) => { const f = (window as any).__rlt.fail; if (v) f[c as string] = v; else delete f[c as string]; }, [cmd, code]);
   }
+  /** ms de lenh tra cham; -1 = treo han (khong bao gio tra ve); null = xoa. */
+  setDelay(cmd: string, ms: number | null) {
+    return this.page.evaluate(([c, v]) => { const d = (window as any).__rlt.delay; if (v === null) delete d[c as string]; else d[c as string] = v; }, [cmd, ms]);
+  }
   unhandled(): Promise<string[]> { return this.page.evaluate(() => (window as any).__rlt.unhandled); }
 
   /** Bam Bat dau va doi phien that su chay (huy hieu Dang ghi). */

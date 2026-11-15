@@ -81,7 +81,7 @@ export function installTauriMock(seed: MockSeed): void {
     perms: { mic: "authorized", screen: "granted", screenProbe: "denied", ax: true, micAnswer: "authorized", ...(seed.perms ?? {}) } as any,
     drive: { state: "disconnected", email: null, builtin: false, ...(seed.drive ?? {}) } as any,
   };
-  const rlt: any = { calls: [] as { cmd: string; args: any }[], unhandled: [] as string[], state, fail: { ...seed.fail } };
+  const rlt: any = { calls: [] as { cmd: string; args: any }[], unhandled: [] as string[], state, fail: { ...seed.fail }, delay: {} as Record<string, number> };
   w.__rlt = rlt;
   rlt.setPerm = (p: any) => { Object.assign(state.perms, p); };
   rlt.subtitleLines = clone(seed.subtitleLines ?? []);
@@ -234,6 +234,7 @@ export function installTauriMock(seed: MockSeed): void {
     shell_set_recording: () => undefined,
     shell_set_keep_awake: () => undefined,
     autostart_get: () => false,
+    autostart_set: (a: any) => !!a.enabled,
     core_version: () => "0.1.0",
     quick_ax_status: () => state.perms.ax,
     shortcuts_status: () => ["quick_translate", "inline_translate", "ask_ai", "region_capture"].map((action, i) => ({ action, accelerator: ["CmdOrCtrl+Shift+T", "CmdOrCtrl+Shift+I", "CmdOrCtrl+Shift+A", "CmdOrCtrl+Shift+R"][i], enabled: true, registered: true, error_key: null, error_detail: null })),
@@ -338,6 +339,10 @@ export function installTauriMock(seed: MockSeed): void {
       if (!h) { rlt.unhandled.push(cmd); throw "mock_unhandled:" + cmd; }
       // Mot nhip bat dong bo that, nhu mot lenh IPC.
       await Promise.resolve();
+      // Lenh cham (ms) hoac treo han (-1): mo phong luong UI Windows bi ket, lenh khong bao gio tra ve.
+      const wait = rlt.delay[cmd];
+      if (wait === -1) await new Promise(() => {});
+      else if (wait) await new Promise(r => setTimeout(r, wait));
       const code = rlt.fail[cmd];
       if (code) throw code;
       return h(args);

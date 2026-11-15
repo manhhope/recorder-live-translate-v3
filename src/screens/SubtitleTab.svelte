@@ -3,6 +3,8 @@
   import { onMount } from "svelte";
   import { _ } from "../i18n/index.ts";
   import Icon from "../lib/Icon.svelte";
+  import LoadError from "../lib/LoadError.svelte";
+  import { withTimeout } from "../lib/ipc.ts";
   import * as api from "../lib/api.ts";
   import type { DisplayMode, SubtitleSettings } from "../lib/api.ts";
 
@@ -10,15 +12,17 @@
   let err = $state<string | null>(null);
   let colorErr = $state<{ which: string; text: string } | null>(null);
   let opened = $state(false);
+  let loading = $state(true);
 
   const modes: [DisplayMode, string][] = [["bilingual", "sub.mode.bilingual"], ["translation_only", "sub.mode.translation"], ["source_only", "sub.mode.source"]];
   const colors = [["source", "sub.color.source"], ["translation", "sub.color.translation"]] as const;
 
   async function run(fn: () => Promise<SubtitleSettings>) {
     err = null;
-    try { s = await fn(); } catch (e) { err = api.errCode(e); }
+    try { s = await withTimeout(fn()); } catch (e) { err = api.errCode(e); }
   }
-  onMount(() => { void run(api.subtitleGet); });
+  async function firstLoad() { loading = true; await run(api.subtitleGet); loading = false; }
+  onMount(() => { void firstLoad(); });
 
   async function setColor(which: "source" | "translation", hex: string) {
     colorErr = null;
@@ -84,4 +88,8 @@
   </div>
 </div>
 {/if}
-{#if err}<div class="hint" role="alert"><span class="bd rec"><Icon name="warn" />{$_("err.generic")}</span></div>{/if}
+{#if !s && !loading && err}
+  <LoadError message={$_(err === "ipc_timeout" ? "set.load.timeout" : "set.load.err")} onretry={firstLoad} />
+{:else if !s}
+  <p class="hint" role="status">{$_("common.loading")}</p>
+{:else if err}<div class="hint" role="alert"><span class="bd rec"><Icon name="warn" />{$_(err === "ipc_timeout" ? "set.load.timeout" : "err.generic")}</span></div>{/if}
