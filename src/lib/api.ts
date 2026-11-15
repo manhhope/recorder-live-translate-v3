@@ -30,7 +30,7 @@ export interface DriveDisconnectOut { revoked: boolean }
 
 export interface SessionRow {
   sessionId: string; title: string; startedAt: string; durationMs: number | null; status: string;
-  audioSourceMode: string; targetLang: string; lines: number; syncStatus: string;
+  audioSourceMode: string; targetLang: string; lines: number; attachedImages: number; syncStatus: string;
 }
 export interface LineRow {
   captionLineId: number; seq: number; lineType: string; source: string; offsetMs: number;

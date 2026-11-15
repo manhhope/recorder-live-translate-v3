@@ -8,6 +8,7 @@
   import { DEFAULT_DST } from "../lib/langs.ts";
   import { app, fmtClock, openAiSettings } from "../lib/app.svelte.ts";
   import * as api from "../lib/api.ts";
+  import { sessionSubline } from "../lib/session-meta.ts";
   import type { SessionRow, SessionDetail, SearchOut } from "../lib/api.ts";
 
   let rows = $state<SessionRow[]>([]);
@@ -30,6 +31,8 @@
   const driveLbl = (st: string) => { const k = api.driveKeyOf(st); return $_(k) === k ? $_("ses.drive.unknown") : $_(k); };
   const dur = (ms: number | null) => (ms == null ? "--:--:--" : fmtClock(Math.floor(ms / 1000)));
   const when = (iso: string) => formatDate(Date.parse(iso), loc, { day: "2-digit", month: "2-digit" });
+  const subline = (s: SessionRow) =>
+    sessionSubline(`${meta(s)} · ${linesLbl(s.lines)}`, s.attachedImages, (k, v) => $_(k, { values: v }));
   const meta = (s: SessionRow) => [when(s.startedAt), dur(s.durationMs), s.targetLang].join(" · ");
   const BADGE: Record<string, { cls: string; icon: string; key: string }> = {
     completed: { cls: "ok", icon: "check", key: "ses.saved" },
@@ -44,6 +47,14 @@
     loading = false;
   }
   onMount(load);
+
+  // Thong bao "Saved to ... .docx" / nhap DB chi la tin nhat thoi: tu an sau NOTICE_MS; huy hen gio khi doi man (effect cleanup).
+  const NOTICE_MS = 6000;
+  $effect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => (notice = null), NOTICE_MS);
+    return () => clearTimeout(t);
+  });
 
   let searchSeq = 0;
   $effect(() => {
@@ -73,6 +84,11 @@
     try { await api.sessionCaptureAttach(detail.session.sessionId, c.screenCaptureId, !c.isAttached); }
     catch { throw "attach_failed"; }
     caps = await api.sessionCaptures(detail.session.sessionId);
+    // So anh o dong phu (chi tiet + danh sach) theo kip theo so anh dang dinh kem.
+    const n = caps.filter(x => x.isAttached).length;
+    detail.session.attachedImages = n;
+    const r = rows.find(x => x.sessionId === detail?.session.sessionId);
+    if (r) r.attachedImages = n;
   });
   const star = (lineId: number) => guard(async () => {
     if (!detail) return;
@@ -100,7 +116,7 @@
   {@const d = detail}
   <div class="tool">
     <div class="tl">
-      <button type="button" class="btn" onclick={() => (detail = null)}><Icon name="arrow" />{$_("ses.back")}</button>
+      <button type="button" class="btn" onclick={() => { detail = null; notice = null; void load(); }}><Icon name="arrow" />{$_("ses.back")}</button>
       <b>{d.session.title}</b>
     </div>
     <div class="tr2">
@@ -115,7 +131,7 @@
   {#if error}<div class="card" role="alert" style="margin:8px 18px"><span class="bd rec"><Icon name="warn" />{$_(errKey(error))}</span></div>{/if}
   {#if notice}<div class="hint" style="padding:0 18px">{notice}</div>{/if}
   <div class="hint" style="padding:0 18px">
-    {meta(d.session)} {"·"} {linesLbl(d.session.lines)} {"·"}
+    {subline(d.session)} {"·"}
     {driveLbl(drive ? drive.status : d.session.syncStatus)}
     {#if !(drive?.oauthConnected)} {"·"} {$_("ses.drive.nooauth")}{/if}
   </div>
@@ -197,7 +213,7 @@
               onkeydown={(e) => { if (e.key === "Enter") void rename(s.sessionId, e.currentTarget.value); if (e.key === "Escape") renaming = null; }} /></label>
           {:else}
             <button type="button" style="background:none;border:0;text-align:left;cursor:pointer;color:inherit;font:inherit" onclick={() => open(s.sessionId)}>
-              <b>{s.title}</b><small>{meta(s)} {"·"} {linesLbl(s.lines)}</small>
+              <b>{s.title}</b><small>{subline(s)}</small>
             </button>
           {/if}
           <div class="rr">

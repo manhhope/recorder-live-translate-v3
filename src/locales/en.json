@@ -494,6 +494,8 @@
   "ses.recording": "Recording",
   "ses.back": "Back",
   "ses.lines": "{n} lines",
+  "ses.images.one": "{n} image",
+  "ses.images.other": "{n} images",
   "ses.rename": "Rename",
   "ses.delete.confirm": "Delete for good",
   "ses.noresults": "Nothing matches your search.",

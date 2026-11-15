@@ -251,6 +251,24 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
+    /// So anh DA DINH KEM (`is_attached = 1`, cung nguon voi ban xuat Word) cua MOT phien.
+    pub fn count_attached_captures(&self, session_id: &str) -> Result<i64> {
+        Ok(self.conn.query_row(
+            "SELECT count(*) FROM screen_captures WHERE session_id = ?1 AND is_attached = 1",
+            [session_id],
+            |r| r.get(0),
+        )?)
+    }
+
+    /// So anh da dinh kem cua MOI phien bang MOT truy van gop (phien khong co anh khong xuat hien trong map).
+    pub fn attached_capture_counts(&self) -> Result<std::collections::HashMap<String, i64>> {
+        let mut st = self.conn.prepare(
+            "SELECT session_id, count(*) FROM screen_captures WHERE is_attached = 1 GROUP BY session_id",
+        )?;
+        let rows = st.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
+    }
+
     pub fn set_capture_attached(&self, screen_capture_id: i64, attached: bool) -> Result<()> {
         let sql = if attached {
             &format!("UPDATE screen_captures SET is_attached = 1, attached_at = {NOW} WHERE screen_capture_id = ?1")

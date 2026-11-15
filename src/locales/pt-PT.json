@@ -494,6 +494,8 @@
   "ses.recording": "A gravar",
   "ses.back": "Voltar",
   "ses.lines": "{n} linhas",
+  "ses.images.one": "{n} imagem",
+  "ses.images.other": "{n} imagens",
   "ses.rename": "Mudar o nome",
   "ses.delete.confirm": "Eliminar definitivamente",
   "ses.noresults": "Nada corresponde à pesquisa.",

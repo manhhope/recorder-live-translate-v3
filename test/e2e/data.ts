@@ -1,6 +1,6 @@
 // Du lieu mau co dinh cho lop Tauri gia (cung hinh dang voi cac DTO trong src/lib/api.ts).
 const row = (sessionId: string, title: string, startedAt: string, durationMs: number | null, status: string, lines: number, syncStatus = "not_connected") =>
-  ({ sessionId, title, startedAt, durationMs, status, audioSourceMode: "mixed", targetLang: "pt-PT", lines, syncStatus });
+  ({ sessionId, title, startedAt, durationMs, status, audioSourceMode: "mixed", targetLang: "pt-PT", lines, attachedImages: 0, syncStatus });
 
 export const SESSIONS = [
   row("s-weekly", "Weekly product meeting", "2026-11-12T09:00:00Z", 3_725_000, "completed", 3),

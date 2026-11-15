@@ -45,6 +45,8 @@ pub struct SessionRow {
     pub audio_source_mode: String,
     pub target_lang: String,
     pub lines: i64,
+    /// So anh chup vung DA dinh kem (cung nguon voi ban xuat Word).
+    pub attached_images: i64,
     pub sync_status: String,
 }
 
@@ -54,10 +56,12 @@ fn sync_of(store: &Store, id: &str) -> String {
 
 pub fn list_sessions(store: &Store, limit: i64, offset: i64) -> Res<Vec<SessionRow>> {
     let rows = store.list_sessions(limit.clamp(1, 500), offset.max(0)).map_err(se)?;
+    let images = store.attached_capture_counts().map_err(se)?; // MOT truy van gop COUNT ... GROUP BY session_id
     rows.into_iter()
         .map(|s| {
             Ok(SessionRow {
                 lines: store.count_caption_lines(&s.session_id).map_err(se)?,
+                attached_images: images.get(&s.session_id).copied().unwrap_or(0),
                 sync_status: sync_of(store, &s.session_id),
                 session_id: s.session_id,
                 title: s.title,
@@ -123,6 +127,7 @@ pub fn get_session(store: &Store, id: &str) -> Res<SessionDetail> {
     Ok(SessionDetail {
         session: SessionRow {
             lines: lines.len() as i64,
+            attached_images: store.count_attached_captures(id).map_err(se)?,
             sync_status,
             session_id: s.session_id,
             title: s.title,

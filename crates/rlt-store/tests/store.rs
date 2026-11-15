@@ -359,3 +359,39 @@ fn quick_debug_khong_lo_noi_dung() {
     let d = format!("{q:?}");
     assert!(!d.contains("nguon 7") && !d.contains("dich 7"));
 }
+
+#[test]
+fn dem_anh_dinh_kem_gop_theo_phien_bang_mot_truy_van() {
+    let s = store_with_session();
+    s.finish_session(SID, "stopped", "2026-11-14T10:30:00.000Z", 1_800_000).unwrap(); // chi 1 phien duoc "recording"
+    s.create_session(&NewSession::new(SID2, "Chamada", "2026-11-14T11:00:00.000Z", "pt-PT")).unwrap();
+    let c = |sid: &str, off: i64, sha: &str| {
+        let mut n = capture(off, sha, None);
+        n.session_id = sid.into();
+        n.file_path = format!("sessions/{sid}/captures/{sha}.png");
+        s.add_screen_capture(&n).unwrap()
+    };
+    let a1 = c(SID, 1000, "a1");
+    let a2 = c(SID, 2000, "a2");
+    let _a3 = c(SID, 3000, "a3"); // khong dinh kem: khong dem
+    let b1 = c(SID2, 1000, "b1");
+    assert!(s.attached_capture_counts().unwrap().is_empty());
+
+    s.set_capture_attached(a1, true).unwrap();
+    s.set_capture_attached(a2, true).unwrap();
+    s.set_capture_attached(b1, true).unwrap();
+    let m = s.attached_capture_counts().unwrap();
+    assert_eq!(m.get(SID), Some(&2));
+    assert_eq!(m.get(SID2), Some(&1));
+    assert_eq!(s.count_attached_captures(SID).unwrap(), 2);
+
+    // Bo dinh kem thi so giam; phien het anh bien mat khoi map.
+    s.set_capture_attached(b1, false).unwrap();
+    assert_eq!(s.attached_capture_counts().unwrap().get(SID2), None);
+    assert_eq!(s.count_attached_captures(SID2).unwrap(), 0);
+
+    // Phien khong co anh nao: 0, khong loi.
+    s.finish_session(SID2, "stopped", "2026-11-14T11:30:00.000Z", 1_800_000).unwrap();
+    s.create_session(&NewSession::new("33333333-3333-4333-8333-333333333333", "Vazia", "2026-11-14T12:00:00.000Z", "pt-PT")).unwrap();
+    assert_eq!(s.count_attached_captures("33333333-3333-4333-8333-333333333333").unwrap(), 0);
+}

@@ -211,6 +211,44 @@ test.describe("Danh sach phien, tim kiem, xuat", () => {
     await expect(page.getByText(rlt.t("ses.attach.none"))).toHaveCount(0);
   });
 
+  test("dong phu: phien co anh dinh kem hien \"N images\", phien 0 anh khong hien; cap nhat khi dinh kem/go", async ({ page, rlt }) => {
+    const cap = (id: number, isAttached: boolean) => ({ screenCaptureId: id, offsetMs: id * 1000, absPath: `/x${id}.png`, widthPx: 64, heightPx: 60, byteSize: 10, isAttached, thumbDataUrl: "" });
+    await rlt.open({ captures: { "s-weekly": [cap(1, true), cap(2, true), cap(3, false)], "s-customer": [cap(4, true)] } });
+    await rlt.nav("nav.sessions").click();
+    const rows = page.locator(".sesrow");
+    await expect(rows.nth(0).locator("small")).toContainText(rlt.t("ses.lines", { n: 3 }) + " · " + rlt.t("ses.images.other", { n: 2 }));
+    await expect(rows.nth(1).locator("small")).toContainText(rlt.t("ses.images.one", { n: 1 }));
+    await expect(rows.nth(1).locator("small")).not.toContainText(rlt.t("ses.images.other", { n: 1 }));
+    await expect(rows.nth(2).locator("small")).not.toContainText(/image/i); // 0 anh: khong hien gi
+    await expect.poll(async () => (await rlt.calls("sessions_list")).length).toBe(1); // mot lan goi, khong goi tung phien
+
+    // Go dinh kem 1 anh trong chi tiet: dong phu chi tiet va danh sach cap nhat.
+    await rows.nth(0).getByRole("button", { name: "Weekly product meeting" }).click();
+    await expect(page.locator(".hint", { hasText: rlt.t("ses.images.other", { n: 2 }) })).toBeVisible();
+    await page.getByRole("button", { name: rlt.t("ses.detach") }).first().click();
+    await expect(page.locator(".hint", { hasText: rlt.t("ses.images.one", { n: 1 }) })).toBeVisible();
+    await page.getByRole("button", { name: rlt.t("ses.back") }).click();
+    await expect(page.locator(".sesrow").nth(0).locator("small")).toContainText(rlt.t("ses.images.one", { n: 1 }));
+  });
+
+  test("dong 'Saved to ...' tu an sau khoang 6 giay va khong dinh lai khi quay ve danh sach", async ({ page, rlt }) => {
+    test.setTimeout(30_000);
+    await openWeekly(page, rlt);
+    await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
+    const saved = page.getByText(rlt.t("exp.saved", { path: "/Users/test/Documents/s-weekly.md" }));
+    await expect(saved).toBeVisible();
+    await page.waitForTimeout(4000);
+    await expect(saved).toBeVisible(); // chua het 6 giay
+    await expect(saved).toBeHidden({ timeout: 5000 });
+    // Xuat lai roi quay ve danh sach ngay: dong khong con o danh sach.
+    await page.getByRole("button", { name: rlt.t("exp.open") }).click();
+    await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
+    await expect(saved).toBeVisible();
+    await page.getByRole("button", { name: rlt.t("ses.back") }).click();
+    await expect(page.locator(".sesrow")).toHaveCount(3);
+    await expect(saved).toHaveCount(0);
+  });
+
   test("danh dau dong, dong bo Drive chua ket noi", async ({ page, rlt }) => {
     await rlt.open();
     await rlt.nav("nav.sessions").click();

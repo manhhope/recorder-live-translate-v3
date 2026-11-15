@@ -158,11 +158,14 @@ export function installTauriMock(seed: MockSeed): void {
     },
     session_new: () => { const was = state.run !== "idle"; if (was) queueMicrotask(() => emitState("idle")); return was; },
 
-    sessions_list: () => clone(state.sessions),
+    // Giong Rust: attachedImages = so anh DA dinh kem (isAttached) cua phien, tinh tu state.captures.
+    sessions_list: () => clone(state.sessions).map((r: any) => ({ ...r, attachedImages: (state.captures[r.sessionId] ?? []).filter((c: any) => c.isAttached).length })),
     session_get: (a) => {
       const d = state.details[a.sessionId];
       if (!d) throw "not_found";
-      return clone(d);
+      const out: any = clone(d);
+      out.session.attachedImages = (state.captures[a.sessionId] ?? []).filter((c: any) => c.isAttached).length;
+      return out;
     },
     session_rename: (a) => {
       const row = state.sessions.find((s: any) => s.sessionId === a.sessionId);
