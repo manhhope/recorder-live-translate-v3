@@ -59,6 +59,34 @@ test.describe("Bat dau that bai: thong bao loi ro rang, khong mat du lieu", () =
     await expect(page.getByRole("alert")).toContainText(rlt.t("err.generic"));
   });
 
+  test("session_start tra storage kem dong ky thuat: KHONG hien 'Khong ket noi Soniox'", async ({ page, rlt }) => {
+    await rlt.open({ fail: { session_start: "storage|loi luu tru: database is locked" } });
+    await rlt.btn("tool.start").click();
+    await expect(page.getByRole("alert")).toContainText(rlt.t("err.storage"));
+    await expect(page.getByRole("alert")).not.toContainText(rlt.t("err.network"));
+    await expect(page.getByTestId("err-tech")).toContainText("database is locked");
+    await expect(page.getByTestId("err-tech")).toContainText(rlt.t("err.tech"));
+    await expect(rlt.btn("tool.start")).toBeEnabled();
+  });
+
+  test("session_start tra internal kem dong ky thuat", async ({ page, rlt }) => {
+    await rlt.open({ fail: { session_start: "internal|phien da ket thuc" } });
+    await rlt.btn("tool.start").click();
+    await expect(page.getByRole("alert")).toContainText(rlt.t("err.internal"));
+    await expect(page.getByRole("alert")).not.toContainText(rlt.t("err.network"));
+    await expect(page.getByTestId("err-tech")).toContainText("phien da ket thuc");
+  });
+
+  test("storage va internal co nhan trang thai rieng tren thanh trang thai (khong phai Offline)", async ({ page, rlt }) => {
+    await rlt.open();
+    await rlt.startRecording();
+    for (const [code, key] of [["storage", "status.storage"], ["internal", "status.internal"]] as const) {
+      await rlt.emit({ kind: "status", code });
+      await expect(page.locator(".foot .sb")).toContainText(rlt.t(key));
+      await expect(page.locator(".foot .sb")).not.toContainText(rlt.t("status.offline"));
+    }
+  });
+
   test("sau khi loi, bo loi roi bat dau lai thanh cong va xoa thong bao", async ({ page, rlt }) => {
     await rlt.open({ fail: { session_start: "network" } });
     await rlt.btn("tool.start").click();

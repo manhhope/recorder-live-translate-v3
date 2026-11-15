@@ -21,6 +21,7 @@
   let level = $state(0);
   let status = $state<StatusCode | null>(null);
   let errCode = $state<string | null>(null);
+  let errTech = $state<string | null>(null);
   let statusDetail = $state<string | null>(null);
   let hasKey = $state(true);
   let consent = $state(true);
@@ -52,7 +53,7 @@
   const micLevel = $derived<Level>(app.micOn ? lvl : "idle");
   const views = [["both", "rec.view.both"], ["dst", "rec.view.dst"], ["src", "rec.view.src"]] as const;
   const STATUS_KEY: Record<StatusCode, string> = {
-    permission: "status.perm", audio_device: "status.audiodevice", auth: "status.badkey", rejected: "status.rejected", quota: "status.quota", network: "status.offline", timeout: "status.timeout",
+    permission: "status.perm", audio_device: "status.audiodevice", auth: "status.badkey", rejected: "status.rejected", quota: "status.quota", network: "status.offline", timeout: "status.timeout", storage: "status.storage", internal: "status.internal",
   };
   const statusKey = $derived(
     status ? STATUS_KEY[status] : state === "paused" ? "status.paused" : state === "stopping" ? "status.stopping"
@@ -107,7 +108,7 @@
 
   async function begin() {
     if (!mode) return;
-    busy = true; errCode = null; status = null; statusDetail = null; lastStop = null; notices = [];
+    busy = true; errCode = null; errTech = null; status = null; statusDetail = null; lastStop = null; notices = [];
     try {
       const listenLangs = app.src === AUTO ? [] : [app.src];
       await api.prefsSet({ targetLang: app.dst, listenLangs, mode, uiLanguage: document.documentElement.lang === "en" ? "en" : "pt-PT" });
@@ -117,7 +118,7 @@
       const c = api.errCode(e);
       if (c === "key_missing") { hasKey = false; askKey = true; }
       else if (c === "consent_required") { consent = false; askConsent = true; }
-      else { errCode = c; void remindMissingOnStart(c); } // thieu quyen: nhac dung quyen thieu (toi da mot lan moi lan mo app), thong bao loi van o lai
+      else { errCode = c; errTech = api.errDetail(e); void remindMissingOnStart(c); } // thieu quyen: nhac dung quyen thieu (toi da mot lan moi lan mo app), thong bao loi van o lai
     } finally { busy = false; }
   }
 
@@ -222,6 +223,7 @@
 
 {#if errCode}
   <div class="card" role="alert" style="margin:8px 18px"><span class="bd rec"><Icon name="warn" />{$_(errKey(errCode))}</span>
+    {#if errTech}<div data-testid="err-tech" style="margin-top:6px;font-size:12px;opacity:.85;word-break:break-word">{$_("err.tech")}: {errTech}</div>{/if}
     {#if errCode.startsWith("permission")}<button type="button" class="btn sm" data-testid="perm-review" style="margin-left:8px" onclick={() => openPermWelcome(errCode === "permission_mic" ? "mic" : "screen")}><Icon name="shield" />{$_("pw.review")}</button>{/if}</div>
 {/if}
 
