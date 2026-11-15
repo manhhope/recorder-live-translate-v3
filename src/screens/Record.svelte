@@ -83,7 +83,7 @@
       if (i >= 0) lines[i] = e.line; else lines.push(e.line);
       live = afterFinal(live, e.line.sourceText, e.line.translatedText);
     } else if (e.kind === "level") level = e.level;
-    else if (e.kind === "status") { status = e.code; statusDetail = e.code === "rejected" ? (e.detail ?? null) : null; }
+    else if (e.kind === "status") { status = e.code; statusDetail = e.code === "rejected" || e.code === "network" ? (e.detail ?? null) : null; }
     else if (e.kind === "notice") { if (!notices.includes(e.code)) notices.push(e.code); }
     else if (e.kind === "stopped") lastStop = { lines: e.lines, drained: e.drained };
   }
@@ -213,6 +213,11 @@
 {#if status === "rejected"}
   <div class="card" role="alert" data-testid="rejected-banner" style="margin:8px 18px"><span class="bd rec"><Icon name="warn" />{$_("err.rejected")}</span>
     {#if statusDetail}<div data-testid="rejected-detail" style="margin-top:6px;font-size:12px;opacity:.85">{statusDetail}</div>{/if}</div>
+{/if}
+
+{#if status === "network" && statusDetail}
+  <div class="card" role="status" data-testid="network-banner" style="margin:8px 18px"><span class="bd rec"><Icon name="warn" />{$_("err.network")}</span>
+    <div data-testid="network-detail" style="margin-top:6px;font-size:12px;opacity:.85;word-break:break-word">{statusDetail}</div></div>
 {/if}
 
 {#if errCode}

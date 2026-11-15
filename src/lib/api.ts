@@ -14,7 +14,7 @@ export type UiEvent =
   | { kind: "line"; line: LineDto }
   | { kind: "partial"; partial: PartialDto | null }
   | { kind: "level"; level: number }
-  /** `detail`: ly do Soniox gui kem, chi khi `code` = `rejected`. */
+  /** `detail`: ly do ky thuat, chi khi `code` = `rejected` (Soniox gui kem) hoac `network` (giai doan/loai/nguyen nhan). */
   | { kind: "status"; code: StatusCode | null; detail?: string }
   | { kind: "stopped"; sessionId: string; lines: number; durationMs: number; drained: boolean }
   /** Thong bao ma phien van chay: che do tron ha xuong chi he thong (khong co micro), hoac het quota (ghi cuc bo, khong dich). */
@@ -67,6 +67,9 @@ export const clearApiKey = () => invoke<void>("soniox_clear_api_key");
 /** Mo thu muc nhat ky chan doan (Explorer/Finder); tra duong dan. */
 export const diagOpenLogs = () => invoke<string>("diag_open_logs");
 export const testConnection = () => invoke<void>("soniox_test_connection");
+export interface RealtimeDiag { ok: boolean; code: string; detail?: string; elapsedMs: number }
+/** "Test realtime connection": thu rieng WebSocket Soniox, khong ghi am. `detail` la ly do ky thuat, khong chua khoa. */
+export const diagRealtime = () => invoke<RealtimeDiag>("soniox_diag_realtime");
 export const permissionsStatus = () => invoke<PermissionsOut>("permissions_status");
 /** `granted` | `denied` | `needsrestart` | `unknown`. Do that SCShareableContent: chi goi khi nguoi dung bam Check again. */
 export const screenPermissionCheck = (settingsOpened: boolean) => invoke<string>("screen_permission_check", { settingsOpened });

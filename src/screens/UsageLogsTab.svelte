@@ -84,6 +84,13 @@
     try { await api.testConnection(); keyMsg = { ok: true, code: "ok" }; } catch (e) { keyMsg = { ok: false, code: api.errCode(e) }; }
     busy = false;
   }
+  let rtDiag = $state<api.RealtimeDiag | null>(null);
+  let rtBusy = $state(false);
+  async function testRealtime() {
+    rtBusy = true; rtDiag = null;
+    try { rtDiag = await api.diagRealtime(); } catch (e) { rtDiag = { ok: false, code: api.errCode(e), elapsedMs: 0 }; }
+    rtBusy = false;
+  }
   let diagMsg = $state<{ ok: boolean; text: string } | null>(null);
   async function openDiagLogs() {
     diagMsg = null;
@@ -139,6 +146,14 @@
       {#if diagMsg}<span class="bd {diagMsg.ok ? 'ok' : 'rec'}" data-testid="diag-msg"><Icon name={diagMsg.ok ? "check" : "warn"} />{diagMsg.ok ? diagMsg.text : $_(errKey(diagMsg.text))}</span>{/if}
     </div>
   </div>
+  <div class="rw">
+    <div><b>{$_("set.diag.rt.label")}</b><small>{$_("set.diag.rt.hint")}</small></div>
+    <div class="rr">
+      <button type="button" class="btn sm" data-testid="diag-realtime" disabled={rtBusy} onclick={testRealtime}>{$_("set.diag.rt.run")}</button>
+      {#if rtDiag}<span class="bd {rtDiag.ok ? 'ok' : 'rec'}" data-testid="diag-realtime-result"><Icon name={rtDiag.ok ? "check" : "warn"} />{rtDiag.ok ? $_("set.soniox.ok") : $_(errKey(rtDiag.code))} ({rtDiag.elapsedMs} ms)</span>{/if}
+    </div>
+  </div>
+  {#if rtDiag?.detail}<div class="hint" data-testid="diag-realtime-detail" style="word-break:break-word">{rtDiag.detail}</div>{/if}
 </div>
 
 <div class="card">
