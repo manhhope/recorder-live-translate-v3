@@ -5,6 +5,8 @@
   import LangSelect from "../lib/LangSelect.svelte";
   import SourceButton from "../lib/SourceButton.svelte";
   import TermContext from "../lib/TermContext.svelte";
+  import TranscriptPrefs from "../lib/TranscriptPrefs.svelte";
+  import { cssVars, loadPrefs, savePrefs } from "../lib/transcript-prefs.ts";
   import { app, fmtClock, openAsk, type Level } from "../lib/app.svelte.ts";
   import { AUTO } from "../lib/langs.ts";
   import * as api from "../lib/api.ts";
@@ -29,6 +31,16 @@
   let notices = $state<string[]>([]);
   let timer: ReturnType<typeof setInterval> | undefined;
   const follow = new Follow();
+
+  // Tuy chinh hien thi transcript: nho lan sau, ap ngay. `view` dung chung voi bo chuyen Both/Dich/Nguon (app.view).
+  let tp = $state(loadPrefs());
+  app.view = tp.view;
+  const mq = typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)") : null;
+  let sysDark = $state(mq?.matches ?? false);
+  $effect(() => { const f = () => (sysDark = mq!.matches); mq?.addEventListener("change", f); return () => mq?.removeEventListener("change", f); });
+  const dark = $derived(app.theme === "dark" || (app.theme === "system" && sysDark));
+  const tpStyle = $derived(cssVars(tp, dark));
+  $effect(() => savePrefs({ ...tp, view: app.view }));
 
   const active = $derived(state !== "idle");
   const mode = $derived<api.RecordMode | null>(app.sysOn && app.micOn ? "mixed" : app.sysOn ? "system" : app.micOn ? "mic" : null);
@@ -232,7 +244,7 @@
     {#if lastStop}<span class="hint">{stoppedLbl(lastStop.lines)}{#if !lastStop.drained} {$_("rec.stopped.partial")}{/if}</span>{/if}
   </div>
   <div class="trw">
-  <div class="trs" use:follow.action>
+  <div class="trs" use:follow.action style={tpStyle}>
   <TermContext dstLang={app.dst}>
   <div class="tr" aria-live="polite">
     {#each lines as l (l.captionLineId)}
@@ -270,4 +282,5 @@
 <div class="foot">
   <span class="sb {state === 'recording' && !status ? 'ok' : ''}"><Icon name={active ? "mic" : "dot"} /><b>{$_(statusKey)}</b></span>
   {#if !hasKey && loaded}<span class="fs">{$_("rec.key.missing")}</span>{/if}
+  <TranscriptPrefs bind:prefs={tp} bind:view={app.view} {dark} />
 </div>

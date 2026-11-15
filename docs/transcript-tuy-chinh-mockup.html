@@ -1,0 +1,42 @@
+<!doctype html>
+<!-- Mockup: nhom tuy chinh transcript o goc phai thanh trang thai man Ghi (phuong an A, Quiet Native).
+     Dung token that cua src/styles/tokens-v3.css. Chuoi en / pt-PT lay tu src/locales (khoa tp.*). Mo bang trinh duyet; nut dau trang doi sang/toi va rong/hep. -->
+<meta charset="utf-8"><title>Transcript display group - mockup</title>
+<link rel="stylesheet" href="../src/styles/tokens-v3.css"><link rel="stylesheet" href="../src/styles/app.css">
+<style>
+body{margin:0;padding:16px;background:var(--rlt-page);font:13px var(--rlt-font);color:var(--rlt-text)}
+.bar{display:flex;gap:8px;margin-bottom:12px}.bar button{height:28px;padding:0 12px;border:1px solid var(--rlt-line);border-radius:6px;background:var(--rlt-ctl);color:var(--rlt-text)}
+.win{display:flex;flex-direction:column;background:var(--rlt-bg);border:1px solid var(--rlt-line);border-radius:10px;overflow:hidden;height:360px;margin-bottom:24px;position:relative}
+.win .body{flex:1;padding:14px 18px}.cap{margin:0 0 6px;font-weight:600}
+</style>
+<div class="bar"><button onclick="document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'">Light / Dark</button></div>
+
+<p class="cap">1. Rong (&gt;= 861 px thanh duoi): nhom nam ngang cung hang chu "Ready"</p>
+<div class="win" style="width:980px">
+  <div class="body"><div class="ln"><span class="ts">00:00:04</span><div class="tx"><div class="src" style="--rlt-fsrc:13px">Hello everyone</div><div class="dst" style="--rlt-fdst:15px">Olá a todos</div></div></div></div>
+  <div class="foot">
+    <span class="sb ok"><b>Ready</b></span>
+    <div class="tp"><div class="tp-panel">
+      <div class="tp-row"><span class="tp-lbl">Text size</span><button class="btn sm icon">&minus;</button><output class="tp-val">15 px</output><button class="btn sm icon">+</button></div>
+      <div class="tp-row"><span class="tp-lbl"><span class="tp-s">Source</span></span><i class="sw" style="background:var(--rlt-text2)"></i><i class="sw" style="background:#0A5BC4"></i><i class="sw on" style="background:#1A7436"></i><i class="sw" style="background:#8A5A00"></i><i class="sw" style="background:#C5221A"></i><i class="sw" style="background:#6B3FA0"></i></div>
+      <div class="tp-row"><span class="tp-lbl"><span class="tp-s">Translation</span></span><i class="sw on" style="background:var(--rlt-text)"></i><i class="sw" style="background:#0A5BC4"></i><i class="sw" style="background:#1A7436"></i><i class="sw" style="background:#8A5A00"></i><i class="sw" style="background:#C5221A"></i><i class="sw" style="background:#6B3FA0"></i></div>
+      <label class="tp-row tp-sw"><span class="tp-lbl">Show original text</span><input type="checkbox" class="chk" checked></label>
+    </div></div>
+  </div>
+</div>
+
+<p class="cap">2. Hep (&lt;= 860 px thanh duoi): chi con nut "Aa"; popover mo len phia tren thanh, khong che chu "Ready"</p>
+<div class="win" style="width:520px;height:330px">
+  <div class="body"><div class="ln"><span class="ts">00:00:04</span><div class="tx"><div class="src">Hello everyone</div><div class="dst">Olá a todos</div></div></div></div>
+  <div class="foot" style="container-type:normal">
+    <span class="sb ok"><b>Ready</b></span>
+    <div class="tp"><button class="btn sm icon tp-aa" style="display:inline-flex">Aa</button>
+      <div class="tp-panel open" style="display:flex;position:absolute;right:0;bottom:22px;z-index:45;flex-direction:column;align-items:stretch;gap:2px;width:300px;padding:10px 12px;background:var(--rlt-card);border:1px solid var(--rlt-line);border-radius:var(--rlt-rc);box-shadow:var(--rlt-sh2);white-space:normal">
+        <div class="tp-row" style="min-height:32px"><span class="tp-lbl" style="flex:1;font-size:12px;color:var(--rlt-text)">Text size</span><button class="btn sm icon">&minus;</button><output class="tp-val">15 px</output><button class="btn sm icon">+</button></div>
+        <div class="tp-row" style="min-height:32px"><span class="tp-lbl" style="flex:1;font-size:12px;color:var(--rlt-text)">Source colour</span><i class="sw on" style="width:20px;height:20px;background:var(--rlt-text2)"></i><i class="sw" style="width:20px;height:20px;background:#0A5BC4"></i><i class="sw" style="width:20px;height:20px;background:#1A7436"></i><i class="sw" style="width:20px;height:20px;background:#8A5A00"></i><i class="sw" style="width:20px;height:20px;background:#C5221A"></i><i class="sw" style="width:20px;height:20px;background:#6B3FA0"></i></div>
+        <div class="tp-row" style="min-height:32px"><span class="tp-lbl" style="flex:1;font-size:12px;color:var(--rlt-text)">Translation colour</span><i class="sw on" style="width:20px;height:20px;background:var(--rlt-text)"></i><i class="sw" style="width:20px;height:20px;background:#0A5BC4"></i><i class="sw" style="width:20px;height:20px;background:#1A7436"></i><i class="sw" style="width:20px;height:20px;background:#8A5A00"></i><i class="sw" style="width:20px;height:20px;background:#C5221A"></i><i class="sw" style="width:20px;height:20px;background:#6B3FA0"></i></div>
+        <label class="tp-row" style="min-height:32px"><span class="tp-lbl" style="flex:1;font-size:12px;color:var(--rlt-text)">Show original text</span><input type="checkbox" class="chk" checked></label>
+        <div style="margin-top:6px;padding-top:8px;border-top:1px solid var(--rlt-line);font-size:11px;color:var(--rlt-text2)">Applies to this screen only. The subtitle window has its own settings in Settings &gt; Subtitles.<br><button class="btn sm" style="margin-top:8px">Reset display</button></div>
+      </div></div>
+  </div>
+</div>

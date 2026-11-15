@@ -8,7 +8,8 @@
     "build": "vite build",
     "test:i18n": "node --test src/i18n/i18n.test.ts",
     "scan:i18n": "node scripts/scan-hardcoded.mjs src",
-    "test:api": "node --test src/lib/api.test.ts"
+    "test:api": "node --test src/lib/api.test.ts",
+    "test:unit": "node --test src/lib/transcript-prefs.test.ts src/lib/live.test.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",

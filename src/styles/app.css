@@ -87,12 +87,34 @@ button{font:inherit;color:inherit;cursor:default}
 .ts{font:11px var(--rlt-mono);color:var(--rlt-text2);padding-top:3px}
 .meta{font-size:11px;display:flex;gap:8px;align-items:center;margin-bottom:2px}.meta b{color:var(--rlt-acc)}
 .lg{font:11px var(--rlt-mono);color:var(--rlt-text2);border:1px solid var(--rlt-line);border-radius:4px;padding:0 4px}
-.pv{color:var(--rlt-warn);font-weight:600}.src{color:var(--rlt-text2)}.dst{font:600 var(--rlt-fdst) var(--rlt-font)}
-.ln.prov .dst{font-style:italic}.ln.live .dst{color:var(--rlt-text2);font-weight:400}.ln.live .src{opacity:.7}.ln.live .src,.ln.live .dst{font-style:italic}
+.pv{color:var(--rlt-warn);font-weight:600}.src{color:var(--rlt-usrc,var(--rlt-text2));font-size:var(--rlt-fsrc,inherit)}.dst{font:600 var(--rlt-fdst) var(--rlt-font);color:var(--rlt-udst,var(--rlt-text))}
+.ln.prov .dst{font-style:italic}.ln.live .dst{color:var(--rlt-udst,var(--rlt-text2));font-weight:400}.ln.live .src{opacity:.7}.ln.live .src,.ln.live .dst{font-style:italic}
 .empty{flex:1;display:grid;place-content:center;justify-items:center;gap:6px;padding:40px 24px;color:var(--rlt-text2);text-align:center}
 .empty b{color:var(--rlt-text);font:600 var(--rlt-fh) var(--rlt-font)}.empty .i{width:32px;height:32px}
-.foot{flex:none;display:flex;align-items:center;gap:12px;padding:8px 18px;border-top:1px solid var(--rlt-line);background:var(--rlt-side);font-size:12px;flex-wrap:wrap;margin-top:auto}
-.foot .fs{margin-left:auto;color:var(--rlt-text2)}
+.foot{flex:none;display:flex;align-items:center;gap:12px;padding:8px 18px;border-top:1px solid var(--rlt-line);background:var(--rlt-side);font-size:12px;flex-wrap:nowrap;margin-top:auto;container:foot/inline-size;position:relative}
+.foot .fs{margin-left:auto;color:var(--rlt-text2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Tuy chinh transcript: .tp cao 0 de dieu khien 24px khong lam thanh cao hon; rong = nam ngang, hep = popover tu nut Aa */
+.tp{margin-left:auto;height:0;display:flex;align-items:center;position:relative;flex:none}
+.foot .fs+.tp{margin-left:0}
+.tp-aa{display:none;font-weight:700;letter-spacing:-.02em}
+.tp-panel{display:flex;align-items:center;gap:14px}
+.tp-row{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.tp-lbl{color:var(--rlt-text2);font-size:11px}.tp-l{display:none}
+.tp-val{min-width:44px;text-align:center;font:600 12px var(--rlt-mono);color:var(--rlt-text)}
+.tp .btn.sm.icon{width:24px;height:24px;padding:0}
+.sw{width:16px;height:16px;border-radius:50%;border:1px solid var(--rlt-line);padding:0;cursor:pointer;flex:none}
+.sw.on{box-shadow:0 0 0 2px var(--rlt-bg),0 0 0 4px var(--rlt-text)}
+.tp-sw{cursor:pointer}.tp-note{display:none}
+@container foot (max-width:860px){
+  .tp-aa{display:inline-flex}
+  .tp-panel{display:none;position:absolute;right:0;bottom:22px;z-index:45;flex-direction:column;align-items:stretch;gap:2px;width:300px;max-width:calc(100vw - 24px);padding:10px 12px;background:var(--rlt-card);border:1px solid var(--rlt-line);border-radius:var(--rlt-rc);box-shadow:var(--rlt-sh2);white-space:normal}
+  .tp-panel.open{display:flex}
+  .tp-row{min-height:32px;gap:8px}.tp-row .tp-lbl{flex:1;font-size:12px;color:var(--rlt-text)}
+  .tp-row .tp-s{display:none}.tp-row .tp-l{display:inline}
+  .tp-row .sw{width:20px;height:20px}
+  .tp-sw .chk{flex:none}
+  .tp-note{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin-top:6px;padding-top:8px;border-top:1px solid var(--rlt-line);font-size:11px;color:var(--rlt-text2)}
+}
 .sb{display:inline-flex;align-items:center;gap:6px;color:var(--rlt-text)}.sb b{font-weight:600}
 .sb.ok{color:var(--rlt-ok)}.sb.warn{color:var(--rlt-warn)}.sb.err{color:var(--rlt-rec)}
 /* danh sach phien */
