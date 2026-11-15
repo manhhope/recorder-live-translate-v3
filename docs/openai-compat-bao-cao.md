@@ -27,5 +27,116 @@ CHUA THU voi LM Studio that: `curl http://localhost:1234/v1/models` tren may dev
 - `npm run scan:i18n`: con 1 canh bao co san o `UsageLogsTab.svelte:153`, khong lien quan.
 
 ## Diem can chu y
-- The `t_d6e90cf36752` (cung file AiSettingsTab): khong xac minh duoc da xong hay chua; lam tren HEAD `win-fix` hien co.
+- The `t_d6e90cf36752` (cung file AiSettingsTab): KHONG XAC MINH duoc da xong hay chua (khong co commit nao nhac toi ma trong repo); lam tren HEAD `win-fix` hien co, chua co xung dot.
 - `scripts/shots-m3.mjs` va `docs/ui-spec.md` chua cap nhat cho provider moi.
+
+## Output that (chay lai 2026-11-15, tren 5e4c936)
+
+### cargo test --workspace --exclude rlt-segment (cac dong ket qua)
+```
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.36s
+test result: ok. 200 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.96s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.82s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.76s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.06s
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 93 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 24.13s
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+exit=0
+```
+
+### cargo test -p rlt-segment
+```
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 158 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.53s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+exit=0
+```
+
+### cargo clippy --workspace --all-targets -- -D warnings
+```
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.40s
+exit=0
+```
+
+### pnpm check -> khong ton tai; thay bang npm build, test:i18n, check:caps, test:unit, test:api (pnpm khong cai, package.json khong co script check)
+```
+> recorder-live-translate-v3@3.0.2 build
+> vite build
+✓ 211 modules transformed.
+✓ built in 314ms
+> recorder-live-translate-v3@3.0.2 test:i18n
+> node --test src/i18n/i18n.test.ts
+ℹ tests 12
+ℹ pass 12
+ℹ fail 0
+> recorder-live-translate-v3@3.0.2 check:caps
+> node scripts/check-capabilities.mjs
+OK: 75 lenh goi tu api.ts, 75 nam trong manifest va deu duoc cap quyen
+> recorder-live-translate-v3@3.0.2 test:unit
+> node --test src/lib/transcript-prefs.test.ts src/lib/live.test.ts src/lib/export-dir.test.ts src/lib/ci-config.test.ts src/lib/usage-swr.test.ts src/lib/whats-new.test.ts src/lib/perm-welcome.test.ts src/lib/session-meta.test.ts src/lib/platform.test.ts src/lib/ipc.test.ts
+ℹ tests 79
+ℹ pass 79
+ℹ fail 0
+> recorder-live-translate-v3@3.0.2 test:api
+> node --test src/lib/api.test.ts
+ℹ tests 6
+ℹ pass 6
+ℹ fail 0
+exit=0
+```
+
+### npx playwright test (dong cuoi va test compat)
+```
+  ✓  144 [chromium] › test/e2e/settings-compat.spec.ts:13:5 › Endpoint tuong thich OpenAI (en) › mac dinh LM Studio, khong co model gia, Thu ket noi bi khoa den khi nhap model (228ms)
+  ✓  147 [chromium] › test/e2e/settings-compat.spec.ts:63:5 › Endpoint tuong thich OpenAI (en) › Tai model loi: khong bao do, cho nhap tay (245ms)
+  ✓  146 [chromium] › test/e2e/settings-compat.spec.ts:46:5 › Endpoint tuong thich OpenAI (en) › Tai model: liet ke tu may chu, chon xong luu dung URL va model (302ms)
+  ✓  145 [chromium] › test/e2e/settings-compat.spec.ts:28:5 › Endpoint tuong thich OpenAI (en) › URL sai: bao loi, khoa Thu ket noi, Tai model va Luu (323ms)
+  ✓  148 [chromium] › test/e2e/settings-compat.spec.ts:75:5 › Endpoint tuong thich OpenAI (en) › Thu ket noi loi: cau rieng cua endpoint, khong phai cau chung cua dich vu AI (272ms)
+  ✓  150 [chromium] › test/e2e/settings-compat.spec.ts:105:5 › Endpoint tuong thich OpenAI (en) › khong lo khoa vao cai dat luu: input.providers khong chua truong khoa (251ms)
+  ✓  149 [chromium] › test/e2e/settings-compat.spec.ts:88:5 › Endpoint tuong thich OpenAI (en) › khoa tuy chon: luu chi gui di, o nhap bi xoa, go duoc; khong doc lai khoa (278ms)
+  ✓  152 [chromium] › test/e2e/settings-compat.spec.ts:127:5 › Endpoint tuong thich OpenAI (en) › co mat o danh sach mo hinh mac dinh, hien that Hoi AI dung nhan (224ms)
+  ✓  153 [chromium] › test/e2e/settings-compat.spec.ts:13:5 › Endpoint tuong thich OpenAI (pt-PT) › mac dinh LM Studio, khong co model gia, Thu ket noi bi khoa den khi nhap model (234ms)
+  ✓  151 [chromium] › test/e2e/settings-compat.spec.ts:116:5 › Endpoint tuong thich OpenAI (en) › Dat lai tab: URL ve mac dinh LM Studio, model ve trong (258ms)
+  ✓  156 [chromium] › test/e2e/settings-compat.spec.ts:63:5 › Endpoint tuong thich OpenAI (pt-PT) › Tai model loi: khong bao do, cho nhap tay (265ms)
+  ✓  154 [chromium] › test/e2e/settings-compat.spec.ts:28:5 › Endpoint tuong thich OpenAI (pt-PT) › URL sai: bao loi, khoa Thu ket noi, Tai model va Luu (306ms)
+  ✓  155 [chromium] › test/e2e/settings-compat.spec.ts:46:5 › Endpoint tuong thich OpenAI (pt-PT) › Tai model: liet ke tu may chu, chon xong luu dung URL va model (315ms)
+  ✓  157 [chromium] › test/e2e/settings-compat.spec.ts:75:5 › Endpoint tuong thich OpenAI (pt-PT) › Thu ket noi loi: cau rieng cua endpoint, khong phai cau chung cua dich vu AI (272ms)
+  ✓  158 [chromium] › test/e2e/settings-compat.spec.ts:88:5 › Endpoint tuong thich OpenAI (pt-PT) › khoa tuy chon: luu chi gui di, o nhap bi xoa, go duoc; khong doc lai khoa (278ms)
+  ✓  159 [chromium] › test/e2e/settings-compat.spec.ts:105:5 › Endpoint tuong thich OpenAI (pt-PT) › khong lo khoa vao cai dat luu: input.providers khong chua truong khoa (264ms)
+  ✓  161 [chromium] › test/e2e/settings-compat.spec.ts:127:5 › Endpoint tuong thich OpenAI (pt-PT) › co mat o danh sach mo hinh mac dinh, hien that Hoi AI dung nhan (211ms)
+  ✓  160 [chromium] › test/e2e/settings-compat.spec.ts:116:5 › Endpoint tuong thich OpenAI (pt-PT) › Dat lai tab: URL ve mac dinh LM Studio, model ve trong (254ms)
+
+  239 passed (25.8s)
+exit=0
+```
