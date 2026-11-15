@@ -39,3 +39,41 @@ jobs:
       - run: npm run build
       - run: cargo test --workspace
       - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  # ---------------------------------------------------------------------------------------------
+  # Windows (nhanh win-ci): job THAM KHAO, chua chan merge. Ban Windows chua duoc port (xem
+  # docs/win-kiem-ke-bao-cao.md). Cac buoc danh dau `continue-on-error: true` DUOC PHEP DO vi phan
+  # Windows tuong ung chua port: Playwright (anh chuan va luong chup man hinh dang theo macOS),
+  # `rlt-platform` (am thanh he thong, panel, giu may thuc) va `rlt-app` (src-tauri: SCK, AX, NSPanel,
+  # Keychain). Cac crate khong phu thuoc macOS phai XANH; neu do thi la loi that.
+  # Job macOS o tren giu nguyen.
+  # ---------------------------------------------------------------------------------------------
+  windows:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check:caps
+      - run: npm run test:i18n
+      - run: npm run build
+      # Crate thuan logic, khong phu thuoc macOS: BAT BUOC xanh.
+      - run: cargo check -p rlt-core -p rlt-segment -p rlt-store -p rlt-secrets -p rlt-soniox -p rlt-ai -p rlt-quick -p rlt-features
+      - run: cargo test -p rlt-core -p rlt-segment -p rlt-store -p rlt-secrets -p rlt-soniox -p rlt-ai -p rlt-quick -p rlt-features
+      # Duoc phep do: phan nen tang chua port (panel, giu may thuc, am thanh he thong, vo Tauri).
+      - name: cargo check --workspace (duoc phep do, chua port)
+        continue-on-error: true
+        run: cargo check --workspace
+      - name: cargo test -p rlt-platform (duoc phep do, chua port)
+        continue-on-error: true
+        run: cargo test -p rlt-platform
+      - name: playwright (duoc phep do, chua port)
+        continue-on-error: true
+        run: |
+          npx playwright install chromium
+          npx playwright test
