@@ -17,7 +17,7 @@ fn line(seq: i64, src: &str, tr: Option<&str>) -> NewCaptionLine {
 #[test]
 fn migration_ap_dung_dung_mot_lan_va_bang_ton_tai() {
     let s = Store::open_in_memory().unwrap();
-    assert_eq!(s.user_version().unwrap(), 11);
+    assert_eq!(s.user_version().unwrap(), 12);
     let n: i64 = s
         .conn()
         .query_row(
@@ -28,7 +28,7 @@ fn migration_ap_dung_dung_mot_lan_va_bang_ton_tai() {
         .unwrap();
     assert_eq!(n, 5);
     let m = migrations(SCHEMA_SQL).unwrap();
-    assert_eq!(m.iter().map(|x| x.0).collect::<Vec<_>>(), [10, 11]);
+    assert_eq!(m.iter().map(|x| x.0).collect::<Vec<_>>(), [10, 11, 12]);
 }
 
 fn repo_root() -> std::path::PathBuf {
@@ -79,13 +79,13 @@ fn file_db_bat_wal_va_foreign_keys_va_mo_lai_khong_chay_lai_migration() {
             .unwrap();
     }
     let s = Store::open(&path).unwrap();
-    assert_eq!(s.user_version().unwrap(), 11);
+    assert_eq!(s.user_version().unwrap(), 12);
     assert!(s.get_session(SID).unwrap().is_some());
     let n: i64 = s
         .conn()
         .query_row("SELECT count(*) FROM schema_migrations", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(n, 2, "moi migration (10, 11) ghi dung mot dong, mo lai khong chay lai");
+    assert_eq!(n, 3, "moi migration (10, 11, 12) ghi dung mot dong, mo lai khong chay lai");
     std::fs::remove_dir_all(dir).ok();
 }
 
@@ -394,4 +394,47 @@ fn dem_anh_dinh_kem_gop_theo_phien_bang_mot_truy_van() {
     s.finish_session(SID2, "stopped", "2026-11-14T11:30:00.000Z", 1_800_000).unwrap();
     s.create_session(&NewSession::new("33333333-3333-4333-8333-333333333333", "Vazia", "2026-11-14T12:00:00.000Z", "pt-PT")).unwrap();
     assert_eq!(s.count_attached_captures("33333333-3333-4333-8333-333333333333").unwrap(), 0);
+}
+
+#[test]
+fn nang_cap_tu_v11_len_v12_giu_nguyen_chat_cu_va_cho_phep_compat() {
+    let dir = std::env::temp_dir().join(format!("rlt-mig12-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("app.db");
+    {
+        // DB nguoi dung cu: chi co migration 10 va 11, da co mot cuoc chat Hoi AI.
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        for (n, body) in migrations(SCHEMA_SQL).unwrap() {
+            if n <= 11 {
+                conn.execute_batch(&body).unwrap();
+            }
+        }
+        assert_eq!(conn.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)).unwrap(), 11);
+        conn.execute_batch(&format!(
+            "INSERT INTO sessions (session_id, title, started_at, target_lang, status, created_at, updated_at)
+               VALUES ('{SID}', 'Cu', '2026-11-14T10:00:00.000Z', 'pt-PT', 'recording', 'a', 'a');
+             INSERT INTO ai_conversations (session_id, provider, created_at, updated_at) VALUES ('{SID}', 'ollama', 'a', 'a');
+             UPDATE settings SET ai_default_provider = 'openai';
+             UPDATE ai_provider_settings SET model_name = 'gpt-x', consent_version = '1', consent_accepted_at = 'a' WHERE provider = 'openai';"
+        ))
+        .unwrap();
+    }
+    let s = Store::open(&path).unwrap();
+    assert_eq!(s.user_version().unwrap(), 12);
+    let c = s.conn();
+    let n = |sql: &str| c.query_row(sql, [], |r| r.get::<_, i64>(0)).unwrap();
+    assert_eq!(n("SELECT count(*) FROM ai_conversations WHERE provider = 'ollama'"), 1, "chat cu con nguyen");
+    assert_eq!(n("SELECT count(*) FROM settings WHERE ai_default_provider = 'openai'"), 1);
+    assert_eq!(n("SELECT count(*) FROM ai_provider_settings WHERE provider = 'openai' AND model_name = 'gpt-x' AND consent_version = '1'"), 1);
+    assert_eq!(n("SELECT count(*) FROM ai_provider_settings WHERE provider = 'compat'"), 1, "co hang compat");
+    assert_eq!(n("PRAGMA foreign_keys"), 1, "migration tra lai foreign_keys");
+    assert_eq!(n("SELECT count(*) FROM pragma_foreign_key_check"), 0);
+    c.execute("INSERT INTO ai_conversations (session_id, provider, created_at, updated_at) VALUES (?1, 'compat', 'a', 'a')", [SID]).unwrap();
+    c.execute("UPDATE settings SET ai_default_provider = 'compat'", []).unwrap();
+    c.execute("INSERT INTO ai_conversations (session_id, provider, created_at, updated_at) VALUES (?1, 'khac', 'a', 'a')", [SID]).unwrap_err();
+    // xoa phien van xoa day chuyen (cascade con hoat dong sau khi dung lai bang)
+    c.execute("DELETE FROM sessions WHERE session_id = ?1", [SID]).unwrap();
+    assert_eq!(n("SELECT count(*) FROM ai_conversations"), 0);
+    drop(s);
+    std::fs::remove_dir_all(dir).ok();
 }

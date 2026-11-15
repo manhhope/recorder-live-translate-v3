@@ -13,7 +13,7 @@ export interface MockSeed {
   whatsNewSeen?: string | null;
   hasKey: boolean;
   consent: boolean;
-  aiKeys: { gemini: boolean; openai: boolean };
+  aiKeys: { gemini: boolean; openai: boolean; compat?: boolean };
   sessions: unknown[];
   details: Record<string, unknown>;
   // Lenh -> ma loi se bi tu choi (chuoi ngan nhu Rust). Doi duoc trong luc chay bang __rlt.fail.
@@ -67,7 +67,9 @@ export function installTauriMock(seed: MockSeed): void {
     aiKeys: { ...seed.aiKeys },
     ai: {
       default_provider: null, context_max_chars: 60000, context_max_turns: 10,
-      models: { gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b" },
+      models: { gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "" } as Record<string, string>,
+      compatUrl: "http://localhost:1234/v1",
+      compatModels: ["qwen2.5-7b-instruct", "llama-3.1-8b"] as string[],
       chips: { summary: null, explain: null, action_items: null },
     },
     usageCleared: false,
@@ -105,9 +107,11 @@ export function installTauriMock(seed: MockSeed): void {
     default_provider: state.ai.default_provider,
     context_max_chars: state.ai.context_max_chars,
     context_max_turns: state.ai.context_max_turns,
-    providers: (["gemini", "openai", "ollama"] as const).map(p => ({
-      provider: p, model_name: state.ai.models[p], has_key: p === "ollama" ? false : !!state.aiKeys[p],
-      base_url: p === "ollama" ? "http://localhost:11434" : null, consented: !!state.aiConsent[p],
+    providers: (["gemini", "openai", "ollama", "compat"] as const).map(p => ({
+      provider: p, model_name: state.ai.models[p], has_key: p === "ollama" ? false : !!(state.aiKeys as any)[p],
+      base_url: p === "ollama" ? "http://localhost:11434" : p === "compat" ? state.ai.compatUrl : null,
+      // Loopback (LM Studio tren may nay) coi nhu da dong y (AC-57.10); dia chi khac can dong y.
+      consented: p === "compat" ? (!!state.aiConsent[p] || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(state.ai.compatUrl)) : !!state.aiConsent[p],
     })),
     chip_prompts: (["summary", "explain", "action_items"] as const).map(c => ({ chip: c, prompt: state.ai.chips[c] })),
   });
@@ -291,12 +295,16 @@ export function installTauriMock(seed: MockSeed): void {
     ai_save_settings: (a) => {
       const i = a.input;
       state.ai.default_provider = i.default_provider; state.ai.context_max_chars = i.context_max_chars; state.ai.context_max_turns = i.context_max_turns;
-      for (const p of i.providers) if (p.model_name) state.ai.models[p.provider] = p.model_name;
+      for (const p of i.providers) {
+        if (p.model_name) state.ai.models[p.provider] = p.model_name;
+        if (p.provider === "compat" && p.base_url) state.ai.compatUrl = p.base_url;
+      }
       for (const c of i.chip_prompts) state.ai.chips[c.chip] = c.prompt;
     },
     ai_set_api_key: (a) => { state.aiKeys[a.provider] = true; },
     ai_clear_api_key: (a) => { state.aiKeys[a.provider] = false; },
     ai_test_connection: () => undefined,
+    ai_list_models: () => clone(state.ai.compatModels),
     "plugin:event|listen": (a) => { const id = state.listeners.length + 1; state.listeners.push({ event: a.event, id, cb: a.handler }); return id; },
     "plugin:window|start_dragging": () => undefined,
     "plugin:event|unlisten": (a) => { state.listeners = state.listeners.filter((l: any) => !(l.event === a.event && l.id === a.eventId)); },

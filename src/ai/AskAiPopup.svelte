@@ -30,7 +30,8 @@
   let scroller: HTMLElement | undefined = $state();
 
   const cur = $derived(settings?.providers.find(p => p.provider === provider) ?? null);
-  const ready = $derived(!!cur && cur.has_key);
+  // Endpoint tuong thich co khoa tuy chon: san sang khi da co ten model (AC-57.3, AC-57.5).
+  const ready = $derived(!!cur && (cur.has_key || (cur.provider === "compat" && !!cur.model_name.trim())));
   const needConsent = $derived(ready && !!cur && !cur.consented);
   const lang = $derived($locale === "pt-PT" ? "pt-PT" : "en");
   const lastFailed = $derived(msgs.length > 0 && msgs[msgs.length - 1].role === "assistant" && msgs[msgs.length - 1].status === "failed" ? msgs[msgs.length - 1] : null);
@@ -40,6 +41,7 @@
   const consentBody = $derived($_("ai.consent.body", { values: { provider: pname } }));
   function optLabel(p: api.ProviderSettings): string {
     const n = $_(api.providerLabelKey(p.provider));
+    if (p.provider === "compat") return p.model_name.trim() ? n : n + " · " + $_("ask.model.nomodel");
     return p.has_key ? n : n + " · " + $_("ask.model.nokey");
   }
 
@@ -165,11 +167,11 @@
           <div class="mt"><button type="button" class="btn sm ghost" onclick={() => copy(m.content)}>{$_("common.copy")}</button></div>
         {/if}
         {#if m.status === "failed"}
-          <div class="err" role="alert">{$_(api.errKey(m.error_code))} {$_("ask.err.keep")}</div>
+          <div class="err" role="alert">{$_(api.errKey(m.error_code, provider))} {$_("ask.err.keep")}</div>
         {/if}
       </div>
     {/each}
-    {#if errCode && !lastFailed}<div class="err" role="alert">{$_(api.errKey(errCode))}</div>{/if}
+    {#if errCode && !lastFailed}<div class="err" role="alert">{$_(api.errKey(errCode, provider))}</div>{/if}
   </div>
 
   <div class="chips" role="group" aria-label={$_("ai.chips")}>

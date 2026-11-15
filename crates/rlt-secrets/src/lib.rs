@@ -29,10 +29,12 @@ pub enum SecretKind {
     DeepL,
     /// Email tai khoan Google dang ket noi Drive (chi de hien thi o Cai dat; khong phai khoa).
     DriveAccountEmail,
+    /// Khoa (tuy chon) cua endpoint tuong thich OpenAI do nguoi dung chon, chi dung cho Hoi AI (US-57).
+    CompatAi,
 }
 
 impl SecretKind {
-    pub const ALL: [SecretKind; 8] = [
+    pub const ALL: [SecretKind; 9] = [
         SecretKind::Soniox,
         SecretKind::Gemini,
         SecretKind::OpenAi,
@@ -41,6 +43,7 @@ impl SecretKind {
         SecretKind::DriveClientSecret,
         SecretKind::DeepL,
         SecretKind::DriveAccountEmail,
+        SecretKind::CompatAi,
     ];
 
     /// Ten account trong Keychain.
@@ -54,6 +57,7 @@ impl SecretKind {
             SecretKind::DriveClientSecret => "drive-client-secret",
             SecretKind::DeepL => "deepl-api-key",
             SecretKind::DriveAccountEmail => "drive-account-email",
+            SecretKind::CompatAi => "compat-ai-key",
         }
     }
 }

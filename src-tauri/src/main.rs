@@ -77,6 +77,7 @@ fn main() {
             ai::ai_clear_api_key,
             ai::ai_accept_consent,
             ai::ai_test_connection,
+            ai::ai_list_models,
             ai::ai_list_conversations,
             ai::ai_list_messages,
             ai::ai_ask,

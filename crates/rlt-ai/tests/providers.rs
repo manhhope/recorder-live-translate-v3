@@ -1,5 +1,6 @@
 //! Test 3 nha cung cap + AiService bang may chu HTTP gia tren 127.0.0.1. Khong goi API that.
 
+use rlt_ai::settings::ProviderInput;
 use rlt_ai::*;
 use rlt_secrets::{InMemorySecretStore, SecretKind, SecretStore, SecretValue};
 use rlt_store::{NewCaptionLine, NewSession, Store};
@@ -629,4 +630,219 @@ async fn openai_va_ollama_cung_phan_loai_loi() {
     let f = fake(vec![Reply::Status(400, "{}".into())]).await;
     let (r, _) = run(ProviderKind::OpenAi, &f.url, Some(KEY), 5000).await;
     assert_eq!(r.unwrap_err().code(), "provider_rejected");
+}
+
+// ---------- US-57: endpoint tuong thich OpenAI (LM Studio) ----------
+
+fn ep_compat(url: &str) -> Endpoints {
+    Endpoints { compat: Some(url.into()), timeout: Duration::from_millis(800), ..Endpoints::default() }
+}
+
+fn compat_params(text: &str) -> AskParams {
+    AskParams { provider: Some(ProviderKind::Compat), ..params(None, Some(text), None) }
+}
+
+fn set_compat(svc: &AiService, model: &str, url: Option<&str>) {
+    let mut input = {
+        let s = svc.get_settings().unwrap();
+        AiSettingsInput {
+            default_provider: s.default_provider,
+            context_max_chars: s.context_max_chars,
+            context_max_turns: s.context_max_turns,
+            providers: vec![],
+            chip_prompts: s.chip_prompts,
+        }
+    };
+    input.providers.push(ProviderInput {
+        provider: ProviderKind::Compat,
+        model_name: Some(model.into()),
+        base_url: url.map(str::to_string),
+    });
+    svc.save_settings(&input).unwrap();
+}
+
+/// Mo phong LM Studio: goi bi cat giua dong, dong chu thich `: ping`, doan `role` rong, ket thuc `[DONE]`, khong co `usage`.
+fn lmstudio_stream() -> Reply {
+    Reply::Stream(
+        vec![
+            ": ping\n\ndata: {\"id\":\"c1\",\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"\"}}]}\n\n".into(),
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Xin ".into(),
+            "\"}}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"chao\"},\"finish_reason\":null}]}\n\n".into(),
+            "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n".into(),
+        ],
+        Duration::from_millis(30),
+    )
+}
+
+#[tokio::test]
+async fn compat_stream_kieu_lm_studio_khong_khoa_khong_gui_authorization() {
+    let f = fake(vec![lmstudio_stream()]).await;
+    let (r, d) = run(ProviderKind::Compat, &f.url, None, 5000).await;
+    assert!(r.is_ok(), "{r:?}");
+    assert_eq!(d.concat(), "Xin chao");
+    let rq = f.requests.lock().unwrap()[0].clone();
+    // URL goc khong co duong dan: tu them /v1, vi vay den /v1/chat/completions (AC-57.2).
+    assert!(rq.starts_with("POST /v1/chat/completions"), "{rq}");
+    assert!(!rq.to_ascii_lowercase().contains("authorization"), "AC-57.3: khoa trong thi khong co header");
+    assert!(rq.contains("\"stream\":true"));
+    assert!(!rq.contains("stream_options"), "may chu cu khong hieu stream_options");
+}
+
+#[tokio::test]
+async fn compat_base_da_co_v1_khong_bi_noi_doi_v1() {
+    let f = fake(vec![lmstudio_stream()]).await;
+    let (r, _) = run(ProviderKind::Compat, &format!("{}/v1/", f.url), None, 5000).await;
+    assert!(r.is_ok());
+    assert!(f.requests.lock().unwrap()[0].starts_with("POST /v1/chat/completions "), "{:?}", f.requests.lock().unwrap()[0]);
+}
+
+#[tokio::test]
+async fn compat_co_khoa_thi_gui_bearer() {
+    let f = fake(vec![lmstudio_stream()]).await;
+    let (r, _) = run(ProviderKind::Compat, &f.url, Some(KEY), 5000).await;
+    assert!(r.is_ok());
+    let rq = f.requests.lock().unwrap()[0].clone();
+    assert!(rq.to_ascii_lowercase().contains(&format!("authorization: bearer {}", KEY.to_ascii_lowercase())));
+    assert!(!rq.lines().next().unwrap().contains(KEY), "khoa khong duoc nam tren URL");
+}
+
+#[tokio::test]
+async fn compat_hoi_ai_qua_service_luu_bien_ban_khong_can_khoa_va_dong_y() {
+    let f = fake(vec![lmstudio_stream()]).await;
+    let (svc, _) = service(ep_compat(&f.url));
+    set_compat(&svc, "qwen2.5-7b-instruct", None);
+    let s = svc.get_settings().unwrap();
+    let c = s.providers.iter().find(|p| p.provider == ProviderKind::Compat).unwrap();
+    assert_eq!(c.base_url.as_deref(), Some("http://localhost:1234/v1"), "AC-57.2: mac dinh LM Studio");
+    assert!(!c.has_key && c.consented, "loopback coi nhu da dong y, khoa trong van hop le");
+    let out = ask(&svc, compat_params("tom tat")).await.unwrap();
+    assert_eq!(out.status, "completed", "{out:?}");
+    assert_eq!(out.text, "Xin chao");
+    let rq = f.requests.lock().unwrap()[0].clone();
+    assert!(rq.contains("\"model\":\"qwen2.5-7b-instruct\""));
+    assert!(!rq.to_ascii_lowercase().contains("authorization"));
+    assert_eq!(svc.list_conversations(SID).unwrap()[0].provider, "compat");
+}
+
+#[tokio::test]
+async fn compat_thieu_model_thi_khong_gui_gi_va_khong_ghi() {
+    let f = fake(vec![lmstudio_stream()]).await;
+    let (svc, _) = service(ep_compat(&f.url));
+    let e = ask(&svc, compat_params("x")).await.unwrap_err();
+    assert_eq!(e, AiError::InvalidInput("model_required".into()), "AC-57.5");
+    assert!(f.requests.lock().unwrap().is_empty());
+    assert!(svc.list_conversations(SID).unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn compat_may_chu_ngoai_loopback_can_dong_y_truoc() {
+    let f = fake(vec![lmstudio_stream()]).await;
+    let (svc, _) = service(ep_compat(&f.url));
+    set_compat(&svc, "m", Some("https://llm.example.com/v1"));
+    assert_eq!(ask(&svc, compat_params("x")).await.unwrap_err(), AiError::ConsentRequired, "AC-57.10");
+    assert!(f.requests.lock().unwrap().is_empty());
+    svc.accept_consent(ProviderKind::Compat).unwrap();
+    assert_eq!(ask(&svc, compat_params("x")).await.unwrap().status, "completed");
+}
+
+#[tokio::test]
+async fn compat_luu_url_hop_le_va_tu_choi_url_xau() {
+    let (svc, _) = service(Endpoints::default());
+    for ok in ["http://localhost:1234/v1", "http://192.168.1.20:1234/v1", "https://api.example.com/v1", "http://localhost:1234"] {
+        set_compat(&svc, "m", Some(ok));
+        let s = svc.get_settings().unwrap();
+        assert_eq!(s.providers.iter().find(|p| p.provider == ProviderKind::Compat).unwrap().base_url.as_deref(), Some(ok));
+    }
+    for bad in ["ftp://x/v1", "localhost:1234", "http://user:pw@localhost:1234/v1", "http://a b/v1", "http://localhost:1234/v1?key=abc"] {
+        let input = AiSettingsInput {
+            default_provider: None,
+            context_max_chars: 20_000,
+            context_max_turns: 6,
+            providers: vec![ProviderInput { provider: ProviderKind::Compat, model_name: None, base_url: Some(bad.into()) }],
+            chip_prompts: vec![],
+        };
+        assert_eq!(svc.save_settings(&input).unwrap_err(), AiError::InvalidInput("invalid_base_url".into()), "{bad}");
+    }
+}
+
+#[tokio::test]
+async fn compat_liet_ke_model_tu_get_models() {
+    let body = r#"{"object":"list","data":[{"id":"qwen2.5-7b-instruct","object":"model"},{"id":"llama-3.1-8b"},{"id":""},{"object":"model"}]}"#;
+    let f = fake(vec![Reply::Status(200, body.into())]).await;
+    let (svc, _) = service(ep_compat(&f.url));
+    assert_eq!(svc.list_models(ProviderKind::Compat).await.unwrap(), vec!["qwen2.5-7b-instruct", "llama-3.1-8b"]);
+    let rq = f.requests.lock().unwrap()[0].clone();
+    assert!(rq.starts_with("GET /v1/models "), "{rq}");
+    assert!(!rq.to_ascii_lowercase().contains("authorization"));
+}
+
+#[tokio::test]
+async fn compat_liet_ke_model_loi_thi_tra_ma_loi_de_giao_dien_cho_nhap_tay() {
+    let f = fake(vec![Reply::Status(404, "{}".into()), Reply::Status(200, "khong phai json".into()), Reply::Status(200, "{\"data\":[]}".into())]).await;
+    let (svc, _) = service(ep_compat(&f.url));
+    assert!(svc.list_models(ProviderKind::Compat).await.is_err(), "404");
+    assert!(matches!(svc.list_models(ProviderKind::Compat).await.unwrap_err(), AiError::BadResponse(_)), "json hong");
+    assert!(svc.list_models(ProviderKind::Compat).await.unwrap().is_empty(), "rong la hop le");
+    let (svc2, _) = service(ep_compat("http://127.0.0.1:1"));
+    assert_eq!(svc2.list_models(ProviderKind::Compat).await.unwrap_err().code(), "provider_unreachable", "AC-57.7");
+    assert_eq!(svc2.list_models(ProviderKind::OpenAi).await.unwrap_err(), AiError::InvalidInput("provider_has_no_model_list".into()));
+}
+
+#[tokio::test]
+async fn compat_danh_sach_model_gioi_han_200() {
+    let data: Vec<String> = (0..300).map(|i| format!("{{\"id\":\"m{i}\"}}")).collect();
+    let f = fake(vec![Reply::Status(200, format!("{{\"data\":[{}]}}", data.join(",")))]).await;
+    let (svc, _) = service(ep_compat(&f.url));
+    assert_eq!(svc.list_models(ProviderKind::Compat).await.unwrap().len(), 200);
+}
+
+#[tokio::test]
+async fn compat_khoa_chi_vao_kho_khoa_khong_vao_json_cai_dat_hay_file_db() {
+    let dir = std::env::temp_dir().join(format!("rlt-compat-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("app.db");
+    let st = Store::open(&path).unwrap();
+    st.create_session(&NewSession::new(SID, "Hop", "2026-11-14T10:00:00.000Z", "pt-PT")).unwrap();
+    let secrets = Arc::new(InMemorySecretStore::new());
+    let svc = AiService::with_endpoints(st, secrets.clone(), Endpoints::default());
+    set_compat(&svc, "m", Some("http://localhost:1234/v1"));
+    svc.set_api_key(ProviderKind::Compat, KEY).unwrap();
+    assert!(secrets.exists(SecretKind::CompatAi).unwrap(), "AC-57.8: nam o kho khoa");
+    let s = svc.get_settings().unwrap();
+    assert!(s.providers.iter().find(|p| p.provider == ProviderKind::Compat).unwrap().has_key);
+    assert!(!serde_json::to_string(&s).unwrap().contains(KEY));
+    drop(svc);
+    for name in ["app.db", "app.db-wal"] {
+        if let Ok(bytes) = std::fs::read(dir.join(name)) {
+            assert!(!String::from_utf8_lossy(&bytes).contains(KEY), "khoa lot vao {name}");
+        }
+    }
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[tokio::test]
+async fn compat_loi_khong_chua_khoa_trong_thong_bao_hay_debug() {
+    let f = fake(vec![Reply::Status(401, format!("{{\"error\":\"bad key {KEY}\"}}"))]).await;
+    let (r, _) = run(ProviderKind::Compat, &f.url, Some(KEY), 2000).await;
+    let e = r.unwrap_err();
+    assert!(!format!("{e} {e:?}").contains(KEY), "AC-57.9");
+    let cfg = ProviderConfig::new("http://localhost:1234/v1", Some(SecretValue::new(KEY)));
+    assert!(!format!("{cfg:?}").contains(KEY));
+}
+
+#[tokio::test]
+async fn compat_khong_dung_cho_ocr_anh() {
+    let (svc, _) = service(Endpoints::default());
+    let mut input = AiSettingsInput {
+        default_provider: Some(ProviderKind::Compat),
+        context_max_chars: 20_000,
+        context_max_turns: 6,
+        providers: vec![],
+        chip_prompts: vec![],
+    };
+    svc.save_settings(&input).unwrap();
+    assert_eq!(svc.ocr_target().unwrap_err(), AiError::NotConfigured, "US-57 chi cho Hoi AI");
+    input.default_provider = Some(ProviderKind::Ollama);
+    svc.save_settings(&input).unwrap();
+    assert!(svc.ocr_target().is_ok(), "Ollama van dung duoc cho OCR nhu truoc");
 }

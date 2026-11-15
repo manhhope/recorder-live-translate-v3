@@ -27,6 +27,7 @@ pub const APP_COMMANDS: &[&str] = &[
     "ai_clear_api_key",
     "ai_accept_consent",
     "ai_test_connection",
+    "ai_list_models",
     "ai_list_conversations",
     "ai_list_messages",
     "ai_ask",

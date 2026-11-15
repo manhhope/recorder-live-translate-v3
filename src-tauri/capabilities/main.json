@@ -48,6 +48,7 @@
     "allow-ai-clear-api-key",
     "allow-ai-accept-consent",
     "allow-ai-test-connection",
+    "allow-ai-list-models",
     "allow-ai-list-conversations",
     "allow-ai-list-messages",
     "allow-ai-ask",

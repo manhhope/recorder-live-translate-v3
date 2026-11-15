@@ -20,6 +20,7 @@ pub const AI_COMMANDS: &[&str] = &[
     "ai_clear_api_key",
     "ai_accept_consent",
     "ai_test_connection",
+    "ai_list_models",
     "ai_list_conversations",
     "ai_list_messages",
     "ai_ask",
@@ -96,6 +97,13 @@ pub async fn ai_accept_consent(s: State<'_, AiState>, provider: ProviderKind) ->
 pub async fn ai_test_connection(s: State<'_, AiState>, provider: ProviderKind) -> Result<(), String> {
     let svc = s.svc.clone();
     code(svc.test_connection(provider).await)
+}
+
+/// Danh sach model cua endpoint tuong thich OpenAI (US-57). Chi tra ten model, khong tra khoa.
+#[tauri::command]
+pub async fn ai_list_models(s: State<'_, AiState>, provider: ProviderKind) -> Result<Vec<String>, String> {
+    let svc = s.svc.clone();
+    code(svc.list_models(provider).await)
 }
 
 #[tauri::command]
