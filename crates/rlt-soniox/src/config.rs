@@ -6,6 +6,15 @@ pub const SAMPLE_RATE: u32 = 16_000;
 /// Soniox gioi han `context` khoang 10.000 ky tu (tai lieu Soniox, muc Context). Vuot thi khong gui.
 pub const MAX_CONTEXT_CHARS: usize = 10_000;
 
+/// Doi ma ngon ngu cua app (BCP-47: `pt-PT`, `zh-Hans`, `zh-TW`...) thanh ma Soniox chap nhan.
+/// Tai lieu Soniox (Supported languages) chi liet ke ma ISO 639-1 hai chu cai (`pt`, `zh`, `en`...),
+/// va `language_hints` sai ma bi tra 400 "Invalid language hint." Chi lay tieu chuan chinh, viet thuong.
+/// Chi dung khi gui Soniox; giao dien va DB van giu ma goc (vd `pt-PT`).
+pub fn soniox_code(code: &str) -> String {
+    let primary = code.trim().split(['-', '_']).next().unwrap_or("");
+    primary.to_ascii_lowercase()
+}
+
 /// Cấu hình luồng (không chứa khoá API).
 #[derive(Clone, Debug)]
 pub struct SonioxConfig {
@@ -47,14 +56,16 @@ impl SonioxConfig {
         m.insert("audio_format".into(), json!("pcm_s16le"));
         m.insert("sample_rate".into(), json!(SAMPLE_RATE));
         m.insert("num_channels".into(), json!(1));
-        if !self.listen_languages.is_empty() {
-            let mut hints = vec![self.target_language.clone()];
-            hints.extend(
-                self.listen_languages
-                    .iter()
-                    .filter(|l| **l != self.target_language)
-                    .cloned(),
-            );
+        // `language_hints` chi la goi y cho ngon ngu NGHE; ngon ngu dich khong phai ngon ngu duoc noi nen khong dua vao.
+        // Ma da chuan hoa, bo trung (Soniox bao loi "Language hints must be unique"), bo ma rong.
+        let mut hints: Vec<String> = Vec::new();
+        for l in &self.listen_languages {
+            let c = soniox_code(l);
+            if !c.is_empty() && !hints.contains(&c) {
+                hints.push(c);
+            }
+        }
+        if !hints.is_empty() {
             m.insert("language_hints".into(), json!(hints));
         }
         m.insert("enable_language_identification".into(), json!(true));
@@ -65,7 +76,7 @@ impl SonioxConfig {
         );
         m.insert(
             "translation".into(),
-            json!({"type": "one_way", "target_language": self.target_language}),
+            json!({"type": "one_way", "target_language": soniox_code(&self.target_language)}),
         );
         if let Some(ctx) = &self.context {
             m.insert("context".into(), ctx.clone());
@@ -81,15 +92,57 @@ mod tests {
     #[test]
     fn start_message_has_no_api_key_and_uses_v6_pcm16k() {
         let mut c = SonioxConfig::new("pt");
-        c.listen_languages = vec!["en".into(), "pt".into()];
+        c.listen_languages = vec!["en".into()];
         let v: Value = serde_json::from_str(&c.start_message()).unwrap();
         assert!(v.get("api_key").is_none());
         assert_eq!(v["model"], "stt-rt-v6");
         assert_eq!(v["audio_format"], "pcm_s16le");
         assert_eq!(v["sample_rate"], 16000);
         assert_eq!(v["num_channels"], 1);
-        assert_eq!(v["language_hints"], json!(["pt", "en"]));
+        assert_eq!(v["language_hints"], json!(["en"]));
         assert_eq!(v["translation"]["type"], "one_way");
+    }
+
+    fn msg(target: &str, listen: &[&str]) -> Value {
+        let mut c = SonioxConfig::new(target);
+        c.listen_languages = listen.iter().map(|s| s.to_string()).collect();
+        serde_json::from_str(&c.start_message()).unwrap()
+    }
+
+    #[test]
+    fn target_pt_pt_is_normalised_and_not_in_hints() {
+        // Loi that tren Windows: target pt-PT, nghe ["en"] -> 400 "Invalid language hint."
+        let v = msg("pt-PT", &["en"]);
+        assert_eq!(v["translation"]["target_language"], "pt");
+        assert_eq!(v["language_hints"], json!(["en"]));
+    }
+
+    #[test]
+    fn target_en_vi_zh_hans() {
+        let v = msg("en", &["vi"]);
+        assert_eq!(v["translation"]["target_language"], "en");
+        assert_eq!(v["language_hints"], json!(["vi"]));
+        let v = msg("vi", &["en", "pt-PT"]);
+        assert_eq!(v["translation"]["target_language"], "vi");
+        assert_eq!(v["language_hints"], json!(["en", "pt"]));
+        let v = msg("zh-Hans", &["en"]);
+        assert_eq!(v["translation"]["target_language"], "zh");
+        assert_eq!(v["language_hints"], json!(["en"]));
+    }
+
+    #[test]
+    fn listen_codes_are_normalised_and_deduplicated() {
+        let v = msg("vi", &["zh-Hans", "zh-Hant", "ZH", "en_US", ""]);
+        assert_eq!(v["language_hints"], json!(["zh", "en"]));
+        // Chi con ma rong -> bo khoa.
+        assert!(msg("vi", &[""]).get("language_hints").is_none());
+    }
+
+    #[test]
+    fn soniox_code_keeps_primary_subtag_only() {
+        for (i, o) in [("pt-PT", "pt"), ("pt-BR", "pt"), ("zh-Hans", "zh"), ("zh_TW", "zh"), ("en", "en"), ("VI", "vi"), (" ja ", "ja")] {
+            assert_eq!(soniox_code(i), o);
+        }
     }
 
     #[test]
