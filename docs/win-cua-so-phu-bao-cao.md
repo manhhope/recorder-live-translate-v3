@@ -247,3 +247,108 @@ Ghi chú lệnh:
 - Không chạy gì trên Windows: không có số đo thời gian thật, không biết bản này hết treo hay không.
 - Có thể bản này vẫn treo; mục đích của nó là cho bằng chứng, không phải bản sửa.
 - Chưa có cách lấy stack từng luồng khi treo (cần minidump riêng).
+
+## 7. Lượt bổ sung (commit `ca39b51`): hai sửa mã thật, vẫn chưa thực thi trên Windows
+
+Lượt nghiệm thu trước chấm chưa đạt vì chỉ có nhật ký, không có sửa mã. Lượt này thêm hai sửa dựa trên hai nghi vấn đã nêu ở mục 1 (C và B). **Không có sửa nào được chứng minh trị treo; hiệu quả trên Windows: chưa thực thi trên Windows.** Điều đã chứng minh trên macOS và xwin chỉ là: biên dịch, clippy, test đạt.
+
+1. **Hoãn `quick::setup` (nghi vấn C).** Trước: `quick::prewarm` dựng WebView2 thứ hai và `win::monitor::start` chờ tới 2 s ngay trong hook `setup`, lúc vòng lặp sự kiện chưa chạy. Nay (`src-tauri/src/main.rs`): chờ 1500 ms trên tokio rồi `run_on_main_thread(quick::setup)`. Mốc `quick_setup_begin/done` vẫn ghi vào `diag.log` nên so được thời điểm. Lý do suy luận: mọi cửa sổ phụ cùng là WebView2 thứ hai trở đi, và dựng chúng khi chưa có vòng lặp là tình huống Tauri/wry nhạy trên Windows. Chưa kiểm.
+2. **Đưa lệnh đồng bộ chạm kho khoá/SQLite ra khỏi luồng UI (nghi vấn B).** `ai_get_settings`, `ai_save_settings`, `ai_set_api_key`, `ai_clear_api_key`, `ai_accept_consent`, `ai_list_conversations`, `ai_list_messages`, `ai_clear_history`, `ai_delete_conversation`, `deepl_save_key`, `deepl_clear_key` đổi `pub fn` thành `pub async fn` (cùng kiểu trả về, cùng ACL). Đây chính là các lệnh màn Hỏi AI gọi lúc mở, nên nếu Credential Manager hoặc khoá SQLite chặn thì không còn kéo theo mọi cửa sổ. Chưa kiểm; 4 kết nối SQLite riêng tới cùng `rlt.db` và `keyring` trên Windows vẫn là điểm nghi.
+
+Giữ nguyên các sửa `async` cho `subtitle_open`, `capture_begin`, `capture_commit` từ `ac34bc5`.
+
+### Output thật (lượt này, HEAD `ca39b51`, macOS arm64 + cargo-xwin)
+```
+$ cargo test --workspace   (rút gọn: dòng "test result" và lỗi)
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.17s
+test capture::overlay::tests::empty_and_tiny_selection_are_coded_errors ... ok
+test capture::overlay::tests::every_error_code_has_a_message_key ... ok
+test capture::overlay::tests::failed_registration_leaves_scope_closed_so_overlay_can_still_use_other_exits ... ok
+test capture::overlay::tests::missing_permission_or_no_monitor_is_a_coded_error_not_a_panic ... ok
+test capture::overlay::tests::a_rust_panic_inside_the_capture_step_becomes_an_error ... ok
+test capture::persist::tests::same_offset_and_pixels_twice_is_a_db_error_and_leaves_no_orphan_file_count_change ... ok
+test session::service::tests::soniox_errors_map_to_codes ... ok
+test session::service::tests::transient_errors_clear_but_persistent_ones_stay ... ok
+test session::usage_soniox::tests::api_errors_fall_back_with_matching_reason_and_never_leak_key ... ok
+test shell::shortcuts::tests::enabling_again_retries_a_key_that_failed_at_startup ... ok
+test result: ok. 200 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.55s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test source_start_failure_marks_session_interrupted_and_returns_error ... ok
+test error_408_reconnects_and_session_keeps_recording ... ok
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+test result: ok. 33 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.95s
+test network_failure_is_network_error ... ok
+test repeated_cursor_is_an_error_not_an_infinite_loop ... ok
+test http_errors_map_to_stable_codes ... ok
+test key_never_leaks_into_errors_or_results ... ok
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+$ cargo clippy --workspace --all-targets -- -D warnings
+    Checking rlt-features v3.0.2 (/private/tmp/rlt-win-fix/crates/rlt-features)
+    Checking rlt-ai v3.0.2 (/private/tmp/rlt-win-fix/crates/rlt-ai)
+    Checking rlt-core v3.0.2 (/private/tmp/rlt-win-fix/crates/rlt-core)
+    Checking rlt-quick v3.0.2 (/private/tmp/rlt-win-fix/crates/rlt-quick)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.48s
+
+$ cargo xwin clippy --target x86_64-pc-windows-msvc --workspace --all-targets -- -D warnings ... (và các lệnh JS)
+    Checking rlt-soniox v3.0.2 (/private/tmp/rlt-win-fix/crates/rlt-soniox)
+    Checking rlt-features v3.0.2 (/private/tmp/rlt-win-fix/crates/rlt-features)
+    Checking rlt-ai v3.0.2 (/private/tmp/rlt-win-fix/crates/rlt-ai)
+    Checking rlt-core v3.0.2 (/private/tmp/rlt-win-fix/crates/rlt-core)
+    Checking rlt-quick v3.0.2 (/private/tmp/rlt-win-fix/crates/rlt-quick)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.25s
+---JS
+## npm run check:caps
+OK: 74 lenh goi tu api.ts, 74 nam trong manifest va deu duoc cap quyen
+## npm run test:i18n
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 399.864
+## npm run scan:i18n
+Quet 68 tep trong src/ (bo qua locales, i18n)
+So chuoi cung tim thay: 0
+## npm run test:api
+ℹ pass 6
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 132.491667
+## npm run test:unit
+ℹ pass 74
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 198.769083
+## pnpm check
+(eval):1: command not found: pnpm
+## playwright
+  ✓  206 [chromium] › test/e2e/whats-new.spec.ts:104:3 › mo lai thu cong tu Cai dat > About pt-PT (251ms)
+  ✓  208 [chromium] › test/e2e/whats-new.spec.ts:118:3 › cua so nho 720x520: noi dung cuon, Got it va X khong bi cat pt-PT (174ms)
+  ✓  207 [chromium] › test/e2e/whats-new.spec.ts:118:3 › cua so nho 720x520: noi dung cuon, Got it va X khong bi cat en (175ms)
+  ✓  203 [chromium] › test/e2e/whats-new.spec.ts:79:1 › lan mo dau tien: dong bang Esc cung ghi nho; dong y/xin quyen dang mo thi doi xong moi hien (1.9s)
+  ✓  209 [chromium-win] › test/e2e/windows.spec.ts:7:3 › Windows › thanh ben hien Ctrl+Shift+A, khong con ky hieu Mac (185ms)
+  ✓  210 [chromium-win] › test/e2e/windows.spec.ts:12:3 › Windows › khong chuoi nao tren man Ghi con ⌘ hay macOS (161ms)
+
+  210 passed (25.0s)
+
+```
+`pnpm check` không tồn tại: repo dùng npm và không có script `check`; máy này cũng không cài pnpm (`command not found: pnpm`). Các lệnh tương đương đã chạy ở trên: `check:caps`, `test:i18n`, `scan:i18n`, `test:api`, `test:unit`, Playwright. Không có bước `svelte-check`/`tsc` riêng (repo không khai script).
+
+### Gói mới
+`~/Desktop/Recorder-Live-Translate-win-fix3-ca39b51.zip` (7.209.838 byte), sha256 `f64da272a524117a68aacbfa57930e313298bb3f825fa3d92ed0fd8eb0951f9f` (file `.zip.sha256` cạnh nó). Chứa `setup.exe` (NSIS, `cargo tauri build --runner cargo-xwin`, sha256 `16381db8b9354bb6caf267498155438626eefdef0251e0edf56104fb71f2dabd`, chưa ký số) và `README.txt`. Gói cũ `...-8ae5424.zip` đã lỗi thời.
+
+### Việc chủ cần làm (bổ sung, chưa thực thi trên Windows)
+Chạy bản `ca39b51`; nếu cửa sổ vẫn treo thì gửi `diag.log` như mục 5. Nếu hết treo, so mốc `quick_setup_begin` (muộn hơn `setup_done` ~1,5 s) và `ui_stall` để biết sửa nào có tác dụng.
