@@ -6,6 +6,7 @@
 //! chu). Chua co khoa thi bao 'chua cau hinh DeepL' (`TranslateError::NotConfigured`), khong gia vo dich.
 
 pub mod deepl;
+pub mod win;
 #[cfg(target_os = "macos")]
 pub mod ax;
 #[cfg(target_os = "macos")]
@@ -327,7 +328,12 @@ fn ax_trusted() -> bool {
     {
         ax::is_trusted()
     }
-    #[cfg(not(target_os = "macos"))]
+    // Windows khong co quyen Tro nang rieng cho app desktop (UI Automation, SendInput dung duoc ngay).
+    #[cfg(windows)]
+    {
+        true
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
     {
         false
     }
@@ -384,7 +390,17 @@ fn apply_toolbar_monitor(app: &AppHandle, on: bool) {
             }
         });
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    {
+        // Hook chuot co vong lap tin nhan rieng nen khong can luong chinh.
+        let _ = app;
+        if on {
+            win::monitor::start(app.clone());
+        } else {
+            win::monitor::stop();
+        }
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
     let _ = (app, on);
 }
 
@@ -418,7 +434,13 @@ pub fn toggle(app: &AppHandle) {
             let _ = unsafe { panel::show_key(p) };
         }
         #[cfg(not(target_os = "macos"))]
-        let _ = w.show();
+        {
+            let _ = w.show();
+            // Quick Translate la cua so go chu: tren Windows phai duoc kich hoat de nhan phim. Phim tat toan cuc vua
+            // duoc nhan nen he dieu hanh cho phep doi tieu diem (CHUA DO tren Win 11, xem checklist).
+            #[cfg(windows)]
+            let _ = w.set_focus();
+        }
         let _ = a.emit_to(WINDOW, EV_OPEN, ());
     });
 }
@@ -433,33 +455,46 @@ pub fn inline_run(app: &AppHandle) {
     #[cfg(target_os = "macos")]
     {
         let app = app.clone();
-        std::thread::spawn(move || {
-            use rlt_quick::clipboard::Timing;
-            use rlt_quick::inline::{capture_selection, paste_back, PasteOutcome};
-            let timing = Timing::default();
-            let (cb, keys, axr) = (pasteboard::SystemPasteboard, keys::CgKeys, ax::AxSelection);
-            notice(&app, "working", "quick.inline.working");
-            let cap = match capture_selection(&axr, &cb, &keys, &timing) {
-                Ok(c) => c,
-                Err(e) => return notice(&app, "error", e.i18n_key()),
-            };
-            let st = app.state::<QuickState>();
-            let (src, tgt) = {
-                let p = st.prefs.lock().unwrap_or_else(|e| e.into_inner());
-                (p.source_lang.clone(), p.target_lang.clone())
-            };
-            match st.translate_blocking(Origin::Inline, TranslateRequest::new(cap.text, src.as_deref(), &tgt)) {
-                Ok(t) => match paste_back(&axr, &cb, &keys, &timing, &t.text) {
-                    PasteOutcome::Pasted => notice(&app, "done", "quick.inline.done"),
-                    PasteOutcome::CopiedInstead => notice(&app, "copied", "quick.inline.copied"),
-                    PasteOutcome::Refused => notice(&app, "error", "quick.inline.err.clipboardlarge"),
-                },
-                Err(e) => notice(&app, "error", e.i18n_key()),
-            }
-        });
+        std::thread::spawn(move || inline_flow(&app, &ax::AxSelection, &pasteboard::SystemPasteboard, &keys::CgKeys));
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    {
+        let app = app.clone();
+        std::thread::spawn(move || inline_flow(&app, &win::uia::UiaSelection, &win::clip::SystemClipboard, &win::keys::SendKeys));
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
     notice(app, "error", "quick.inline.err.accessibility");
+}
+
+/// Luong Inline dung chung: doc vung chon, dich, dan lai. Cac bo doc/clipboard/phim la adapter cua tung he dieu hanh.
+#[cfg(any(target_os = "macos", windows))]
+fn inline_flow(
+    app: &AppHandle,
+    axr: &dyn rlt_quick::inline::SelectionReader,
+    cb: &dyn rlt_quick::clipboard::ClipboardBackend,
+    keys: &dyn rlt_quick::clipboard::KeyInjector,
+) {
+    use rlt_quick::clipboard::Timing;
+    use rlt_quick::inline::{capture_selection, paste_back, PasteOutcome};
+    let timing = Timing::default();
+    notice(app, "working", "quick.inline.working");
+    let cap = match capture_selection(axr, cb, keys, &timing) {
+        Ok(c) => c,
+        Err(e) => return notice(app, "error", e.i18n_key()),
+    };
+    let st = app.state::<QuickState>();
+    let (src, tgt) = {
+        let p = st.prefs.lock().unwrap_or_else(|e| e.into_inner());
+        (p.source_lang.clone(), p.target_lang.clone())
+    };
+    match st.translate_blocking(Origin::Inline, TranslateRequest::new(cap.text, src.as_deref(), &tgt)) {
+        Ok(t) => match paste_back(axr, cb, keys, &timing, &t.text) {
+            PasteOutcome::Pasted => notice(app, "done", "quick.inline.done"),
+            PasteOutcome::CopiedInstead => notice(app, "copied", "quick.inline.copied"),
+            PasteOutcome::Refused => notice(app, "error", "quick.inline.err.clipboardlarge"),
+        },
+        Err(e) => notice(app, "error", e.i18n_key()),
+    }
 }
 
 /// Goi tu monitor khi vua tha chuot: quyet dinh co hien toolbar khong (US-41).
@@ -480,10 +515,36 @@ pub fn on_selection_candidate(app: &AppHandle) {
     }
 }
 
+/// Windows: cung quyet dinh nhu macOS nhung "bundle id" la ten exe cua cua so truoc, va bo qua lan nha chuot tren cua
+/// so cua chinh app (bam nut toolbar khong duoc lam toolbar tu an).
+#[cfg(windows)]
+pub fn on_selection_candidate(app: &AppHandle) {
+    use rlt_quick::inline::{AxRead, SelectionReader};
+    use rlt_quick::toolbar::{decide, Decision, SelectionContext};
+    let Some(st) = app.try_state::<QuickState>() else { return };
+    if win::proc::cursor_over_own_window() {
+        return;
+    }
+    let mut settings = st.prefs.lock().map(|p| p.toolbar()).unwrap_or_default();
+    settings.excluded_apps = win::keys_fmt::normalize_excluded(&settings.excluded_apps);
+    // MOT lan doc: o mat khau thi khong co chu nao duoc tra ve.
+    let (secure, chars) = match win::uia::UiaSelection.read_selection() {
+        AxRead::SecureField => (true, 0),
+        AxRead::Text(t) => (false, t.chars().count()),
+        _ => (false, 0),
+    };
+    let ctx = SelectionContext { bundle_id: win::proc::foreground_exe(), secure_field: secure, selected_chars: chars };
+    if decide(&settings, true, &ctx) == Decision::Show {
+        show_toolbar(app);
+    } else {
+        hide_toolbar(app);
+    }
+}
+
 static TOOLBAR_GEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Hien toolbar gan con tro; tu an sau `AUTO_HIDE` (5 giay) neu khong co lan hien moi hon.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn show_toolbar(app: &AppHandle) {
     use std::sync::atomic::Ordering;
     let gen = TOOLBAR_GEN.fetch_add(1, Ordering::SeqCst) + 1;
@@ -504,16 +565,30 @@ fn show_toolbar(app: &AppHandle) {
                     .visible(false)
                     .build();
                 let Ok(w) = built else { return };
+                #[cfg(target_os = "macos")]
                 if let Ok(p) = w.ns_window() {
                     // Thanh nho khong bao gio nhan phim: dung lop panel khong kich hoat cua phu de.
                     let _ = unsafe { rlt_platform::panel::apply(p, rlt_platform::panel::PanelKind::Subtitle) };
+                }
+                #[cfg(windows)]
+                if let Ok(h) = w.hwnd() {
+                    // SAFETY: HWND vua tao, luong chinh.
+                    let _ = unsafe { rlt_platform::panel::apply(h.0 as *mut std::ffi::c_void, rlt_platform::panel::PanelKind::Subtitle) };
                 }
                 w
             }
         };
         if let Some(p) = pos {
-            let _ = w.set_position(tauri::PhysicalPosition::new(p.x as i32, (p.y as i32).saturating_sub(60)));
+            // 60 diem logic phia tren con tro (tren Windows toa do la pixel vat ly nen nhan he so DPI).
+            let up = (60.0 * w.scale_factor().unwrap_or(1.0)) as i32;
+            let _ = w.set_position(tauri::PhysicalPosition::new(p.x as i32, (p.y as i32).saturating_sub(up)));
         }
+        #[cfg(windows)]
+        if let Ok(h) = w.hwnd() {
+            // Hien KHONG kich hoat (SWP_SHOWWINDOW | SWP_NOACTIVATE) de khong cuop tieu diem cua app dang boi chon.
+            let _ = unsafe { rlt_platform::panel::show_key(h.0 as *mut std::ffi::c_void, rlt_platform::panel::PanelKind::Subtitle) };
+        }
+        #[cfg(not(windows))]
         let _ = w.show();
     });
     let a2 = app.clone();
@@ -525,7 +600,7 @@ fn show_toolbar(app: &AppHandle) {
     });
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn hide_toolbar(app: &AppHandle) {
     let a = app.clone();
     let _ = app.run_on_main_thread(move || {
