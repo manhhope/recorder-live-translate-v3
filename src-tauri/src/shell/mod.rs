@@ -327,7 +327,7 @@ pub fn setup(app: &AppHandle, data_dir: PathBuf) -> Result<(), Box<dyn std::erro
     #[cfg(any(windows, target_os = "linux"))]
     if !app.deep_link().is_registered("rlt").unwrap_or(false) {
         if let Err(e) = app.deep_link().register_all() {
-            tracing::warn!("deep_link register_all: {e}");
+            eprintln!("deep_link register_all: {e}");
         }
     }
     if let Ok(Some(urls)) = app.deep_link().get_current() {
