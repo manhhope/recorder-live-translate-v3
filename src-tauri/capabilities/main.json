@@ -9,6 +9,7 @@
   "permissions": [
     "core:default",
     "allow-core-version",
+    "allow-diag-open-logs",
     "allow-quick-ax-status",
     "allow-deepl-save-key",
     "allow-deepl-has-key",

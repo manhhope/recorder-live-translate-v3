@@ -6,6 +6,7 @@
 /// `subtitle_*`: cửa sổ phụ đề (M2-07).
 pub const APP_COMMANDS: &[&str] = &[
     "core_version",
+    "diag_open_logs",
     "quick_translate",
     "quick_cancel",
     "quick_history",

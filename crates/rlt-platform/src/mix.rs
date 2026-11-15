@@ -145,6 +145,8 @@ impl AudioSource for MixedSource {
             .name("rlt-mix".into())
             .spawn(move || {
                 let (mut qa, mut qb): (VecDeque<PcmFrame>, VecDeque<PcmFrame>) = (VecDeque::new(), VecDeque::new());
+                let t0 = std::time::Instant::now();
+                let (mut first, mut solo_logged) = ([false; 2], [false; 2]);
                 loop {
                     let stopping = stop2.load(Ordering::SeqCst);
                     for (rx, q) in [(&mut ra, &mut qa), (&mut rb, &mut qb)] {
@@ -155,6 +157,12 @@ impl AudioSource for MixedSource {
                             }
                         });
                     }
+                    for (i, q) in [&qa, &qb].into_iter().enumerate() {
+                        if !first[i] && !q.is_empty() {
+                            first[i] = true;
+                            crate::diag_hook::emit("mix", &format!("first_frame side={} at_ms={}", ["system", "mic"][i], t0.elapsed().as_millis()));
+                        }
+                    }
                     while let (Some(x), Some(y)) = (qa.front(), qb.front()) {
                         let m = mix_frames(x, y);
                         qa.pop_front();
@@ -162,7 +170,12 @@ impl AudioSource for MixedSource {
                         let _ = sink.send(AudioMessage::Frame(m));
                     }
                     // Một nguồn im: đẩy nguồn còn lại một mình khi đã chờ đủ lâu (hoặc khi dừng).
-                    for q in [&mut qa, &mut qb] {
+                    for (i, q) in [&mut qa, &mut qb].into_iter().enumerate() {
+                        if q.len() > SOLO_AFTER_FRAMES && !solo_logged[i] {
+                            solo_logged[i] = true;
+                            // Mot nguon khong phat khung trong ~300 ms: nguon con lai bi day mot minh (nghi mic/system im).
+                            crate::diag_hook::emit("mix", &format!("solo side={} at_ms={} other_first_frame={}", ["system", "mic"][i], t0.elapsed().as_millis(), first[1 - i]));
+                        }
                         while q.len() > SOLO_AFTER_FRAMES || (stopping && !q.is_empty()) {
                             if let Some(f) = q.pop_front() {
                                 let _ = sink.send(AudioMessage::Frame(f));

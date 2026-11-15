@@ -90,11 +90,11 @@ test.describe("Trang thai loi o Phien va Muc dung", () => {
     await expect(page.getByRole("heading", { name: rlt.t("set.tab.usagelogs") })).toBeVisible();
   });
 
-  test("Thu ket noi Soniox: khoa sai, het quota, mat mang", async ({ page, rlt }) => {
+  test("Thu ket noi Soniox: khoa sai, bi tu choi (khong phai khoa), het quota, mat mang", async ({ page, rlt }) => {
     await rlt.open();
     await rlt.nav("nav.settings").click();
     await page.getByRole("button", { name: rlt.t("set.tab.sonioxusage") }).click();
-    for (const [code, key] of [["auth", "err.auth"], ["quota", "err.quota"], ["network", "err.network"]] as const) {
+    for (const [code, key] of [["auth", "err.auth"], ["rejected", "err.rejected"], ["quota", "err.quota"], ["network", "err.network"]] as const) {
       await rlt.setFail("soniox_test_connection", code);
       await page.getByRole("button", { name: rlt.t("set.test") }).click();
       await expect(page.locator(".bd.rec:not([data-testid])")).toContainText(rlt.t(key));

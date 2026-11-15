@@ -101,8 +101,14 @@ fn close_overlays(app: &AppHandle) {
 }
 
 /// Mở lớp phủ chọn vùng trên MỌI màn. Trả mã lỗi dạng chuỗi (giao diện dịch): `no_permission`, `no_monitor`.
+/// `async` ON PURPOSE (nghi van treo A, xem `subtitle_open`): khong tao WebView2 ngay tren luong UI ben trong tran IPC.
 #[tauri::command]
-pub fn capture_begin(app: AppHandle) -> Result<(), String> {
+pub async fn capture_begin(app: AppHandle) -> Result<(), String> {
+    capture_begin_now(app)
+}
+
+/// Ban dong bo cho noi da o san tren luong UI (phim tat, tray).
+pub fn capture_begin_now(app: AppHandle) -> Result<(), String> {
     // Windows không có quyền ghi màn hình riêng cho app desktop: GDI luôn chụp được (trừ nội dung DRM).
     #[cfg(target_os = "macos")]
     let allowed = sck::has_permission();

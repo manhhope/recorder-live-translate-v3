@@ -28,6 +28,26 @@ pub fn open_uri(uri: &str) -> bool {
     }
 }
 
+/// Mở một THƯ MỤC trong trình quản lý tệp (Explorer / Finder). Đường dẫn do app tự dựng (không phải đầu vào
+/// của người dùng hay của giao diện) và phải là thư mục đang tồn tại.
+pub fn open_dir(dir: &std::path::Path) -> bool {
+    if !dir.is_dir() {
+        return false;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("/usr/bin/open").arg(dir).status().map(|s| s.success()).unwrap_or(false)
+    }
+    #[cfg(windows)]
+    {
+        shell_open(&dir.to_string_lossy())
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
+    {
+        false
+    }
+}
+
 #[cfg(windows)]
 fn shell_open(uri: &str) -> bool {
     #[link(name = "shell32")]
@@ -60,6 +80,12 @@ mod tests {
     fn only_own_platform_settings_scheme_is_allowed() {
         assert_eq!(is_allowed_uri("ms-settings:privacy-microphone"), cfg!(windows));
         assert_eq!(is_allowed_uri("x-apple.systempreferences:com.apple.preference.security"), !cfg!(windows));
+    }
+
+    #[test]
+    fn open_dir_rejects_missing_or_file_paths() {
+        assert!(!open_dir(std::path::Path::new("/khong/ton/tai/rlt-diag")));
+        assert!(!open_dir(std::path::Path::new(file!())));
     }
 
     #[test]

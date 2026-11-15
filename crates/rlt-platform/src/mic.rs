@@ -81,16 +81,25 @@ fn build_stream(sink: AudioSink) -> Result<cpal::Stream, AudioError> {
     let host = cpal::default_host();
     let device = host
         .default_input_device()
-        .ok_or_else(|| AudioError::Device("khong co micro mac dinh".into()))?;
+        .ok_or_else(|| {
+            crate::diag_hook::emit("mic", "start_fail reason=no_default_input_device");
+            AudioError::Device("khong co micro mac dinh".into())
+        })?;
     // Mac khong co dau vao (vd Mac mini khong gan micro): CoreAudio tra OSStatus 560947818 ("!obj") o buoc nay.
     let supported = device
         .default_input_config()
-        .map_err(|e| AudioError::Device(format!("khong co micro mac dinh dung duoc: {e}")))?;
+        .map_err(|e| {
+            crate::diag_hook::emit("mic", &format!("start_fail reason=default_input_config err={e}"));
+            AudioError::Device(format!("khong co micro mac dinh dung duoc: {e}"))
+        })?;
     let fmt = supported.sample_format();
     let config = supported.config();
+    crate::diag_hook::emit("mic", &format!("open format={fmt:?} rate={} channels={}", config.sample_rate, config.channels));
     let mut pipe = MicPipeline::new(config.sample_rate, config.channels);
     let err_sink = sink.clone();
-    let on_err = move |_e: cpal::Error| {
+    let on_err = move |e: cpal::Error| {
+        // Truoc day loi that bi nuot; gio ghi vao nhat ky chan doan (khong co khoa/noi dung).
+        crate::diag_hook::emit("mic", &format!("stream_error err={e}"));
         let _ = err_sink.send(AudioMessage::Event(DeviceEvent::DeviceChanged));
     };
     macro_rules! build {
@@ -112,10 +121,19 @@ fn build_stream(sink: AudioSink) -> Result<cpal::Stream, AudioError> {
         SampleFormat::I16 => build!(i16),
         SampleFormat::U16 => build!(u16),
         SampleFormat::I32 => build!(i32),
-        other => return Err(AudioError::Device(format!("dinh dang mau chua ho tro: {other:?}"))),
+        other => {
+            crate::diag_hook::emit("mic", &format!("start_fail reason=unsupported_format fmt={other:?}"));
+            return Err(AudioError::Device(format!("dinh dang mau chua ho tro: {other:?}")));
+        }
     }
-    .map_err(dev_err)?;
-    stream.play().map_err(dev_err)?;
+    .map_err(|e| {
+        crate::diag_hook::emit("mic", &format!("start_fail reason=build_input_stream err={e}"));
+        dev_err(e)
+    })?;
+    stream.play().map_err(|e| {
+        crate::diag_hook::emit("mic", &format!("start_fail reason=play err={e}"));
+        dev_err(e)
+    })?;
     Ok(stream)
 }
 

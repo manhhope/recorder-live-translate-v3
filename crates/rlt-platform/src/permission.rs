@@ -134,8 +134,16 @@ mod win {
         s.encode_utf16().chain(std::iter::once(0)).collect()
     }
 
+    /// Cong tac "Cho phep ung dung desktop truy cap micro": app khong dong goi (exe NSIS) bi chan boi khoa nay,
+    /// khong phai khoa goc o tren. Truoc day khong doc -> bao Authorized trong khi WASAPI/cpal im lang.
+    const SUBKEY_DESKTOP: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone\NonPackaged";
+
     fn read(root: isize) -> Option<String> {
-        let (sub, val) = (wide(SUBKEY), wide("Value"));
+        read_at(root, SUBKEY)
+    }
+
+    fn read_at(root: isize, subkey: &str) -> Option<String> {
+        let (sub, val) = (wide(subkey), wide("Value"));
         let mut buf = [0u16; 32];
         let mut len = (buf.len() * 2) as u32;
         // SAFETY: con tro tro toi bo dem cuc bo; `len` la so byte cua bo dem; chuoi ket thuc bang 0.
@@ -151,7 +159,9 @@ mod win {
     /// Chinh sach may (HKLM) thang nguoi dung (HKCU): ai Deny thi la Deny.
     pub fn status() -> MicPermission {
         let (m, u) = (read(HKEY_LOCAL_MACHINE), read(HKEY_CURRENT_USER));
-        let denied = [m, u].into_iter().flatten().any(|v| mic_permission_from_consent(Some(&v)) != MicPermission::Authorized);
+        let (dm, du) = (read_at(HKEY_LOCAL_MACHINE, SUBKEY_DESKTOP), read_at(HKEY_CURRENT_USER, SUBKEY_DESKTOP));
+        crate::diag_hook::emit("permission", &format!("mic_consent hklm={m:?} hkcu={u:?} desktop_hklm={dm:?} desktop_hkcu={du:?}"));
+        let denied = [m, u, dm, du].into_iter().flatten().any(|v| mic_permission_from_consent(Some(&v)) != MicPermission::Authorized);
         if denied { MicPermission::Denied } else { MicPermission::Authorized }
     }
 }

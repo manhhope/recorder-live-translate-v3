@@ -84,6 +84,11 @@
     try { await api.testConnection(); keyMsg = { ok: true, code: "ok" }; } catch (e) { keyMsg = { ok: false, code: api.errCode(e) }; }
     busy = false;
   }
+  let diagMsg = $state<{ ok: boolean; text: string } | null>(null);
+  async function openDiagLogs() {
+    diagMsg = null;
+    try { diagMsg = { ok: true, text: await api.diagOpenLogs() }; } catch (e) { diagMsg = { ok: false, text: api.errCode(e) }; }
+  }
   async function removeKey() {
     busy = true; keyMsg = null;
     try { await api.clearApiKey(); hasKey = false; } catch (e) { keyMsg = { ok: false, code: api.errCode(e) }; }
@@ -121,6 +126,17 @@
       {#if keyMsg}
         <span class="bd {keyMsg.ok ? 'ok' : 'rec'}"><Icon name={keyMsg.ok ? "check" : "warn"} />{keyMsg.ok ? $_("set.soniox.ok") : $_(errKey(keyMsg.code))}</span>
       {/if}
+    </div>
+  </div>
+</div>
+
+<div class="card" data-testid="diag-card">
+  <h4>{$_("set.diag.title")}</h4>
+  <div class="rw">
+    <div><b>{$_("set.diag.label")}</b><small>{$_("set.diag.hint")}</small></div>
+    <div class="rr">
+      <button type="button" class="btn sm" data-testid="diag-open-logs" onclick={openDiagLogs}><Icon name="list" />{$_("set.diag.open")}</button>
+      {#if diagMsg}<span class="bd {diagMsg.ok ? 'ok' : 'rec'}" data-testid="diag-msg"><Icon name={diagMsg.ok ? "check" : "warn"} />{diagMsg.ok ? diagMsg.text : $_(errKey(diagMsg.text))}</span>{/if}
     </div>
   </div>
 </div>

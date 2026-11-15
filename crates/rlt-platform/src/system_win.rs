@@ -112,7 +112,9 @@ mod imp {
             match cap.get_next_packet_size() {
                 Ok(Some(n)) if n > 0 => {
                     let before = q.len();
-                    let info = cap.read_from_device_to_deque(q).map_err(|_| ())?;
+                    let info = cap.read_from_device_to_deque(q).map_err(|e| {
+                        crate::diag_hook::emit("system", &format!("read_packet_error err={e}"));
+                    })?;
                     if info.flags.silent {
                         for b in q.iter_mut().skip(before) {
                             *b = 0;
@@ -120,7 +122,10 @@ mod imp {
                     }
                 }
                 Ok(_) => return Ok(()),
-                Err(_) => return Err(()),
+                Err(e) => {
+                    crate::diag_hook::emit("system", &format!("packet_size_error err={e}"));
+                    return Err(());
+                }
             }
         }
     }
@@ -129,10 +134,12 @@ mod imp {
         let setup = initialize_mta().ok().map_err(dev).and_then(|_| open_stream());
         let mut stream = match setup {
             Ok(s) => {
+                crate::diag_hook::emit("system", "open_ok");
                 let _ = ready.send(Ok(()));
                 Some(s)
             }
             Err(e) => {
+                crate::diag_hook::emit("system", &format!("start_fail err={e}"));
                 let _ = ready.send(Err(e));
                 return;
             }
@@ -142,6 +149,7 @@ mod imp {
         let started = Instant::now();
         let mut last_poll = Instant::now();
         let mut last_try = Instant::now();
+        let mut wait_err_log = Instant::now() - Duration::from_secs(10);
         let mut q: VecDeque<u8> = VecDeque::new();
         let bytes_per_frame = 4 * CAPTURE_CHANNELS as usize;
 
@@ -168,14 +176,29 @@ mod imp {
             // 2. Chua co luong (dang doi/lap lai): thu dung lai, giua cac lan thu van chen im lang theo dong ho.
             if stream.is_none() && last_try.elapsed() >= REBUILD_BACKOFF {
                 last_try = Instant::now();
-                stream = open_stream().ok();
+                stream = match open_stream() {
+                    Ok(s) => {
+                        crate::diag_hook::emit("system", "rebuild_ok");
+                        Some(s)
+                    }
+                    Err(e) => {
+                        crate::diag_hook::emit("system", &format!("rebuild_fail err={e}"));
+                        None
+                    }
+                };
             }
             // 3. Doc du lieu that.
             let mut broken = false;
             match stream.as_ref() {
                 Some(s) => {
                     // Het han (khong co su kien) khong phai loi: do dong ho o buoc 4 xu ly.
-                    let _ = s.ev.wait_for_event(WAIT_MS);
+                    if let Err(e) = s.ev.wait_for_event(WAIT_MS) {
+                        // Het han la binh thuong; loi khac (handle hong) tra ngay -> tranh vong bat ban + ghi 1 lan/10 giay.
+                        if wait_err_log.elapsed() >= Duration::from_secs(10) {
+                            wait_err_log = Instant::now();
+                            crate::diag_hook::emit("system", &format!("wait_for_event err={e}"));
+                        }
+                    }
                     if drain_packets(&s.cap, &mut q).is_err() {
                         broken = true;
                     }

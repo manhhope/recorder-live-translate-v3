@@ -129,7 +129,11 @@ pub fn state_name(s: SessionState) -> &'static str {
 pub enum ErrKind {
     /// Cao nhat.
     Permission,
+    /// Loi thiet bi am thanh that (khong phai thieu quyen): mic/he thong khong mo duoc.
+    Device,
     Auth,
+    /// Soniox tu choi vi ly do khac khoa sai (vd 400, 402 khong phai quota): khong duoc bao "khoa sai".
+    Rejected,
     Quota,
     Network,
     /// 408: thap nhat.
@@ -140,7 +144,9 @@ impl ErrKind {
     pub fn code(self) -> &'static str {
         match self {
             Self::Permission => "permission",
+            Self::Device => "audio_device",
             Self::Auth => "auth",
+            Self::Rejected => "rejected",
             Self::Quota => "quota",
             Self::Network => "network",
             Self::Timeout => "timeout",
@@ -159,7 +165,8 @@ impl ErrKind {
 #[derive(Debug, Default)]
 pub struct ErrorTracker(u8);
 
-const ORDER: [ErrKind; 5] = [ErrKind::Permission, ErrKind::Auth, ErrKind::Quota, ErrKind::Network, ErrKind::Timeout];
+const ORDER: [ErrKind; 7] =
+    [ErrKind::Permission, ErrKind::Device, ErrKind::Auth, ErrKind::Rejected, ErrKind::Quota, ErrKind::Network, ErrKind::Timeout];
 
 impl ErrorTracker {
     pub fn current(&self) -> Option<ErrKind> {
@@ -181,7 +188,8 @@ impl ErrorTracker {
 
 pub fn classify_soniox(e: &SonioxError) -> ErrKind {
     match e {
-        SonioxError::Auth { .. } | SonioxError::Rejected { .. } => ErrKind::Auth,
+        SonioxError::Auth { .. } => ErrKind::Auth,
+        SonioxError::Rejected { .. } => ErrKind::Rejected,
         SonioxError::QuotaExhausted { .. } => ErrKind::Quota,
         SonioxError::Timeout => ErrKind::Timeout,
         _ => ErrKind::Network,
@@ -245,6 +253,7 @@ pub fn log_event(event: &str, fields: &[(&str, String)]) {
         line.push_str(&format!(" {k}=\"{}\"", scrub_log(v).replace('"', "'")));
     }
     eprintln!("{line}");
+    crate::diag::log("session_event", &format!("{event} {}", fields.iter().filter(|(k, _)| *k != "detail").map(|(k, v)| format!("{k}={}", scrub_log(v))).collect::<Vec<_>>().join(" ")));
     if cfg!(test) {
         return; // test khong ghi vao thu muc du lieu that cua nguoi dung
     }
@@ -261,7 +270,8 @@ pub fn log_event(event: &str, fields: &[(&str, String)]) {
 
 fn classify_audio(e: &AudioError) -> ErrKind {
     match e {
-        AudioError::Device(m) if m.contains("permission") => ErrKind::Permission,
+        AudioError::Device(m) if m.to_lowercase().contains("permission") || m.to_lowercase().contains("denied") => ErrKind::Permission,
+        AudioError::Device(_) => ErrKind::Device,
         _ => ErrKind::Permission,
     }
 }
@@ -563,7 +573,10 @@ async fn pump(
     let mut finished = false;
     while let Some(ev) = rx.recv().await {
         match ev {
-            CoreEvent::StateChanged(s) => sink(UiEvent::State { state: state_name(s) }),
+            CoreEvent::StateChanged(s) => {
+                crate::diag::session_state(state_name(s));
+                sink(UiEvent::State { state: state_name(s) })
+            }
             CoreEvent::Line(l) => {
                 if errs.recovered() {
                     update(&sink, &mut shown, errs.current());
@@ -582,14 +595,16 @@ async fn pump(
             CoreEvent::Partial(p) => sink(UiEvent::Partial { partial: p.map(PartialDto::from) }),
             CoreEvent::Reconnecting { error, .. } => {
                 let k = classify_soniox(&error);
+                crate::diag::log("soniox", &format!("reconnecting code={}", k.code()));
                 errs.raise(k);
                 update(&sink, &mut shown, errs.current());
             }
             CoreEvent::Device(DeviceEvent::PermissionRevoked) => {
+                crate::diag::log("device", "permission_revoked");
                 errs.raise(ErrKind::Permission);
                 update(&sink, &mut shown, errs.current());
             }
-            CoreEvent::Device(DeviceEvent::DeviceChanged) => {}
+            CoreEvent::Device(DeviceEvent::DeviceChanged) => crate::diag::log("device", "device_changed (mic hoac system dung lai luong)"),
             CoreEvent::Failed(e) => {
                 log_event("session_failed", &[("session", session_id.clone()), ("code", classify_core(&e).code().into()), ("detail", e.to_string())]);
                 errs.raise(classify_core(&e));
@@ -666,6 +681,9 @@ mod tests {
     #[test]
     fn soniox_errors_map_to_codes() {
         assert_eq!(classify_soniox(&SonioxError::Auth { code: 401 }), ErrKind::Auth);
+        assert_eq!(classify_soniox(&SonioxError::Rejected { code: 400, message: "x".into() }), ErrKind::Rejected);
+        assert_eq!(ErrKind::Rejected.code(), "rejected");
+        assert_ne!(ErrKind::Rejected.code(), ErrKind::Auth.code());
         assert_eq!(classify_soniox(&SonioxError::QuotaExhausted { error_type: "x".into() }), ErrKind::Quota);
         assert_eq!(classify_soniox(&SonioxError::Timeout), ErrKind::Timeout);
         assert_eq!(classify_soniox(&SonioxError::Network("x".into())), ErrKind::Network);

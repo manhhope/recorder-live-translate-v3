@@ -51,7 +51,7 @@
   const micLevel = $derived<Level>(app.micOn ? lvl : "idle");
   const views = [["both", "rec.view.both"], ["dst", "rec.view.dst"], ["src", "rec.view.src"]] as const;
   const STATUS_KEY: Record<StatusCode, string> = {
-    permission: "status.perm", auth: "status.badkey", quota: "status.quota", network: "status.offline", timeout: "status.timeout",
+    permission: "status.perm", audio_device: "status.audiodevice", auth: "status.badkey", rejected: "status.rejected", quota: "status.quota", network: "status.offline", timeout: "status.timeout",
   };
   const statusKey = $derived(
     status ? STATUS_KEY[status] : state === "paused" ? "status.paused" : state === "stopping" ? "status.stopping"

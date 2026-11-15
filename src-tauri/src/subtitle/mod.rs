@@ -221,8 +221,16 @@ fn mutate(app: &AppHandle, f: impl FnOnce(&mut SubtitleSettings)) -> SubtitleSet
     out
 }
 
+/// `async` ON PURPOSE (nghi van treo A): lenh dong bo chay tren luong UI, `run_on_main_thread` tu luong UI chay closure
+/// NGAY TAI CHO, tuc tao WebView2 ben trong tran xu ly IPC (loi deadlock da biet cua Tauri/WebView2). Chay tren tokio thi
+/// closure di vao hang doi cua luong UI va chay sau khi handler IPC da tra ve.
 #[tauri::command]
-pub fn subtitle_open(app: AppHandle) -> Result<(), String> {
+pub async fn subtitle_open(app: AppHandle) -> Result<(), String> {
+    subtitle_open_now(app)
+}
+
+/// Ban dong bo cho noi da o san tren luong UI (phim tat, tray).
+pub fn subtitle_open_now(app: AppHandle) -> Result<(), String> {
     let a = app.clone();
     app.run_on_main_thread(move || {
         if let Err(e) = open(&a) {

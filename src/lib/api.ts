@@ -4,7 +4,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 
 export type RecordMode = "system" | "mic" | "mixed";
 export type SessionStateName = "idle" | "recording" | "paused" | "stopping";
-export type StatusCode = "permission" | "auth" | "quota" | "network" | "timeout";
+export type StatusCode = "permission" | "audio_device" | "auth" | "rejected" | "quota" | "network" | "timeout";
 
 export interface LineDto { captionLineId: number; seq: number; offsetMs: number; sourceLang: string; sourceText: string; translatedText: string | null }
 export type { PartialDto } from "./live.ts";
@@ -63,6 +63,8 @@ export const consentAccept = () => invoke<void>("consent_accept");
 export const saveApiKey = (value: string) => invoke<void>("soniox_save_api_key", { value });
 export const hasApiKey = () => invoke<boolean>("soniox_has_api_key");
 export const clearApiKey = () => invoke<void>("soniox_clear_api_key");
+/** Mo thu muc nhat ky chan doan (Explorer/Finder); tra duong dan. */
+export const diagOpenLogs = () => invoke<string>("diag_open_logs");
 export const testConnection = () => invoke<void>("soniox_test_connection");
 export const permissionsStatus = () => invoke<PermissionsOut>("permissions_status");
 /** `granted` | `denied` | `needsrestart` | `unknown`. Do that SCShareableContent: chi goi khi nguoi dung bam Check again. */

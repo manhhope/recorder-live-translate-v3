@@ -3,6 +3,7 @@
 //! (`system_win`); nền tảng khác `PlatformSources::open(System)` trả `Unsupported`.
 
 pub mod audio_convert;
+pub mod diag_hook;
 pub mod mic;
 pub mod mix;
 pub mod opener;

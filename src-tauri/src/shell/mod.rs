@@ -64,7 +64,7 @@ fn run_action(app: &AppHandle, action: ShortcutAction) {
             let _ = app.emit_to("main", EV_SHORTCUT, action.as_str());
         }
         Dispatch::RegionCaptureBegin => {
-            if let Err(code) = crate::capture::capture_begin(app.clone()) {
+            if let Err(code) = crate::capture::capture_begin_now(app.clone()) {
                 notify_capture_error(app, &code);
             }
             let _ = app.emit_to("main", EV_SHORTCUT, action.as_str());
@@ -72,7 +72,7 @@ fn run_action(app: &AppHandle, action: ShortcutAction) {
         Dispatch::SubtitleToggle => {
             if app.get_webview_window(crate::subtitle::LABEL).is_some() {
                 crate::subtitle::subtitle_close(app.clone());
-            } else if let Err(e) = crate::subtitle::subtitle_open(app.clone()) {
+            } else if let Err(e) = crate::subtitle::subtitle_open_now(app.clone()) {
                 notice(app, "shell.shortcut.err.subtitle", Some(e));
             }
             let _ = app.emit_to("main", EV_SHORTCUT, action.as_str());
@@ -215,10 +215,10 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             crate::crashlog::guard("tray_menu", || match ev.id().as_ref() {
                 "tray-open" => show_main(app),
                 "tray-subtitle" => {
-                    let _ = crate::subtitle::subtitle_open(app.clone());
+                    let _ = crate::subtitle::subtitle_open_now(app.clone());
                 }
                 "tray-capture" => {
-                    if let Err(code) = crate::capture::capture_begin(app.clone()) {
+                    if let Err(code) = crate::capture::capture_begin_now(app.clone()) {
                         notify_capture_error(app, &code);
                     }
                 }

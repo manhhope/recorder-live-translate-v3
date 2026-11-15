@@ -141,6 +141,7 @@ export function installTauriMock(seed: MockSeed): void {
     soniox_save_api_key: () => { state.hasKey = true; },
     soniox_clear_api_key: () => { state.hasKey = false; },
     soniox_test_connection: () => undefined,
+    diag_open_logs: () => "C:\\Users\\a\\AppData\\Roaming\\com.mmola.recorderlivetranslate\\logs",
     permissions_status: () => ({ mic: state.perms.mic, screen: state.perms.screen }),
     mic_permission_request: () => { state.perms.mic = state.perms.micAnswer; return state.perms.mic; },
     screen_permission_check: () => (state.perms.screen === "granted" ? "granted" : state.perms.screenProbe),
