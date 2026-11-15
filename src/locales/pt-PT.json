@@ -706,6 +706,7 @@
   "ses.attach.none": "Ainda não há capturas anexadas. Só as capturas anexadas entram no ficheiro Word.",
   "err.exportdirmissing": "A pasta de exportação não existe. Escolha outra pasta.",
   "err.exportfailed": "Não foi possível escrever o ficheiro. Verifique a pasta e tente de novo.",
+  "err.exportimagemissing": "Guardado, mas {n} captura(s) de ecrã anexada(s) não puderam ser lidas e faltam no ficheiro Word.",
   "err.contentinvalid": "Essa opção de conteúdo não é suportada.",
   "err.formatinvalid": "Esse formato não é suportado.",
   "err.attachfailed": "Não foi possível alterar o anexo.",
@@ -719,6 +720,7 @@
   "exp.lbl.nottranslated": "Não traduzido",
   "exp.lbl.lines": "Linhas",
   "exp.lbl.screenshots": "Capturas de ecrã",
+  "exp.lbl.screenshotsmissing": "Capturas de ecrã em falta",
   "exp.lbl.nocontent": "Sem conteúdo",
   "rec.notice.mixednomic": "Nenhum microfone encontrado. A gravar apenas o áudio do sistema.",
   "rec.notice.translationquota": "A quota do Soniox esgotou-se. A tradução parou, mas o áudio continua a ser gravado neste computador."

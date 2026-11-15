@@ -1,7 +1,7 @@
 //! US-56 + chon noi dung xuat: moi dinh dang (MD, TXT, SRT, DOCX) x 3 che do noi dung, mo lai file xuat de kiem.
 mod common;
 use common::*;
-use rlt_features::docx::export_docx;
+use rlt_features::docx::{export_docx, export_docx_report};
 use rlt_features::export::*;
 use rlt_features::highlights;
 use rlt_features::zipmini::read_stored;
@@ -259,6 +259,33 @@ fn docx_anh_mat_file_van_giu_chu_thich_va_khong_loi() {
 }
 
 #[test]
+fn docx_sau_anh_xoa_mot_file_bao_thieu_mot_va_header_tach_dem() {
+    let dir = tmp("missing6");
+    let s = store_with_session();
+    let ids: Vec<i64> = (0..6).map(|i| add_cap(&s, &dir, 10_000 + i * 1_000, &format!("c{i}"), true)).collect();
+    assert_eq!(ids.len(), 6);
+    std::fs::remove_file(dir.join(format!("sessions/{SID}/captures/c3.png"))).unwrap();
+    let (bytes, missing) = export_docx_report(&s, SID, &Labels::en(), ContentMode::Both, &dir).unwrap();
+    assert_eq!(missing, 1);
+    let (evs, names) = docx_events(&bytes);
+    assert_eq!(names.iter().filter(|n| n.starts_with("word/media/")).count(), 5);
+    let txt = text_of(&evs);
+    assert!(txt.contains("Screenshots: 5"), "{txt}");
+    assert!(txt.contains("Missing screenshots: 1"), "{txt}");
+    // pt-PT dung nhan rieng
+    let (pt, m2) = export_docx_report(&s, SID, &Labels::pt_pt(), ContentMode::Both, &dir).unwrap();
+    assert_eq!(m2, 1);
+    assert!(text_of(&docx_events(&pt).0).contains("Capturas de ecrã em falta: 1"));
+    // khong thieu thi khong co dong "thieu" va so bao ve = 0
+    let ok = tmp("missing0");
+    let s2 = store_with_session();
+    add_cap(&s2, &ok, 10_000, "a", true);
+    let (b2, m0) = export_docx_report(&s2, SID, &Labels::en(), ContentMode::Both, &ok).unwrap();
+    assert_eq!(m0, 0);
+    assert!(!text_of(&docx_events(&b2).0).contains("Missing screenshots"));
+}
+
+#[test]
 fn docx_dau_sao_va_ky_tu_dieu_khien() {
     let dir = tmp("mark");
     let s = store_with_session();
@@ -314,7 +341,7 @@ fn export_labels_match_flat_locale_keys() {
         let pairs = [
             ("system", lb.system), ("mic", lb.mic), ("gap", lb.gap), ("capture", lb.capture), ("started", lb.started),
             ("duration", lb.duration), ("targetlang", lb.target_lang), ("nottranslated", lb.not_translated),
-            ("lines", lb.lines), ("screenshots", lb.screenshots), ("nocontent", lb.no_content),
+            ("lines", lb.lines), ("screenshots", lb.screenshots), ("screenshotsmissing", lb.screenshots_missing), ("nocontent", lb.no_content),
         ];
         for (k, rust) in pairs {
             assert_eq!(get(k), rust, "{file}: exp.lbl.{k}");

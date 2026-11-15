@@ -97,6 +97,12 @@ fn safe_rel(p: &str) -> bool {
 
 /// Dung file .docx cua mot phien. `data_dir`: goc de doi `screen_captures.file_path` (tuong doi) ra file that.
 pub fn export_docx(store: &Store, session_id: &str, labels: &Labels, mode: ContentMode, data_dir: &Path) -> Result<Vec<u8>> {
+    export_docx_report(store, session_id, labels, mode, data_dir).map(|(b, _)| b)
+}
+
+/// Nhu `export_docx`, kem so anh DA DINH KEM nhung khong doc duoc (mat file / duong dan khong hop le): khong bo qua im lang (`export_image_missing`).
+pub fn export_docx_report(store: &Store, session_id: &str, labels: &Labels, mode: ContentMode, data_dir: &Path) -> Result<(Vec<u8>, usize)> {
+    let mut missing = 0usize;
     let d = load(store, session_id)?;
     let mut body = String::new();
     let mut media: Vec<(String, Vec<u8>)> = Vec::new(); // (ten trong goi, byte)
@@ -132,8 +138,10 @@ pub fn export_docx(store: &Store, session_id: &str, labels: &Labels, mode: Conte
             }
             Item::Capture(c) => {
                 let caption = format!("{} {}", labels.capture, hms(c.offset_ms));
-                if safe_rel(&c.file_path) {
-                    if let Ok(bytes) = std::fs::read(data_dir.join(&c.file_path)) {
+                let read = if safe_rel(&c.file_path) { std::fs::read(data_dir.join(&c.file_path)).ok() } else { None };
+                match read {
+                    None => missing += 1,
+                    Some(bytes) => {
                         let lower = c.file_path.to_lowercase();
                         let ext = if lower.ends_with(".jpg") || lower.ends_with(".jpeg") { "jpeg" } else { "png" };
                         let (w, h) = png_size(&bytes).unwrap_or((c.width_px, c.height_px));
@@ -159,6 +167,9 @@ pub fn export_docx(store: &Store, session_id: &str, labels: &Labels, mode: Conte
     }
 
     head.push(format!("{}: {}", labels.screenshots, media.len()));
+    if missing > 0 {
+        head.push(format!("{}: {}", labels.screenshots_missing, missing));
+    }
     let mut doc = String::new();
     doc.push_str(&para(&TITLE, &d.title));
     for h in &head {
@@ -199,7 +210,7 @@ xmlns:pic=\"http://schemas.openxmlformats.org/drawingml/2006/picture\"><w:body>{
     for (name, bytes) in &media {
         z.add(&format!("word/media/{name}"), bytes);
     }
-    Ok(z.finish())
+    Ok((z.finish(), missing))
 }
 
 #[cfg(test)]

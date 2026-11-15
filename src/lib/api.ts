@@ -77,9 +77,10 @@ export const sessionDelete = (sessionId: string) => invoke<boolean>("session_del
 export const recordsSearch = (query: string, sessionId?: string) => invoke<SearchOut>("records_search", { query, sessionId: sessionId ?? null });
 export type ExportFormat = "md" | "txt" | "srt" | "docx";
 export type ExportContent = "both" | "translation" | "source";
-/** Ghi file vao thu muc `dir` (mac dinh Documents) va tra duong dan file da ghi. */
+export interface ExportOut { path: string; missingImages: number; warning: string | null }
+/** Ghi file vao thu muc `dir` (mac dinh Documents); tra duong dan file + so anh docx khong doc duoc (`warning` = `export_image_missing`). */
 export const sessionExport = (sessionId: string, format: ExportFormat, content: ExportContent, uiLang: string, dir: string | null) =>
-  invoke<string>("session_export", { sessionId, format, content, uiLang, dir });
+  invoke<ExportOut>("session_export", { sessionId, format, content, uiLang, dir });
 export const exportDefaultDir = () => invoke<string | null>("export_default_dir");
 export const exportPickDir = () => invoke<string | null>("export_pick_dir");
 export const highlightToggle = (sessionId: string, captionLineId: number, note: string | null = null) =>

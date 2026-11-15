@@ -63,7 +63,11 @@
     error = null;
     try { await fn(); } catch (e) { error = api.errCode(e); }
   }
-  const onExported = (path: string) => { exportOpen = false; error = null; notice = $_("exp.saved", { values: { path } }); };
+  const onExported = (out: api.ExportOut) => {
+    exportOpen = false; error = null;
+    notice = $_("exp.saved", { values: { path: out.path } });
+    if (out.missingImages > 0) notice += " " + $_("err.exportimagemissing", { values: { n: out.missingImages } });
+  };
   const attach = (c: api.CaptureRow) => guard(async () => {
     if (!detail) return;
     try { await api.sessionCaptureAttach(detail.session.sessionId, c.screenCaptureId, !c.isAttached); }

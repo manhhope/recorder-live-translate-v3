@@ -270,21 +270,59 @@ pub async fn export_pick_dir(app: tauri::AppHandle) -> Option<String> {
     p.into_path().ok().map(|p| p.to_string_lossy().into_owned())
 }
 
-/// Ten file chua ton tai trong `dir` (them " (2)", " (3)"... de khong ghi de file cu).
-fn free_path(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
-    let first = dir.join(name);
-    if !first.exists() {
-        return first;
-    }
+/// Ket qua xuat: duong dan file da ghi + so anh docx khong doc duoc (`warning` = `export_image_missing` khi > 0).
+#[derive(serde::Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportOut {
+    pub path: String,
+    pub missing_images: usize,
+    pub warning: Option<String>,
+}
+
+/// Ghi `bytes` vao file moi trong `dir`. Ten dich la `name`, neu da co thi " (2)", " (3)"...; moi ten duoc GIU CHO bang
+/// `create_new` (khong the ghi de file cu, het race). Du lieu ghi vao file tam ten rieng `.<ten day du>.<pid>.part`
+/// (cung `create_new`) roi doi ten de khong de lai file nua chung.
+pub fn write_export(dir: &std::path::Path, name: &str, bytes: &[u8]) -> Res<std::path::PathBuf> {
+    use std::io::Write;
+    let fail = |_| "export_failed".to_string();
     let (stem, ext) = match name.rsplit_once('.') {
         Some((a, b)) => (a.to_string(), format!(".{b}")),
         None => (name.to_string(), String::new()),
     };
-    (2..1000).map(|n| dir.join(format!("{stem} ({n}){ext}"))).find(|p| !p.exists()).unwrap_or(first)
+    let open_new = |p: &std::path::Path| std::fs::OpenOptions::new().write(true).create_new(true).open(p);
+    let mut reserved = None;
+    for n in 1..1000 {
+        let cand = if n == 1 { dir.join(name) } else { dir.join(format!("{stem} ({n}){ext}")) };
+        match open_new(&cand) {
+            Ok(f) => {
+                reserved = Some((cand, f));
+                break;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(fail(e)),
+        }
+    }
+    let (path, placeholder) = reserved.ok_or("export_failed")?;
+    drop(placeholder);
+    let file_name = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+    let tmp = dir.join(format!(".{file_name}.{}.part", std::process::id()));
+    let res = (|| -> std::io::Result<()> {
+        let mut f = open_new(&tmp)?;
+        f.write_all(bytes)?;
+        f.sync_all()?;
+        drop(f);
+        std::fs::rename(&tmp, &path)
+    })();
+    if res.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+        let _ = std::fs::remove_file(&path);
+        return Err("export_failed".into());
+    }
+    Ok(path)
 }
 
 /// Xuat vao thu muc `dir` (mac dinh Documents). Dinh dang md/txt/srt/docx, noi dung both/translation/source.
-/// Ghi vao file tam roi doi ten de khong de lai file nua chung. Tra duong dan file.
+/// Ghi vao file tam roi doi ten de khong de lai file nua chung. Tra duong dan file + so anh bi thieu.
 #[tauri::command]
 pub async fn session_export(
     app: tauri::AppHandle,
@@ -294,7 +332,7 @@ pub async fn session_export(
     content: String,
     ui_lang: String,
     dir: Option<String>,
-) -> Res<String> {
+) -> Res<ExportOut> {
     use tauri::Manager;
     let data_dir = app.state::<crate::capture::CaptureState>().data_dir.clone();
     let dir = match dir {
@@ -304,15 +342,13 @@ pub async fn session_export(
     if !dir.is_dir() {
         return Err("export_dir_missing".into());
     }
-    let (name, bytes) = s.with_store(|st| export_bytes(st, &session_id, &format, &content, &ui_lang, &data_dir))?;
-    let path = free_path(&dir, &name);
-    let tmp = path.with_extension("part");
-    std::fs::write(&tmp, bytes).map_err(|_| "export_failed".to_string())?;
-    std::fs::rename(&tmp, &path).map_err(|_| {
-        let _ = std::fs::remove_file(&tmp);
-        "export_failed".to_string()
-    })?;
-    Ok(path.to_string_lossy().into_owned())
+    let (name, bytes, missing) = s.with_store(|st| export_bytes(st, &session_id, &format, &content, &ui_lang, &data_dir))?;
+    let path = write_export(&dir, &name, &bytes)?;
+    Ok(ExportOut {
+        path: path.to_string_lossy().into_owned(),
+        missing_images: missing,
+        warning: (missing > 0).then(|| "export_image_missing".to_string()),
+    })
 }
 
 #[tauri::command]

@@ -19,6 +19,8 @@ export interface MockSeed {
   subtitleLines?: unknown[];
   // Anh chup theo phien (lenh session_captures): sessionId -> CaptureRow[]. Mac dinh khong co anh.
   captures?: Record<string, unknown[]>;
+  // So anh docx khong doc duoc ma session_export bao ve (mac dinh 0: khong canh bao).
+  exportMissing?: number;
 }
 
 export function installTauriMock(seed: MockSeed): void {
@@ -54,6 +56,7 @@ export function installTauriMock(seed: MockSeed): void {
     listeners: [] as { event: string; id: number; cb: number }[],
     nextConv: 1,
     nextMsg: 1,
+    exportMissing: seed.exportMissing ?? 0,
   };
   const rlt: any = { calls: [] as { cmd: string; args: any }[], unhandled: [] as string[], state, fail: { ...seed.fail } };
   w.__rlt = rlt;
@@ -155,10 +158,14 @@ export function installTauriMock(seed: MockSeed): void {
       return a.attached;
     },
     // Hop dong: Rust `export_default_dir() -> Option<String>`, `export_pick_dir() -> Option<String>` (None = huy),
-    // `session_export(session_id, format, content, ui_lang, dir) -> Result<String, String>` (duong dan file da ghi).
+    // `session_export(session_id, format, content, ui_lang, dir) -> Result<{path, missingImages, warning}, String>`.
     export_default_dir: () => "/Users/test/Documents",
     export_pick_dir: () => state.pickDir === undefined ? "/Users/test/Exports" : state.pickDir,
-    session_export: (a) => `${a.dir ?? "/Users/test/Documents"}/${a.sessionId}.${a.format}`,
+    session_export: (a) => ({
+      path: `${a.dir ?? "/Users/test/Documents"}/${a.sessionId}.${a.format}`,
+      missingImages: state.exportMissing ?? 0,
+      warning: state.exportMissing ? "export_image_missing" : null,
+    }),
     highlight_toggle: (a) => {
       const l = state.details[a.sessionId].lines.find((x: any) => x.captionLineId === a.captionLineId);
       l.highlighted = !l.highlighted;

@@ -97,6 +97,20 @@ test.describe("Danh sach phien, tim kiem, xuat", () => {
     expect(call.args.uiLang).toBe("pt-PT");
   });
 
+  test("xuat docx thieu anh: hien canh bao export_image_missing voi so anh thieu (en)", async ({ page, rlt }) => {
+    await openWeekly(page, rlt, { exportMissing: 1 });
+    await page.getByRole("radio", { name: /^DOCX$/ }).click();
+    await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
+    await expect(page.getByText(rlt.t("exp.saved", { path: "/Users/test/Documents/s-weekly.docx" }))).toBeVisible();
+    await expect(page.getByText(rlt.t("err.exportimagemissing", { n: 1 }))).toBeVisible();
+  });
+
+  test("xuat docx thieu anh: canh bao theo pt-PT", async ({ page, rlt }) => {
+    await openWeekly(page, rlt, { exportMissing: 2, locale: "pt-PT" });
+    await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
+    await expect(page.getByText(rlt.t("err.exportimagemissing", { n: 2 }))).toBeVisible();
+  });
+
   test("xuat that bai (loi luu tru) hien thong bao loi", async ({ page, rlt }) => {
     await openWeekly(page, rlt, { fail: { session_export: "store_error" } });
     await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();

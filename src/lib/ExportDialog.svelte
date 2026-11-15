@@ -6,7 +6,7 @@
   import type { ExportFormat, ExportContent } from "./api.ts";
 
   let { sessionId, uiLang, onClose, onDone, onError }: {
-    sessionId: string; uiLang: string; onClose: () => void; onDone: (path: string) => void; onError: (code: string) => void;
+    sessionId: string; uiLang: string; onClose: () => void; onDone: (out: api.ExportOut) => void; onError: (code: string) => void;
   } = $props();
 
   const KEY = "rlt.export.prefs";
@@ -38,9 +38,9 @@
   async function go() {
     busy = true;
     try {
-      const path = await api.sessionExport(sessionId, format, content, uiLang, dir);
+      const out = await api.sessionExport(sessionId, format, content, uiLang, dir);
       try { localStorage.setItem(KEY, JSON.stringify({ format, content, dir })); } catch { /* khong luu duoc thi thoi */ }
-      onDone(path);
+      onDone(out);
     } catch (e) { onError(api.errCode(e)); }
     busy = false;
   }

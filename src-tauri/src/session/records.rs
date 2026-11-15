@@ -213,24 +213,45 @@ pub fn parse_content(c: &str) -> Res<rlt_features::export::ContentMode> {
     rlt_features::export::ContentMode::parse(c).ok_or_else(|| "content_invalid".to_string())
 }
 
-fn safe_name(title: &str) -> String {
+/// Gioi han ten file: <= 120 ky tu va <= 200 byte phan ten (chua cho duoi, " (n)" va file tam de ca ten <= 255 byte).
+const NAME_MAX_CHARS: usize = 120;
+const NAME_MAX_BYTES: usize = 200;
+
+pub fn safe_name(title: &str) -> String {
     let safe: String = title.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
-    let t = safe.trim();
-    if t.is_empty() { "session".into() } else { t.to_string() }
+    let mut cut = String::new();
+    for c in safe.trim().chars() {
+        if cut.chars().count() >= NAME_MAX_CHARS || cut.len() + c.len_utf8() > NAME_MAX_BYTES {
+            break;
+        }
+        cut.push(c);
+    }
+    let t = cut.trim();
+    if t.is_empty() {
+        return "session".into();
+    }
+    // Ten dành riêng cua Windows (CON, NUL, COM1...): them gach duoi de mo duoc tren moi may.
+    let up = t.to_uppercase();
+    let digit = |p: &str| up.strip_prefix(p).is_some_and(|r| r.len() == 1 && r.as_bytes()[0].is_ascii_digit() && r != "0");
+    if ["CON", "PRN", "AUX", "NUL"].contains(&up.as_str()) || digit("COM") || digit("LPT") {
+        return format!("_{t}");
+    }
+    t.to_string()
 }
 
-/// Xuat ra byte (van ban UTF-8 hoac goi .docx). `data_dir` chi can cho docx (doc anh da dinh kem).
-pub fn export_bytes(store: &Store, id: &str, format: &str, content: &str, ui_lang: &str, data_dir: &std::path::Path) -> Res<(String, Vec<u8>)> {
+/// Xuat ra byte (van ban UTF-8 hoac goi .docx) + so anh docx khong doc duoc (ma `export_image_missing` o UI khi > 0).
+/// `data_dir` chi can cho docx (doc anh da dinh kem).
+pub fn export_bytes(store: &Store, id: &str, format: &str, content: &str, ui_lang: &str, data_dir: &std::path::Path) -> Res<(String, Vec<u8>, usize)> {
     let fmt = parse_format(format)?;
     let mode = parse_content(content)?;
     let s = store.get_session(id).map_err(se)?.ok_or("not_found")?;
     let lb = labels(ui_lang);
-    let bytes = if fmt == ExportFormat::Docx {
-        rlt_features::docx::export_docx(store, id, &lb, mode, data_dir).map_err(err)?
+    let (bytes, missing) = if fmt == ExportFormat::Docx {
+        rlt_features::docx::export_docx_report(store, id, &lb, mode, data_dir).map_err(err)?
     } else {
-        export_session_mode(store, id, fmt, &lb, mode).map_err(err)?.into_bytes()
+        (export_session_mode(store, id, fmt, &lb, mode).map_err(err)?.into_bytes(), 0)
     };
-    Ok((format!("{}.{}", safe_name(&s.title), fmt.extension()), bytes))
+    Ok((format!("{}.{}", safe_name(&s.title), fmt.extension()), bytes, missing))
 }
 
 // ---------------------------------------------------------------- highlight
@@ -525,4 +546,37 @@ pub fn set_prefs(store: &Store, p: &RecordPrefs) -> Res<()> {
         )
         .map_err(|_| "prefs_invalid".to_string())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod name_tests {
+    use super::safe_name;
+
+    #[test]
+    fn long_diacritic_name_is_capped_by_chars_and_bytes() {
+        let n = safe_name(&"ế".repeat(130));
+        assert!(n.chars().count() <= 120 && n.len() <= 200, "{} chars {} bytes", n.chars().count(), n.len());
+        assert!(!n.is_empty() && n.chars().all(|c| c == 'ế'));
+    }
+
+    #[test]
+    fn long_cjk_name_fits_255_bytes_with_extension_and_temp_wrapper() {
+        let n = safe_name(&"漢".repeat(90));
+        assert!(n.chars().count() <= 120);
+        // ten day du + " (999)" + .docx va file tam `.<ten>.<pid>.part` van <= 255 byte
+        let full = format!("{n} (999).docx");
+        assert!(full.len() <= 255, "{}", full.len());
+        assert!(format!(".{full}.4294967295.part").len() <= 255);
+    }
+
+    #[test]
+    fn windows_reserved_names_are_prefixed() {
+        for t in ["CON", "nul", "Com1", "LPT9", "aux", "PRN"] {
+            assert_eq!(safe_name(t), format!("_{t}"));
+        }
+        assert_eq!(safe_name("COM0"), "COM0");
+        assert_eq!(safe_name("Console"), "Console");
+        assert_eq!(safe_name(""), "session");
+        assert_eq!(safe_name("a/b:c"), "a_b_c");
+    }
 }

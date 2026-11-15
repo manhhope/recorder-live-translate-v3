@@ -167,13 +167,13 @@ async fn full_flow_start_lines_stop_read_search_export() {
     // xuat
     let tmp = std::env::temp_dir();
     for f in ["md", "txt", "srt"] {
-        let (name, bytes) = records::export_bytes(&store, &id, f, "both", "en", &tmp).unwrap();
+        let (name, bytes, _) = records::export_bytes(&store, &id, f, "both", "en", &tmp).unwrap();
         let body = String::from_utf8(bytes).unwrap();
         assert!(name.ends_with(f));
         assert!(body.contains("Good morning everyone."), "{f}: {body}");
         assert!(body.contains("Bom dia a todos."), "{f}");
     }
-    let (name, docx) = records::export_bytes(&store, &id, "docx", "both", "en", &tmp).unwrap();
+    let (name, docx, _) = records::export_bytes(&store, &id, "docx", "both", "en", &tmp).unwrap();
     assert!(name.ends_with(".docx") && docx.starts_with(b"PK"));
     assert_eq!(records::export_bytes(&store, &id, "pdf", "both", "en", &tmp).unwrap_err(), "format_invalid");
     assert_eq!(records::export_bytes(&store, &id, "md", "x", "en", &tmp).unwrap_err(), "content_invalid");
@@ -765,5 +765,24 @@ async fn quota_exhausted_keeps_recording_locally_and_says_there_is_no_translatio
     assert!(data_len >= 16_000 * 2 / 4, "it nhat ~250 ms am thanh sau luc het quota, co {data_len} byte");
     let status: String = svc.store.lock().unwrap().conn().query_row("SELECT status FROM sessions WHERE session_id = ?1", [&id], |r| r.get(0)).unwrap();
     assert_eq!(status, "stopped", "ket thuc binh thuong, khong phai interrupted");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn export_part_file_of_user_survives_and_names_never_collide() {
+    let dir = std::env::temp_dir().join(format!("rlt-wexp-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("Bao cao.part"), b"cua nguoi dung").unwrap();
+    let p = super::write_export(&dir, "Bao cao.docx", b"PKdocx").unwrap();
+    assert_eq!(p, dir.join("Bao cao.docx"));
+    assert_eq!(std::fs::read(dir.join("Bao cao.part")).unwrap(), b"cua nguoi dung");
+    // Xuat lan hai cung ten: " (2)", file dau nguyen; khong con file tam
+    let p2 = super::write_export(&dir, "Bao cao.docx", b"PK2").unwrap();
+    assert_eq!(p2, dir.join("Bao cao (2).docx"));
+    assert_eq!(std::fs::read(&p).unwrap(), b"PKdocx");
+    assert_eq!(std::fs::read(&p2).unwrap(), b"PK2");
+    let left: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    assert!(!left.iter().any(|n| n.starts_with('.') && n.ends_with(".part")), "{left:?}");
     let _ = std::fs::remove_dir_all(&dir);
 }

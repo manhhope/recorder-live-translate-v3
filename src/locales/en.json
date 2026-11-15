@@ -706,6 +706,7 @@
   "ses.attach.none": "No screenshot is attached yet. Only attached screenshots go into the Word file.",
   "err.exportdirmissing": "The export folder does not exist. Choose another folder.",
   "err.exportfailed": "Could not write the file. Check the folder and try again.",
+  "err.exportimagemissing": "Saved, but {n} attached screenshot(s) could not be read and are missing from the Word file.",
   "err.contentinvalid": "That content choice is not supported.",
   "err.formatinvalid": "That format is not supported.",
   "err.attachfailed": "Could not change the attachment.",
@@ -719,6 +720,7 @@
   "exp.lbl.nottranslated": "Not translated",
   "exp.lbl.lines": "Lines",
   "exp.lbl.screenshots": "Screenshots",
+  "exp.lbl.screenshotsmissing": "Missing screenshots",
   "exp.lbl.nocontent": "No content",
   "rec.notice.mixednomic": "No microphone found. Recording system audio only.",
   "rec.notice.translationquota": "Soniox quota is used up. Translation has stopped, but your audio is still being recorded on this computer."

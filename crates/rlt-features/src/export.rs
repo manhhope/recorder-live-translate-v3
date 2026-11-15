@@ -73,15 +73,16 @@ pub struct Labels {
     pub not_translated: &'static str,
     pub lines: &'static str,
     pub screenshots: &'static str,
+    pub screenshots_missing: &'static str,
     pub no_content: &'static str,
 }
 
 impl Labels {
     pub fn en() -> Self {
-        Self { system: "System", mic: "Me", gap: "Connection lost", capture: "Screenshot at", started: "Started", duration: "Duration", target_lang: "Target language", not_translated: "Not translated", lines: "Lines", screenshots: "Screenshots", no_content: "No content" }
+        Self { system: "System", mic: "Me", gap: "Connection lost", capture: "Screenshot at", started: "Started", duration: "Duration", target_lang: "Target language", not_translated: "Not translated", lines: "Lines", screenshots: "Screenshots", screenshots_missing: "Missing screenshots", no_content: "No content" }
     }
     pub fn pt_pt() -> Self {
-        Self { system: "Sistema", mic: "Eu", gap: "Ligação perdida", capture: "Captura de ecrã às", started: "Início", duration: "Duração", target_lang: "Idioma de destino", not_translated: "Não traduzido", lines: "Linhas", screenshots: "Capturas de ecrã", no_content: "Sem conteúdo" }
+        Self { system: "Sistema", mic: "Eu", gap: "Ligação perdida", capture: "Captura de ecrã às", started: "Início", duration: "Duração", target_lang: "Idioma de destino", not_translated: "Não traduzido", lines: "Linhas", screenshots: "Capturas de ecrã", screenshots_missing: "Capturas de ecrã em falta", no_content: "Sem conteúdo" }
     }
 }
 
