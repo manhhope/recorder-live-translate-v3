@@ -226,7 +226,7 @@ async fn wrong_key_shows_auth_status_and_returns_to_idle() {
     let svc = service(&url, true, true);
     let (sink, events) = collector();
     svc.start(params(RecordMode::Mic), sink).await.unwrap();
-    assert!(wait_for(&events, |e| matches!(e, UiEvent::Status { code: Some("auth") })).await, "{:?}", events.lock().unwrap());
+    assert!(wait_for(&events, |e| matches!(e, UiEvent::Status { code: Some("auth"), .. })).await, "{:?}", events.lock().unwrap());
     for _ in 0..40 {
         if svc.active_session_id().is_none() {
             break;

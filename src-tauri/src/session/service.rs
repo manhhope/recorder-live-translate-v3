@@ -102,7 +102,12 @@ pub enum UiEvent {
     Partial { partial: Option<PartialDto> },
     Level { level: f32 },
     /// `code` = None: het loi. Ma: `permission`, `auth`, `quota`, `network`, `timeout`.
-    Status { code: Option<&'static str> },
+    /// `detail`: ly do Soniox gui kem khi `code` = `rejected` (da cat ngan); cac ma khac khong co.
+    Status {
+        code: Option<&'static str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        detail: Option<String>,
+    },
     Stopped { session_id: String, lines: i64, duration_ms: i64, drained: bool },
     /// Thong bao cho nguoi dung ma phien van chay. `code`: `mixed_no_mic` (che do tron ha xuong chi he thong vi
     /// khong co micro), `translation_quota` (het quota Soniox: van ghi am cuc bo, khong co ban dich).
@@ -183,6 +188,17 @@ impl ErrorTracker {
             self.0 &= !k.bit();
         }
         before != self.0
+    }
+}
+
+/// Ly do Soniox tu choi (chi voi `Rejected`), mot dong, toi da 200 ky tu. Khong chua khoa API.
+pub fn rejected_detail(e: &SonioxError) -> Option<String> {
+    match e {
+        SonioxError::Rejected { code, message } => {
+            let m: String = message.chars().filter(|c| !c.is_control()).take(200).collect();
+            Some(if m.trim().is_empty() { format!("HTTP {code}") } else { format!("{} ({code})", m.trim()) })
+        }
+        _ => None,
     }
 }
 
@@ -564,10 +580,12 @@ async fn pump(
     let mut errs = ErrorTracker::default();
     let mut shown: Option<ErrKind> = None;
     let mut audio_ms: i64 = 0;
-    let update = |sink: &UiSink, shown: &mut Option<ErrKind>, now: Option<ErrKind>| {
+    let mut why: Option<String> = None;
+    let update = |sink: &UiSink, shown: &mut Option<ErrKind>, now: Option<ErrKind>, why: &Option<String>| {
         if *shown != now {
             *shown = now;
-            sink(UiEvent::Status { code: now.map(|k| k.code()) });
+            let detail = if now == Some(ErrKind::Rejected) { why.clone() } else { None };
+            sink(UiEvent::Status { code: now.map(|k| k.code()), detail });
         }
     };
     let mut finished = false;
@@ -579,7 +597,7 @@ async fn pump(
             }
             CoreEvent::Line(l) => {
                 if errs.recovered() {
-                    update(&sink, &mut shown, errs.current());
+                    update(&sink, &mut shown, errs.current(), &why);
                 }
                 sink(UiEvent::Line {
                     line: LineDto {
@@ -595,20 +613,28 @@ async fn pump(
             CoreEvent::Partial(p) => sink(UiEvent::Partial { partial: p.map(PartialDto::from) }),
             CoreEvent::Reconnecting { error, .. } => {
                 let k = classify_soniox(&error);
+                if let Some(d) = rejected_detail(&error) {
+                    why = Some(d);
+                }
                 crate::diag::log("soniox", &format!("reconnecting code={}", k.code()));
                 errs.raise(k);
-                update(&sink, &mut shown, errs.current());
+                update(&sink, &mut shown, errs.current(), &why);
             }
             CoreEvent::Device(DeviceEvent::PermissionRevoked) => {
                 crate::diag::log("device", "permission_revoked");
                 errs.raise(ErrKind::Permission);
-                update(&sink, &mut shown, errs.current());
+                update(&sink, &mut shown, errs.current(), &why);
             }
             CoreEvent::Device(DeviceEvent::DeviceChanged) => crate::diag::log("device", "device_changed (mic hoac system dung lai luong)"),
             CoreEvent::Failed(e) => {
+                if let CoreError::Soniox(se) = &e {
+                    if let Some(d) = rejected_detail(se) {
+                        why = Some(d);
+                    }
+                }
                 log_event("session_failed", &[("session", session_id.clone()), ("code", classify_core(&e).code().into()), ("detail", e.to_string())]);
                 errs.raise(classify_core(&e));
-                update(&sink, &mut shown, errs.current());
+                update(&sink, &mut shown, errs.current(), &why);
                 finished = true;
                 // Phien bi cat: nguoi dung thay trang thai loi va ve Idle.
                 *active.lock().unwrap_or_else(|e| e.into_inner()) = None;
@@ -684,6 +710,20 @@ mod tests {
         assert_eq!(classify_soniox(&SonioxError::Rejected { code: 400, message: "x".into() }), ErrKind::Rejected);
         assert_eq!(ErrKind::Rejected.code(), "rejected");
         assert_ne!(ErrKind::Rejected.code(), ErrKind::Auth.code());
+        // Chi 401/403 la khoa sai; 400 va 4xx khac la tu choi, kem ly do tu Soniox.
+        for c in [401u16, 403] {
+            assert_eq!(classify_soniox(&rlt_soniox::classify(c, None, "")), ErrKind::Auth);
+        }
+        for c in [400u16, 404, 422] {
+            assert_eq!(classify_soniox(&rlt_soniox::classify(c, None, "x")), ErrKind::Rejected, "{c}");
+        }
+        let e = SonioxError::Rejected { code: 400, message: "Invalid language hint.".into() };
+        assert_eq!(rejected_detail(&e).as_deref(), Some("Invalid language hint. (400)"));
+        assert_eq!(rejected_detail(&SonioxError::Auth { code: 401 }), None);
+        let long = SonioxError::Rejected { code: 400, message: "x".repeat(500) };
+        assert!(rejected_detail(&long).unwrap().chars().count() <= 206);
+        let empty = SonioxError::Rejected { code: 400, message: "".into() };
+        assert_eq!(rejected_detail(&empty).as_deref(), Some("HTTP 400"));
         assert_eq!(classify_soniox(&SonioxError::QuotaExhausted { error_type: "x".into() }), ErrKind::Quota);
         assert_eq!(classify_soniox(&SonioxError::Timeout), ErrKind::Timeout);
         assert_eq!(classify_soniox(&SonioxError::Network("x".into())), ErrKind::Network);

@@ -14,7 +14,8 @@ export type UiEvent =
   | { kind: "line"; line: LineDto }
   | { kind: "partial"; partial: PartialDto | null }
   | { kind: "level"; level: number }
-  | { kind: "status"; code: StatusCode | null }
+  /** `detail`: ly do Soniox gui kem, chi khi `code` = `rejected`. */
+  | { kind: "status"; code: StatusCode | null; detail?: string }
   | { kind: "stopped"; sessionId: string; lines: number; durationMs: number; drained: boolean }
   /** Thong bao ma phien van chay: che do tron ha xuong chi he thong (khong co micro), hoac het quota (ghi cuc bo, khong dich). */
   | { kind: "notice"; code: "mixed_no_mic" | "translation_quota" };

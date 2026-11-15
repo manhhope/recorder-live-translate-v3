@@ -103,4 +103,16 @@ test.describe("Trang thai loi o Phien va Muc dung", () => {
     await page.getByRole("button", { name: rlt.t("set.test") }).click();
     await expect(page.locator(".bd.ok:not([data-testid])")).toContainText(rlt.t("set.soniox.ok"));
   });
+
+  test("rejected (400): hien thong diep rieng kem ly do Soniox, KHONG phai 'khoa sai'", async ({ page, rlt }) => {
+    await rlt.open();
+    await rlt.startRecording();
+    await rlt.emit({ kind: "status", code: "rejected", detail: "Invalid language hint. (400)" });
+    await expect(page.locator(".foot .sb")).toContainText(rlt.t("status.rejected"));
+    await expect(page.locator(".foot .sb")).not.toContainText(rlt.t("status.badkey"));
+    await expect(page.getByTestId("rejected-banner")).toContainText(rlt.t("err.rejected"));
+    await expect(page.getByTestId("rejected-detail")).toHaveText("Invalid language hint. (400)");
+    await rlt.emit({ kind: "status", code: null });
+    await expect(page.getByTestId("rejected-banner")).toHaveCount(0);
+  });
 });

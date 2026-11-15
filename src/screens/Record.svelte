@@ -21,6 +21,7 @@
   let level = $state(0);
   let status = $state<StatusCode | null>(null);
   let errCode = $state<string | null>(null);
+  let statusDetail = $state<string | null>(null);
   let hasKey = $state(true);
   let consent = $state(true);
   let askConsent = $state(false);
@@ -82,7 +83,7 @@
       if (i >= 0) lines[i] = e.line; else lines.push(e.line);
       live = afterFinal(live, e.line.sourceText, e.line.translatedText);
     } else if (e.kind === "level") level = e.level;
-    else if (e.kind === "status") status = e.code;
+    else if (e.kind === "status") { status = e.code; statusDetail = e.code === "rejected" ? (e.detail ?? null) : null; }
     else if (e.kind === "notice") { if (!notices.includes(e.code)) notices.push(e.code); }
     else if (e.kind === "stopped") lastStop = { lines: e.lines, drained: e.drained };
   }
@@ -106,7 +107,7 @@
 
   async function begin() {
     if (!mode) return;
-    busy = true; errCode = null; status = null; lastStop = null; notices = [];
+    busy = true; errCode = null; status = null; statusDetail = null; lastStop = null; notices = [];
     try {
       const listenLangs = app.src === AUTO ? [] : [app.src];
       await api.prefsSet({ targetLang: app.dst, listenLangs, mode, uiLanguage: document.documentElement.lang === "en" ? "en" : "pt-PT" });
@@ -208,6 +209,11 @@
     <SourceButton kind="mic" bind:on={app.micOn} level={micLevel} />
   </div>
 </div>
+
+{#if status === "rejected"}
+  <div class="card" role="alert" data-testid="rejected-banner" style="margin:8px 18px"><span class="bd rec"><Icon name="warn" />{$_("err.rejected")}</span>
+    {#if statusDetail}<div data-testid="rejected-detail" style="margin-top:6px;font-size:12px;opacity:.85">{statusDetail}</div>{/if}</div>
+{/if}
 
 {#if errCode}
   <div class="card" role="alert" style="margin:8px 18px"><span class="bd rec"><Icon name="warn" />{$_(errKey(errCode))}</span>
