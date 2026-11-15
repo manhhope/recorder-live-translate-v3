@@ -1,0 +1,56 @@
+{
+  "entries": [
+    {
+      "version": "0.1.0",
+      "date": "2026-11-15",
+      "groups": {
+        "new": {
+          "en": [
+            "Export a session to Word (.docx), and choose what goes in: source and translation, translation only, or source only.",
+            "Usage Logs tab with your Soniox usage by week.",
+            "Quick Translate: translate selected text with DeepL, with OCR for text in images.",
+            "Capture a screen region and attach the image to the session.",
+            "Floating live subtitles window with a compact toolbar.",
+            "Ask AI about a session with Gemini, OpenAI or Ollama, using your own key.",
+            "Google Drive sync for your transcripts."
+          ],
+          "pt-PT": [
+            "Exporte uma sessão para Word (.docx) e escolha o conteúdo: original e tradução, só a tradução ou só o original.",
+            "Separador Usage Logs com o seu consumo Soniox por semana.",
+            "Quick Translate: traduza o texto selecionado com o DeepL, com OCR para texto em imagens.",
+            "Capture uma região do ecrã e anexe a imagem à sessão.",
+            "Janela flutuante de legendas em direto com uma barra de ferramentas compacta.",
+            "Pergunte à IA sobre uma sessão com Gemini, OpenAI ou Ollama, usando a sua própria chave.",
+            "Sincronização das transcrições com o Google Drive."
+          ]
+        },
+        "improved": {
+          "en": [
+            "Usage Logs show the last known Soniox numbers instantly and refresh in the background.",
+            "New display options for the transcript in the Record status bar: text size, source and translation colors, show or hide the source.",
+            "Settings adapts to narrow windows without horizontal scrolling.",
+            "The Keychain asks for permission at most once per key."
+          ],
+          "pt-PT": [
+            "O Usage Logs mostra de imediato os últimos valores conhecidos da Soniox e atualiza em segundo plano.",
+            "Novas opções de apresentação da transcrição na barra de estado de Gravar: tamanho do texto, cores do original e da tradução, mostrar ou ocultar o original.",
+            "As Definições adaptam-se a janelas estreitas, sem deslocação horizontal.",
+            "O Porta-chaves pede autorização no máximo uma vez por chave."
+          ]
+        },
+        "fixed": {
+          "en": [
+            "The Change button in the Export dialog now works and remembers the folder.",
+            "Fixed a crash when closing the subtitles window.",
+            "Clearer errors when a recording fails to start."
+          ],
+          "pt-PT": [
+            "O botão Alterar da janela Exportar já funciona e memoriza a pasta.",
+            "Corrigido um encerramento inesperado ao fechar a janela de legendas.",
+            "Erros mais claros quando uma gravação não consegue iniciar."
+          ]
+        }
+      }
+    }
+  ]
+}

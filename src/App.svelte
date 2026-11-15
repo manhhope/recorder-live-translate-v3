@@ -7,6 +7,8 @@
   import Sessions from "./screens/Sessions.svelte";
   import Settings from "./screens/Settings.svelte";
   import AskAi from "./screens/AskAi.svelte";
+  import WhatsNew from "./lib/WhatsNew.svelte";
+  import { whatsNew, evaluateWhatsNew } from "./lib/whats-new.svelte.ts";
   import { listen } from "@tauri-apps/api/event";
   import { displayAccel } from "./lib/accel.ts";
   import { app, applyTheme, openAsk, type Screen } from "./lib/app.svelte.ts";
@@ -30,6 +32,8 @@
     void api.shellSetLocale(currentLocale()).catch(() => {});
     if (localStorage.getItem(api.KEEP_AWAKE_KEY) === "1") void api.shellSetKeepAwake(true).catch(() => {});
     // Phim tat toan cuc Hoi AI (Rust: shell/mod.rs AskAiOpen) phat shell://deeplink {action: ask_ai}; deeplink rlt://ask-ai cung vay.
+    // What's New: sau khi giao dien da ve xong (khung hinh ke tiep), hien mot lan neu phien ban doi so voi lan xem truoc.
+    requestAnimationFrame(() => evaluateWhatsNew());
     const un = listen<{ action?: string }>("shell://deeplink", e => { if (e.payload?.action === "ask_ai") openAsk(); });
     return () => { void un.then(f => f()).catch(() => {}); };
   });
@@ -62,3 +66,4 @@
     {#if app.screen === "rec"}<Record />{:else if app.screen === "ses"}<Sessions />{:else if app.screen === "ask"}<AskAi />{:else}<Settings bind:tab={app.settingsTab} />{/if}
   </main>
 </div>
+{#if whatsNew.open}<WhatsNew />{/if}

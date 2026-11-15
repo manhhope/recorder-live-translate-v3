@@ -8,6 +8,8 @@
 
 export interface MockSeed {
   locale: "en" | "pt-PT";
+  // Phien ban What's New da xem (khoa rlt.ui.whatsNewSeen), chi dat khi chua co gia tri (nhu locale). Khong dat = cai moi.
+  whatsNewSeen?: string;
   hasKey: boolean;
   consent: boolean;
   aiKeys: { gemini: boolean; openai: boolean };
@@ -32,6 +34,9 @@ export function installTauriMock(seed: MockSeed): void {
   const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v));
   try {
     if (!localStorage.getItem("rlt.ui.locale")) localStorage.setItem("rlt.ui.locale", seed.locale);
+  } catch { /* bo qua */ }
+  try {
+    if (seed.whatsNewSeen && localStorage.getItem("rlt.ui.whatsNewSeen") === null) localStorage.setItem("rlt.ui.whatsNewSeen", seed.whatsNewSeen);
   } catch { /* bo qua */ }
 
   const callbacks = new Map<number, (m: unknown) => void>();

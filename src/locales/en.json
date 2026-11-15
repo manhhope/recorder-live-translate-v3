@@ -750,5 +750,13 @@
   "set.usage.refreshing": "Updating",
   "set.usage.stale.warn": "Could not update. Showing the last saved figures. {reason}",
   "set.usage.reason.nocache": "No saved Soniox figures for this week yet. Showing the local estimate while loading.",
-  "set.usage.reason.unknown": "Unknown reason. Try again."
+  "set.usage.reason.unknown": "Unknown reason. Try again.",
+  "wn.title": "What's new",
+  "wn.group.new": "New",
+  "wn.group.improved": "Improved",
+  "wn.group.fixed": "Fixed",
+  "wn.gotit": "Got it",
+  "wn.close": "Close",
+  "wn.empty": "No release notes for this version yet.",
+  "wn.open": "Open"
 }

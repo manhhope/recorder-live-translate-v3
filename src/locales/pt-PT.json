@@ -750,5 +750,13 @@
   "set.usage.refreshing": "A atualizar",
   "set.usage.stale.warn": "Não foi possível atualizar. A mostrar os últimos valores guardados. {reason}",
   "set.usage.reason.nocache": "Ainda não há valores do Soniox guardados para esta semana. A mostrar a estimativa local enquanto carrega.",
-  "set.usage.reason.unknown": "Motivo desconhecido. Tente novamente."
+  "set.usage.reason.unknown": "Motivo desconhecido. Tente novamente.",
+  "wn.title": "Novidades",
+  "wn.group.new": "Novo",
+  "wn.group.improved": "Melhorado",
+  "wn.group.fixed": "Corrigido",
+  "wn.gotit": "Entendido",
+  "wn.close": "Fechar",
+  "wn.empty": "Ainda não há notas desta versão.",
+  "wn.open": "Abrir"
 }

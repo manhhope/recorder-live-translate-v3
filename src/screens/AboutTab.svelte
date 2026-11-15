@@ -5,6 +5,7 @@
   import { _ } from "../i18n/index.ts";
   import Icon from "../lib/Icon.svelte";
   import * as api from "../lib/api.ts";
+  import { openWhatsNew } from "../lib/whats-new.svelte.ts";
 
   let version = $state("");
   let mic = $state<string | null>(null);
@@ -58,6 +59,7 @@
 <div class="card">
   <h4>{$_("set.about.app")}</h4>
   <div class="rw"><b>{$_("set.about.version")}</b><div class="rr"><code>{version}</code></div></div>
+  <div class="rw"><b>{$_("set.about.whatsnew")}</b><div class="rr"><button type="button" class="btn sm" data-testid="whatsnew-open" onclick={openWhatsNew}>{$_("wn.open")}</button></div></div>
 </div>
 
 <div class="card">
