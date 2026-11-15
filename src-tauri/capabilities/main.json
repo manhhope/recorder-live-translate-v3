@@ -67,6 +67,7 @@
     "allow-soniox-has-api-key",
     "allow-soniox-clear-api-key",
     "allow-soniox-test-connection",
+    "allow-soniox-diag-realtime",
     "allow-permissions-status",
     "allow-screen-permission-check",
     "allow-record-prefs-get",

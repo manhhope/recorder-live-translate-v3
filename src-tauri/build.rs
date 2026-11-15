@@ -73,6 +73,7 @@ pub const APP_COMMANDS: &[&str] = &[
     "soniox_has_api_key",
     "soniox_clear_api_key",
     "soniox_test_connection",
+    "soniox_diag_realtime",
     "permissions_status",
     "screen_permission_check",
     "record_prefs_get",

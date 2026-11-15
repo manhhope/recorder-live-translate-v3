@@ -117,6 +117,17 @@ pub enum UiEvent {
 /// Nguon da dung: nguon am thanh, loai ghi vao dong chu, nhan che do tron (neu co).
 type BuiltSource = (Box<dyn AudioSource>, AudioSourceKind, Option<&'static str>, Option<Arc<ActivityLog>>, Option<&'static str>);
 
+/// Ket qua chan doan WebSocket (`soniox_diag_realtime`). `detail` la ly do ky thuat da che khoa.
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RealtimeDiag {
+    pub ok: bool,
+    pub code: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    pub elapsed_ms: i64,
+}
+
 pub type UiSink = Arc<dyn Fn(UiEvent) + Send + Sync>;
 
 pub fn state_name(s: SessionState) -> &'static str {
@@ -191,13 +202,16 @@ impl ErrorTracker {
     }
 }
 
-/// Ly do Soniox tu choi (chi voi `Rejected`), mot dong, toi da 200 ky tu. Khong chua khoa API.
+/// Ly do ky thuat cua loi (chi voi `Rejected` va `Network`), mot dong, toi da 200 ky tu. Khong chua khoa API:
+/// `Rejected` la thong diep Soniox gui, `Network` la `<giai doan>/<loai>: <chuoi nguyen nhan>` tu `describe_ws_error`
+/// (da qua `scrub_log`, che moi chuoi dai giong khoa).
 pub fn rejected_detail(e: &SonioxError) -> Option<String> {
     match e {
         SonioxError::Rejected { code, message } => {
             let m: String = message.chars().filter(|c| !c.is_control()).take(200).collect();
             Some(if m.trim().is_empty() { format!("HTTP {code}") } else { format!("{} ({code})", m.trim()) })
         }
+        SonioxError::Network(m) => Some(scrub_log(m)),
         _ => None,
     }
 }
@@ -405,32 +419,53 @@ impl SessionService {
     /// Thu ket noi: mo mot luong Soniox, doi `Connected`, roi cho ngan xem co loi xac thuc khong.
     /// Tra Ok(()) hoac ma loi (`auth`, `quota`, `network`, `timeout`, `key_missing`).
     pub async fn test_connection(&self) -> Result<(), String> {
-        let auth = self.read_key()?;
+        self.test_connection_detail().await.map_err(|(code, _)| code)
+    }
+
+    /// Nhu `test_connection` nhung loi kem ly do ky thuat (chi voi `rejected`, `network`), da qua `scrub_log`.
+    async fn test_connection_detail(&self) -> Result<(), (String, Option<String>)> {
+        let auth = self.read_key().map_err(|c| (c, None))?;
         let settings = self.soniox_settings("en", &[], None);
         let (audio_tx, audio_rx) = mpsc::channel::<Vec<u8>>(1);
         let (ev_tx, mut ev_rx) = mpsc::channel(8);
         let task = tokio::spawn(rlt_soniox::run_session(settings, auth, audio_rx, ev_tx));
+        let fail = |e: &SonioxError| Err((classify_soniox(e).code().to_string(), rejected_detail(e)));
         let verdict = tokio::time::timeout(Duration::from_secs(8), async {
             let mut connected = false;
             loop {
                 let wait = if connected { Duration::from_millis(1200) } else { Duration::from_secs(8) };
                 match tokio::time::timeout(wait, ev_rx.recv()).await {
                     Ok(Some(SonioxEvent::Connected { .. })) => connected = true,
-                    Ok(Some(SonioxEvent::Failed(e))) => return Err(classify_soniox(&e).code().to_string()),
-                    Ok(Some(SonioxEvent::Reconnecting { error, .. })) => {
-                        return Err(classify_soniox(&error).code().to_string())
-                    }
+                    Ok(Some(SonioxEvent::Failed(e))) => return fail(&e),
+                    Ok(Some(SonioxEvent::Reconnecting { error, .. })) => return fail(&error),
                     Ok(Some(_)) => {}
-                    Ok(None) => return if connected { Ok(()) } else { Err("network".into()) },
-                    Err(_) => return if connected { Ok(()) } else { Err("timeout".into()) },
+                    Ok(None) => return if connected { Ok(()) } else { Err(("network".to_string(), None)) },
+                    Err(_) => return if connected { Ok(()) } else { Err(("timeout".to_string(), None)) },
                 }
             }
         })
         .await
-        .unwrap_or_else(|_| Err("timeout".into()));
+        .unwrap_or_else(|_| Err(("timeout".to_string(), None)));
         drop(audio_tx);
         task.abort();
         verdict
+    }
+
+    /// Chan doan "Test realtime connection": thu rieng WebSocket Soniox, khong ghi am, khong luu gi. Ghi ket qua vao
+    /// `session-errors.log`. Tra ve ma + ly do ky thuat (khong chua khoa) de giao dien hien.
+    pub async fn diag_realtime(&self) -> RealtimeDiag {
+        let started = std::time::Instant::now();
+        let r = self.test_connection_detail().await;
+        let elapsed_ms = started.elapsed().as_millis() as i64;
+        let out = match r {
+            Ok(()) => RealtimeDiag { ok: true, code: "ok".into(), detail: None, elapsed_ms },
+            Err((code, detail)) => RealtimeDiag { ok: false, code, detail, elapsed_ms },
+        };
+        log_event(
+            "diag_realtime",
+            &[("ok", out.ok.to_string()), ("code", out.code.clone()), ("elapsed_ms", elapsed_ms.to_string()), ("detail", out.detail.clone().unwrap_or_default())],
+        );
+        out
     }
 
     // ---- dong y (US-09)
@@ -584,7 +619,7 @@ async fn pump(
     let update = |sink: &UiSink, shown: &mut Option<ErrKind>, now: Option<ErrKind>, why: &Option<String>| {
         if *shown != now {
             *shown = now;
-            let detail = if now == Some(ErrKind::Rejected) { why.clone() } else { None };
+            let detail = if matches!(now, Some(ErrKind::Rejected | ErrKind::Network)) { why.clone() } else { None };
             sink(UiEvent::Status { code: now.map(|k| k.code()), detail });
         }
     };
@@ -611,12 +646,13 @@ async fn pump(
                 });
             }
             CoreEvent::Partial(p) => sink(UiEvent::Partial { partial: p.map(PartialDto::from) }),
-            CoreEvent::Reconnecting { error, .. } => {
+            CoreEvent::Reconnecting { error, failures, .. } => {
                 let k = classify_soniox(&error);
                 if let Some(d) = rejected_detail(&error) {
                     why = Some(d);
                 }
                 crate::diag::log("soniox", &format!("reconnecting code={}", k.code()));
+                log_event("soniox_reconnecting", &[("session", session_id.clone()), ("code", k.code().into()), ("failures", failures.to_string()), ("detail", error.to_string())]);
                 errs.raise(k);
                 update(&sink, &mut shown, errs.current(), &why);
             }
@@ -727,6 +763,11 @@ mod tests {
         assert_eq!(classify_soniox(&SonioxError::QuotaExhausted { error_type: "x".into() }), ErrKind::Quota);
         assert_eq!(classify_soniox(&SonioxError::Timeout), ErrKind::Timeout);
         assert_eq!(classify_soniox(&SonioxError::Network("x".into())), ErrKind::Network);
+        // Network mang ly do ky thuat, da che chuoi dai giong khoa.
+        let n = SonioxError::Network("connect/tls_cert: invalid peer certificate: UnknownIssuer sk_live_0123456789abcdefghij".into());
+        let d = rejected_detail(&n).unwrap();
+        assert!(d.starts_with("connect/tls_cert: invalid peer certificate: UnknownIssuer"), "{d}");
+        assert!(!d.contains("0123456789abcdefghij"), "{d}");
     }
 
     #[test]

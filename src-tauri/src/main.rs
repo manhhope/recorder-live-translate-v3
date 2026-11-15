@@ -138,6 +138,7 @@ fn main() {
             session::soniox_has_api_key,
             session::soniox_clear_api_key,
             session::soniox_test_connection,
+            session::soniox_diag_realtime,
             session::permissions_status,
             session::screen_permission_check,
             session::record_prefs_get,

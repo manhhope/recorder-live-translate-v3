@@ -32,6 +32,7 @@ pub const SESSION_COMMANDS: &[&str] = &[
     "soniox_has_api_key",
     "soniox_clear_api_key",
     "soniox_test_connection",
+    "soniox_diag_realtime",
     "permissions_status",
     "screen_permission_check",
     "record_prefs_get",
@@ -161,6 +162,13 @@ pub fn soniox_clear_api_key(s: State<'_, SessionState>) -> Res<()> {
 pub async fn soniox_test_connection(s: State<'_, SessionState>) -> Res<()> {
     let svc = s.svc.clone();
     svc.test_connection().await
+}
+
+/// "Test realtime connection": thu rieng WebSocket Soniox, khong can ghi am. Tra ma + ly do ky thuat (khong chua khoa).
+#[tauri::command]
+pub async fn soniox_diag_realtime(s: State<'_, SessionState>) -> Res<service::RealtimeDiag> {
+    let svc = s.svc.clone();
+    Ok(svc.diag_realtime().await)
 }
 
 #[derive(serde::Serialize)]

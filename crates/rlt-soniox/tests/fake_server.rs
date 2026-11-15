@@ -26,6 +26,8 @@ enum Script {
     Error(u16, &'static str),
     /// Đợi khung audio đầu, gửi một token gốc dở rồi cắt TCP không có khung Close.
     Cut,
+    /// Nhận cấu hình rồi đóng bằng khung Close có mã và lý do (không có tin lỗi JSON trước).
+    CloseWith(u16, &'static str),
     /// Từ chối ngay ở bước bắt tay HTTP.
     Http(u16),
     /// Đợi khung audio đầu, gửi lần lượt các tin ở `LIVE_MSGS` (non-final rồi final), đợi khung TEXT rỗng rồi `finished`.
@@ -147,6 +149,16 @@ async fn spawn_server(scripts: Vec<Script>) -> Server {
                                 _ => {}
                             }
                         }
+                    }
+                    Script::CloseWith(code, reason) => {
+                        use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+                        use tokio_tungstenite::tungstenite::protocol::CloseFrame;
+                        ws.close(Some(CloseFrame {
+                            code: CloseCode::from(code),
+                            reason: reason.into(),
+                        }))
+                        .await
+                        .ok();
                     }
                     Script::Http(_) => {}
                 }
@@ -415,4 +427,34 @@ async fn scenario_non_final_text_is_emitted_before_final_and_replaced() {
     end_audio(&mut run);
     assert_eq!(next(&mut run).await, Event::Finished);
     assert!(run.task.await.unwrap().is_ok());
+}
+
+/// Đối chiếu t_5607df473025 (400 "Invalid language hint"): lỗi cấu hình dạng JSON được phân loại Rejected, không retry,
+/// không bị gộp thành Network.
+#[tokio::test]
+async fn scenario_400_json_config_error_is_rejected_not_network() {
+    let server = spawn_server(vec![Script::Error(400, "invalid_request")]).await;
+    let mut run = start(&server.url);
+    run.audio.send(vec![0u8; FRAME]).await.unwrap();
+    assert!(matches!(next(&mut run).await, Event::Connected { .. }));
+    let Event::Failed(SonioxError::Rejected { code: 400, .. }) = next(&mut run).await else {
+        panic!("can Failed(Rejected 400)")
+    };
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert_eq!(server.seen.lock().unwrap().auth.len(), 1, "400 khong duoc noi lai");
+}
+
+/// Soniox đóng bằng khung Close (không có JSON lỗi): vẫn là Network (nối lại) nhưng lý do ghi rõ mã và lý do đóng.
+#[tokio::test]
+async fn scenario_close_frame_without_json_keeps_code_and_reason_in_network_detail() {
+    let server = spawn_server(vec![Script::CloseWith(1008, "bad config"), Script::Tokens]).await;
+    let mut run = start(&server.url);
+    run.audio.send(vec![0u8; FRAME]).await.unwrap();
+    assert!(matches!(next(&mut run).await, Event::Connected { .. }));
+    let Event::Reconnecting { error: SonioxError::Network(m), .. } = next(&mut run).await else {
+        panic!("can Reconnecting(Network)")
+    };
+    assert!(m.starts_with("stream/closed:"), "{m}");
+    assert!(m.contains("code=1008") && m.contains("bad config"), "{m}");
+    assert!(!m.contains(FAKE_KEY));
 }

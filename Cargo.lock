@@ -3730,8 +3730,11 @@ version = "3.0.2"
 dependencies = [
  "futures-util",
  "rlt-segment",
+ "rustls",
+ "rustls-pki-types",
  "serde_json",
  "tokio",
+ "tokio-rustls",
  "tokio-tungstenite",
 ]
 
@@ -5063,6 +5066,7 @@ dependencies = [
  "futures-util",
  "log",
  "rustls",
+ "rustls-native-certs",
  "rustls-pki-types",
  "tokio",
  "tokio-rustls",
