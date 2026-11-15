@@ -263,11 +263,18 @@ pub fn export_default_dir(app: tauri::AppHandle) -> Option<String> {
     app.path().document_dir().ok().map(|p| p.to_string_lossy().into_owned())
 }
 
-/// Hop thoai chon thu muc xuat. None neu huy.
+/// Doi ket qua hop chon thu muc: huy -> `Ok(None)`; duong dan khong phai tep cuc bo (vd URL) -> `export_pick_failed`.
+pub fn picked_folder_to_string(p: Option<tauri_plugin_dialog::FilePath>) -> Res<Option<String>> {
+    match p {
+        None => Ok(None),
+        Some(p) => p.into_path().map(|p| Some(p.to_string_lossy().into_owned())).map_err(|_| "export_pick_failed".to_string()),
+    }
+}
+
+/// Hop thoai chon thu muc xuat. `Ok(None)` neu nguoi dung huy.
 #[tauri::command]
-pub async fn export_pick_dir(app: tauri::AppHandle) -> Option<String> {
-    let p = app.dialog().file().blocking_pick_folder()?;
-    p.into_path().ok().map(|p| p.to_string_lossy().into_owned())
+pub async fn export_pick_dir(app: tauri::AppHandle) -> Res<Option<String>> {
+    picked_folder_to_string(app.dialog().file().blocking_pick_folder())
 }
 
 /// Ket qua xuat: duong dan file da ghi + so anh docx khong doc duoc (`warning` = `export_image_missing` khi > 0).
@@ -491,6 +498,27 @@ pub async fn import_dotnet_pick(app: tauri::AppHandle, s: State<'_, SessionState
 
 #[cfg(test)]
 mod tests {
+    /// Gap loi 2026-11: `export_pick_dir` co trong manifest nhung `main.json` khong cap `allow-export-pick-dir`,
+    /// nen nut Change bi ACL tu choi. Moi lenh phien phai duoc cua so `main` cap quyen.
+    #[test]
+    fn every_session_command_is_allowed_for_main_window() {
+        let cap: serde_json::Value = serde_json::from_str(include_str!("../../capabilities/main.json")).unwrap();
+        let allowed: Vec<&str> = cap["permissions"].as_array().unwrap().iter().filter_map(|v| v.as_str()).collect();
+        for c in super::SESSION_COMMANDS {
+            let perm = format!("allow-{}", c.replace('_', "-"));
+            assert!(allowed.contains(&perm.as_str()), "main.json thieu {perm}");
+        }
+    }
+
+    #[test]
+    fn picked_folder_cancel_is_none_and_path_is_string() {
+        assert_eq!(super::picked_folder_to_string(None), Ok(None));
+        let p = tauri_plugin_dialog::FilePath::Path(std::path::PathBuf::from("/Users/a/Exports"));
+        assert_eq!(super::picked_folder_to_string(Some(p)), Ok(Some("/Users/a/Exports".to_string())));
+        let url = tauri_plugin_dialog::FilePath::Url("https://x.test/a".parse().unwrap());
+        assert_eq!(super::picked_folder_to_string(Some(url)), Err("export_pick_failed".to_string()));
+    }
+
     #[test]
     fn no_command_returns_the_key() {
         for c in super::SESSION_COMMANDS {

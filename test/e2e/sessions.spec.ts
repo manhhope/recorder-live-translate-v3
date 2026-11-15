@@ -89,6 +89,42 @@ test.describe("Danh sach phien, tim kiem, xuat", () => {
     await expect(page.getByRole("dialog").locator("code")).toHaveText("/Users/test/Exports");
   });
 
+  test("Change: chon thu muc -> o Save to hien duong dan va luu cho lan sau; chua chon thi hien Documents", async ({ page, rlt }) => {
+    await openWeekly(page, rlt);
+    const code = page.getByRole("dialog").locator("code");
+    await expect(code).toHaveText("/Users/test/Documents");
+    await page.getByRole("button", { name: rlt.t("exp.dir.change") }).click();
+    await expect(code).toHaveText("/Users/test/Exports");
+    expect((await rlt.calls("export_pick_dir")).length).toBe(1);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("rlt.export.prefs") ?? "{}").dir)).toBe("/Users/test/Exports");
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
+
+  test("Change: huy hop thoai khong bao loi va giu thu muc cu", async ({ page, rlt }) => {
+    await openWeekly(page, rlt);
+    await page.evaluate(() => { (window as any).__rlt.state.pickDir = null; });
+    await page.getByRole("button", { name: rlt.t("exp.dir.change") }).click();
+    await expect.poll(async () => (await rlt.calls("export_pick_dir")).length).toBe(1);
+    await expect(page.getByRole("dialog").locator("code")).toHaveText("/Users/test/Documents");
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
+
+  test("Change: lenh loi (vd ACL tu choi) hien loi co chi tiet, khong phai 'Something went wrong', thu muc khong doi", async ({ page, rlt }) => {
+    await openWeekly(page, rlt);
+    await rlt.setFail("export_pick_dir", "export_pick_dir not allowed by ACL");
+    await page.getByRole("button", { name: rlt.t("exp.dir.change") }).click();
+    const alert = page.getByRole("alert");
+    await expect(alert).toContainText("export_pick_dir not allowed by ACL");
+    await expect(alert).not.toContainText(rlt.t("err.generic"));
+    await expect(page.getByRole("dialog").locator("code")).toHaveText("/Users/test/Documents");
+  });
+
+  test("Change: loi hien theo pt-PT", async ({ page, rlt }) => {
+    await openWeekly(page, rlt, { locale: "pt-PT", fail: { export_pick_dir: "export_pick_failed" } });
+    await page.getByRole("button", { name: rlt.t("exp.dir.change") }).click();
+    await expect(page.getByRole("alert")).toContainText(rlt.t("exp.dir.error", { detail: "export_pick_failed" }));
+  });
+
   test("dialog xuat hien nhan theo pt-PT", async ({ page, rlt }) => {
     await openWeekly(page, rlt, { locale: "pt-PT" });
     await expect(page.getByRole("radio", { name: rlt.t("exp.content.source") })).toBeVisible();

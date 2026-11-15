@@ -4,42 +4,38 @@
   import Icon from "./Icon.svelte";
   import * as api from "./api.ts";
   import type { ExportFormat, ExportContent } from "./api.ts";
+  import { loadExportPrefs, saveExportPrefs, applyPickedDir, pickErrorDetail } from "./export-dir.ts";
 
   let { sessionId, uiLang, onClose, onDone, onError }: {
     sessionId: string; uiLang: string; onClose: () => void; onDone: (out: api.ExportOut) => void; onError: (code: string) => void;
   } = $props();
 
-  const KEY = "rlt.export.prefs";
   const FORMATS: ExportFormat[] = ["md", "txt", "srt", "docx"];
   const CONTENTS: ExportContent[] = ["both", "translation", "source"];
-  // Nho lua chon lan truoc; gia tri la thi bo qua (mac dinh: Ca nguon va dich, thu muc Documents).
-  function loadPrefs(): { format: ExportFormat; content: ExportContent; dir: string | null } {
-    try {
-      const o = JSON.parse(localStorage.getItem(KEY) ?? "{}");
-      return {
-        format: FORMATS.includes(o.format) ? o.format : "md",
-        content: CONTENTS.includes(o.content) ? o.content : "both",
-        dir: typeof o.dir === "string" && o.dir ? o.dir : null,
-      };
-    } catch { return { format: "md", content: "both", dir: null }; }
-  }
-  const p0 = loadPrefs();
+  // Nho lua chon lan truoc (logic o export-dir.ts); mac dinh: Ca nguon va dich, thu muc Documents.
+  const p0 = loadExportPrefs(localStorage);
   let format = $state<ExportFormat>(p0.format);
   let content = $state<ExportContent>(p0.content);
   let dir = $state<string | null>(p0.dir);
   let busy = $state(false);
+  let pickErr = $state<string | null>(null);
+  const pickMsg = $derived(pickErr ? $_("exp.dir.error", { values: { detail: pickErr } }) : "");
 
   onMount(async () => {
-    if (!dir) { try { dir = await api.exportDefaultDir(); } catch { /* de trong: Rust tu dung Documents */ } }
+    if (!dir) { try { dir = await api.exportDefaultDir(); } catch { /* o "Save to" hien Documents mac dinh */ } }
   });
   async function pick() {
-    try { const d = await api.exportPickDir(); if (d) dir = d; } catch (e) { onError(api.errCode(e)); }
+    pickErr = null;
+    try {
+      const d = applyPickedDir(dir, await api.exportPickDir());
+      if (d !== dir) { dir = d; saveExportPrefs(localStorage, { format, content, dir }); }
+    } catch (e) { pickErr = pickErrorDetail(e); }
   }
   async function go() {
     busy = true;
     try {
       const out = await api.sessionExport(sessionId, format, content, uiLang, dir);
-      try { localStorage.setItem(KEY, JSON.stringify({ format, content, dir })); } catch { /* khong luu duoc thi thoi */ }
+      saveExportPrefs(localStorage, { format, content, dir });
       onDone(out);
     } catch (e) { onError(api.errCode(e)); }
     busy = false;
@@ -64,9 +60,10 @@
     </div>
   </div>
   <div class="row"><span class="hint">{$_("exp.dir")}</span>
-    <code class="dirp" title={dir ?? ""}>{dir ?? ""}</code>
+    <code class="dirp" title={dir ?? ""}>{dir ?? $_("exp.dir.default")}</code>
     <button type="button" class="btn sm" onclick={pick}>{$_("exp.dir.change")}</button>
   </div>
+  {#if pickErr}<div class="row" role="alert"><span class="bd rec"><Icon name="warn" />{pickMsg}</span></div>{/if}
   <div class="row">
     <button type="button" class="btn sm" disabled={busy} onclick={go}><Icon name="download" />{$_("exp.go")}</button>
     <button type="button" class="btn sm" onclick={onClose}>{$_("exp.cancel")}</button>
