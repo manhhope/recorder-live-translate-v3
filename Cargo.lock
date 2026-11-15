@@ -3593,7 +3593,7 @@ dependencies = [
 
 [[package]]
 name = "rlt-ai"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "async-trait",
  "reqwest",
@@ -3607,7 +3607,7 @@ dependencies = [
 
 [[package]]
 name = "rlt-app"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "block2",
  "core-foundation 0.10.1",
@@ -3643,7 +3643,7 @@ dependencies = [
 
 [[package]]
 name = "rlt-core"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "futures-util",
  "rlt-segment",
@@ -3655,7 +3655,7 @@ dependencies = [
 
 [[package]]
 name = "rlt-features"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "getrandom 0.3.4",
  "libc",
@@ -3670,7 +3670,7 @@ dependencies = [
 
 [[package]]
 name = "rlt-platform"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "block2",
  "cpal",
@@ -3684,7 +3684,7 @@ dependencies = [
 
 [[package]]
 name = "rlt-quick"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "png 0.17.16",
  "reqwest",
@@ -3697,7 +3697,7 @@ dependencies = [
 
 [[package]]
 name = "rlt-secrets"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "keyring",
  "security-framework 3.7.0",
@@ -3706,14 +3706,14 @@ dependencies = [
 
 [[package]]
 name = "rlt-segment"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "rlt-soniox"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "futures-util",
  "rlt-segment",
@@ -3724,7 +3724,7 @@ dependencies = [
 
 [[package]]
 name = "rlt-store"
-version = "0.1.0"
+version = "3.0.0"
 dependencies = [
  "rusqlite",
 ]
