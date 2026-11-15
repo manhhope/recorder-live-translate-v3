@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Usage Logs (Soniox) - compact layout mockup</title>
+<!-- Mockup (vai ui-designer) cho tab Usage Logs gon, t_493189bdb8c9. Dung token phuong an A (src/styles/tokens-v3.css): --rlt-fs 13px,
+     --rlt-hc 28px (nut sm = 22px), --rlt-rb 6px, --rlt-rc 10px, mau --rlt-text/--rlt-text2/--rlt-fill/--rlt-acc. Developer lam theo file nay. -->
+<style>
+:root{--rlt-bg:#F5F5F7;--rlt-card:#fff;--rlt-ctl:#E8E8ED;--rlt-line:#D8D8DE;--rlt-text:#1D1D1F;--rlt-text2:#5C5C63;--rlt-fill:#0A5BC4;--rlt-acc:#0A5BC4;--rlt-rb:6px;--rlt-rc:10px;--rlt-fs:13px;--rlt-hc:28px}
+body{font:13px -apple-system,BlinkMacSystemFont,"SF Pro Text",Arial,sans-serif;background:var(--rlt-bg);color:var(--rlt-text);margin:0;padding:24px;display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start}
+figure{margin:0}figcaption{font-size:11px;color:var(--rlt-text2);margin-bottom:6px}
+.card{background:var(--rlt-card);border:1px solid var(--rlt-line);border-radius:var(--rlt-rc);padding:14px 16px}
+h4{margin:0 0 8px;font-size:15px}h5{margin:12px 0 2px;font-size:13px}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.seg{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--rlt-line);border-radius:var(--rlt-rb);background:var(--rlt-ctl)}
+.seg b{font-weight:400;padding:3px 10px;font-size:12px;color:var(--rlt-text2);border-radius:4px}.seg b.on{background:#fff;color:var(--rlt-text);font-weight:600}
+.sp{flex:1}
+.bd{font-size:11px;font-weight:600;padding:2px 8px;border-radius:99px;border:1px solid var(--rlt-acc);color:var(--rlt-acc)}
+.hint{font-size:11px;color:var(--rlt-text2)}
+.ib{width:22px;height:22px;border:1px solid var(--rlt-line);border-radius:var(--rlt-rb);background:var(--rlt-ctl);display:inline-grid;place-items:center;font-size:12px}
+.sum{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;margin-top:10px}
+.sum b{font-size:15px}.sum small{font-size:11px;color:var(--rlt-text2);margin-left:3px}.sum .dot{color:var(--rlt-text2)}
+.chart{display:flex;gap:10px;align-items:flex-end;height:96px;border-bottom:1px solid var(--rlt-text2);padding:4px 4px 0;margin-top:6px}
+.chart div{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%}.chart i{display:block;width:100%;max-width:36px;background:var(--rlt-fill);border-radius:3px 3px 0 0}
+.days{display:flex;gap:10px;padding:2px 4px 0;font-size:11px;color:var(--rlt-text2)}.days span{flex:1;text-align:center}
+.rw{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid var(--rlt-line)}.rw:last-child{border:0}.rw small{display:block;font-size:11px;color:var(--rlt-text2)}
+.w1{width:600px}.w2{width:340px}
+.note{max-width:620px;font-size:12px;line-height:1.5}
+</style></head><body>
+<figure class="w1"><figcaption>Cua so chuan (noi dung ~600px)</figcaption><div class="card">
+<h4>Usage Logs (Soniox)</h4>
+<div class="bar"><span class="seg"><b class="on">This week</b><b>Last week</b><b>2 weeks ago</b><b>3 weeks ago</b></span><span class="sp"></span>
+ <span class="bd">&#10003; Source: Soniox</span><span class="hint">Updated at 06:15</span><span class="ib" title="Refresh">&#8635;</span><span class="ib" title="Export CSV">&#8595;</span></div>
+<div class="sum"><span><b>159 h 34 min</b><small>audio</small></span><span class="dot">&middot;</span><span><b>$11.09</b><small>cost</small></span><span class="sp"></span><span class="hint">9 Nov - 15 Nov</span></div>
+<h5>By day</h5>
+<div class="chart"><div><i style="height:60%"></i></div><div><i style="height:35%"></i></div><div><i style="height:50%"></i></div><div><i style="height:25%"></i></div><div><i style="height:35%"></i></div><div><i style="height:95%"></i></div><div></div></div>
+<div class="days"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+<h5>By source of the request</h5>
+<div class="rw"><span>API</span><b>$11.00</b></div><div class="rw"><span>Console playground</span><b>$0.09</b></div>
+<h5>By model</h5>
+<div class="rw"><span>stt-rt-v4 <small>41 requests</small></span><b>$11.09</b></div>
+</div></figure>
+<figure class="w2"><figcaption>Cua so nho (~340px): hang dieu khien xuong dong, khong tran ngang</figcaption><div class="card">
+<h4>Usage Logs (Soniox)</h4>
+<div class="bar"><span class="seg" style="flex-wrap:wrap"><b class="on">This week</b><b>Last week</b><b>2 weeks ago</b><b>3 weeks ago</b></span>
+ <span class="bd">&#10003; Source: Soniox</span><span class="hint">Updated at 06:15</span><span class="sp"></span><span class="ib">&#8635;</span><span class="ib">&#8595;</span></div>
+<div class="sum"><span><b>159 h 34 min</b><small>audio</small></span><span class="dot">&middot;</span><span><b>$11.09</b><small>cost</small></span><span class="hint">9 Nov - 15 Nov</span></div>
+<h5>By day</h5><div class="chart" style="height:70px"><div><i style="height:60%"></i></div><div><i style="height:35%"></i></div><div><i style="height:50%"></i></div><div><i style="height:25%"></i></div><div><i style="height:35%"></i></div><div><i style="height:95%"></i></div><div></div></div>
+<div class="days"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+</div></figure>
+<div class="note"><b>Quyet dinh thiet ke</b><ol>
+<li>Mot hang dieu khien: chon tuan | nhan nguon | "Updated at" | Refresh + Export CSV la nut icon 22px (tooltip = title, ten truy cap = aria-label). Cua so hep thi tu xuong dong (flex-wrap), khong tran.</li>
+<li>Bo doan "Days are UTC days...". Chi con mot dai ngay ngan "9 Nov - 15 Nov" o cuoi dong tong, theo ngay dia phuong cua may.</li>
+<li>Dong tong: "159 h 34 min &middot; $11.09" (15px dam) kem nhan phu 11px "audio", "cost". Bo "Audio (sum of usage logs)" va "Total cost this week".</li>
+<li>Tieu de bieu do chi la "By day" (bo "(UTC)"); nhan thu suy ra tu ngay dia phuong.</li>
+<li>"By source..." va "By model": tieu de 13px, hang cao 4px padding (truoc 9px), giu so lieu; bo ghi chu "Figures come from your Soniox account. Days and weeks are UTC.".</li></ol></div>
+</body></html>

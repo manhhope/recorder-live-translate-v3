@@ -29,3 +29,15 @@ export function updatedTime(fetchedAt: number, locale: string): string {
 
 /** Nhan nguon hien tren man: ban Soniox (da luu hoac vua tai) co gio; so cuc bo thi khong co gio "cap nhat". */
 export const showsUpdatedAt = (d: UsageSourceOut | null): boolean => hasSoniox(d) && d.fetchedAt > 0;
+
+/** Thu trong tuan (0 = Thu Hai ... 6 = Chu Nhat) cua ngay lich "YYYY-MM-DD" (ngay dia phuong do backend gui, tinh theo lich, khong qua mui gio). */
+export function weekdayIndex(date: string): number {
+  const [y, m, d] = date.split("-").map(Number);
+  return (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7;
+}
+
+/** Ngay lich ngan "9 Nov" cua "YYYY-MM-DD" (lich thuan, khong doi mui gio). */
+export function shortDate(date: string, locale: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  return new Intl.DateTimeFormat(locale === "en" ? "en-GB" : locale, { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
+}

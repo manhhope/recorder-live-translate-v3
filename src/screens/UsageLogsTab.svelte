@@ -4,7 +4,7 @@
   import Icon from "../lib/Icon.svelte";
   import * as api from "../lib/api.ts";
   import type { UsageSourceOut } from "../lib/api.ts";
-  import { applyFailure, applyRefresh, hasSoniox, showsUpdatedAt, updatedTime, type UsageWarning } from "../lib/usage-swr.ts";
+  import { applyFailure, applyRefresh, hasSoniox, shortDate, showsUpdatedAt, updatedTime, weekdayIndex, type UsageWarning } from "../lib/usage-swr.ts";
 
   const loc = $derived(($locale as "en" | "pt-PT") ?? currentLocale());
   const weekKeys = ["set.week.0", "set.week.1", "set.week.2", "set.week.3"];
@@ -46,6 +46,7 @@
     const mins = Math.round((data?.totalAudioMs ?? 0) / 60000);
     return $_("set.usage.audio", { values: { h: formatNumber(Math.floor(mins / 60), loc), m: mins % 60 } });
   });
+  const rangeText = $derived(data ? $_("set.usage.range", { values: { from: shortDate(data.weekStart, loc), to: shortDate(data.weekEnd, loc) } }) : "");
   const money = (micros: number) => formatCurrency(api.usd(micros), loc);
 
   /** Stale-while-revalidate: hien ngay ban da luu (hoac uoc tinh cuc bo), roi hoi Soniox o nen va thay so moi. */
@@ -126,14 +127,18 @@
 
 <div class="card">
   <h4>{$_("set.tab.usagelogs")}</h4>
-  <div class="tl2" style="justify-content:space-between;margin-bottom:8px">
+  <div class="ubar" data-testid="usage-toolbar">
     <span class="seg" role="group" aria-label={$_("set.week.pick")}>
       {#each weekKeys as k, i (k)}<button type="button" class={week === i ? "on" : ""} aria-pressed={week === i} onclick={() => { week = i; cleared = false; data = null; void loadWeek(); }}>{$_(k)}</button>{/each}
     </span>
-    <span class="rr">
-      <button type="button" class="btn sm" disabled={refreshing} onclick={loadWeek}><Icon name="refresh" />{$_("common.refresh")}</button>
-      <button type="button" class="btn sm" onclick={exportCsv}><Icon name="download" />{$_("set.usage.export")}</button>
-    </span>
+    <span class="usp"></span>
+    {#if data}
+      <span class="bd {isLocal ? 'rec' : 'acc'}" data-testid="usage-source"><Icon name={isLocal ? "warn" : "check"} />{$_(isLocal ? "set.usage.src.local" : "set.usage.src.soniox")}</span>
+      {#if updatedAt}<span class="hint" data-testid="usage-updated">{updatedAt}</span>{/if}
+      {#if refreshing}<span class="bd spin" role="status" data-testid="usage-refreshing"><Icon name="refresh" />{$_("set.usage.refreshing")}</span>{/if}
+    {/if}
+    <button type="button" class="btn sm icon" disabled={refreshing} onclick={loadWeek} title={$_("common.refresh")} aria-label={$_("common.refresh")}><Icon name="refresh" /></button>
+    <button type="button" class="btn sm icon" onclick={exportCsv} title={$_("set.usage.export")} aria-label={$_("set.usage.export")}><Icon name="download" /></button>
   </div>
   {#if fatal}
     <div class="empty" style="padding:30px"><Icon name="warn" /><b>{$_(errKey(fatal))}</b>
@@ -141,12 +146,6 @@
   {:else if !data}
     <div class="empty" style="padding:30px"><Icon name="refresh" /><span>{$_("common.loading")}</span></div>
   {:else}
-    <div class="tl2" style="gap:8px;flex-wrap:wrap">
-      <span class="bd {isLocal ? 'rec' : 'acc'}" data-testid="usage-source"><Icon name={isLocal ? "warn" : "check"} />{$_(isLocal ? "set.usage.src.local" : "set.usage.src.soniox")}</span>
-      {#if updatedAt}<span class="hint" style="margin:0" data-testid="usage-updated">{updatedAt}</span>{/if}
-      {#if refreshing}<span class="bd spin" role="status" data-testid="usage-refreshing"><Icon name="refresh" />{$_("set.usage.refreshing")}</span>{/if}
-      <span class="hint" style="margin:0" data-testid="usage-basis">{$_(data.basis === "utc" ? "set.usage.basis.utc" : "set.usage.basis.local")}</span>
-    </div>
     {#if warning}
       <div class="tl2 warnbar" role="alert" data-testid="usage-warning"><Icon name="warn" /><span>{warnText}</span>
         <button type="button" class="btn sm" disabled={refreshing} onclick={loadWeek}><Icon name="refresh" />{$_("common.retry")}</button></div>
@@ -156,30 +155,29 @@
       <div class="skel" data-testid="usage-skeleton" aria-hidden="true"><i></i><i></i><i></i></div>
     {/if}
     {#if !empty}
-      <div class="hint" style="margin:0">{data.weekStart} → {data.weekEnd}</div>
-      <div><b>{audioLabel}</b> <span class="hint">{$_("set.usage.hours")}</span></div>
-      <div><b data-testid="usage-total">{data.estimated ? "≈ " : ""}{money(data.totalCostUsdMicros)}</b> <span class="hint">{$_("set.usage.total")}{data.estimated ? " " + $_("common.estimate") : ""}</span></div>
-      <h4 style="margin-top:10px">{$_(data.basis === "utc" ? "set.usage.byday" : "set.usage.byday.local")}</h4>
+      <div class="usum">
+        <span><b>{audioLabel}</b><small>{$_("set.usage.sub.audio")}</small></span><span class="udot" aria-hidden="true">·</span>
+        <span><b data-testid="usage-total">{data.estimated ? "≈ " : ""}{money(data.totalCostUsdMicros)}</b><small>{$_("set.usage.sub.cost")}{data.estimated ? " · " + $_("common.estimate") : ""}</small></span>
+        <span class="usp"></span><span class="hint" data-testid="usage-range" title="{data.weekStart} → {data.weekEnd}">{rangeText}</span>
+      </div>
+      <h5 class="ush">{$_("set.usage.byday")}</h5>
       <div class="wkw">
         <div class="wk">
-          {#each data.days as d, i (d.date)}
-            <div title="{d.date}: {money(d.costUsdMicros)}"><div class="st" style="height:{(d.audioMs / max) * 85}%"></div><em>{$_(dayKeys[i])}</em></div>
+          {#each data.days as d (d.date)}
+            <div title="{d.date}: {money(d.costUsdMicros)}"><div class="st" style="height:{(d.audioMs / max) * 85}%"></div><em>{$_(dayKeys[weekdayIndex(d.date)])}</em></div>
           {/each}
         </div>
       </div>
       {#if !isLocal}
-        <h4 style="margin-top:10px">{$_("set.usage.byscope")}</h4>
-        <div class="rw"><div>{$_("set.usage.scope.api")}</div><div class="rr"><b>{money(data.apiCostUsdMicros)}</b></div></div>
-        <div class="rw"><div>{$_("set.usage.scope.playground")}</div><div class="rr"><b>{money(data.playgroundCostUsdMicros)}</b></div></div>
+        <h5 class="ush">{$_("set.usage.byscope")}</h5>
+        <div class="rw cp"><div>{$_("set.usage.scope.api")}</div><div class="rr"><b>{money(data.apiCostUsdMicros)}</b></div></div>
+        <div class="rw cp"><div>{$_("set.usage.scope.playground")}</div><div class="rr"><b>{money(data.playgroundCostUsdMicros)}</b></div></div>
         {#if data.models.length > 0}
-          <h4 style="margin-top:10px">{$_("set.usage.bymodel")}</h4>
+          <h5 class="ush">{$_("set.usage.bymodel")}</h5>
           {#each data.models as m (m.model)}
-            <div class="rw"><div>{m.model}<small>{requestsText(m.requests)}</small></div><div class="rr"><b>{money(m.costUsdMicros)}</b></div></div>
+            <div class="rw cp"><div>{m.model}<small>{requestsText(m.requests)}</small></div><div class="rr"><b>{money(m.costUsdMicros)}</b></div></div>
           {/each}
         {/if}
-        <div class="hint">{$_("set.usage.note.soniox")}</div>
-      {:else}
-        <div class="hint">{$_("set.usage.note")}</div>
       {/if}
     {:else}
       <div class="empty" style="padding:30px"><Icon name="list" /><b>{$_("set.usage.none")}</b>

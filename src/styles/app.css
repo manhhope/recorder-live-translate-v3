@@ -147,6 +147,15 @@ button{font:inherit;color:inherit;cursor:default}
 .banner{display:flex;gap:8px;align-items:center;padding:8px 12px;border:1px solid var(--rlt-warn);border-radius:var(--rlt-rb);background:var(--rlt-card)}.banner .i{color:var(--rlt-warn)}
 .tl2{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .wkw{padding-bottom:40px}
+.btn.sm.icon{width:24px;height:24px;padding:0}
+.ubar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px}
+.ubar .hint,.usum .hint{margin:0}
+.ubar .seg{flex:0 1 auto}.ubar .seg>*{padding:3px 7px}
+.usp{flex:1 1 0;min-width:0}
+.usum{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px}
+.usum b{font-size:15px}.usum small{font-size:11px;color:var(--rlt-text2);margin-left:3px}.udot{color:var(--rlt-text2)}
+.ush{margin:10px 0 2px;font-size:13px}
+.rw.cp{padding-top:4px;padding-bottom:4px}
 .wk{display:flex;gap:10px;align-items:flex-end;height:130px;padding:4px 4px 0;border-bottom:1px solid var(--rlt-text2)}
 .wk>div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;height:100%}
 .wk .st{width:100%;max-width:36px;display:flex;flex-direction:column-reverse;border-radius:3px 3px 0 0;overflow:hidden;background:var(--rlt-fill)}

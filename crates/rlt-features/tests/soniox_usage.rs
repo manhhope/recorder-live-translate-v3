@@ -82,18 +82,18 @@ fn store_with_key() -> InMemorySecretStore {
 }
 
 #[test]
-fn week_math_is_utc_monday_to_monday() {
-    // 2026-11-14 (Thu 2026-11-12 + 2) la Thu Bay; Thu Hai la 2026-11-09.
-    let sat = 1_794_657_600; // 2026-11-14T12:00:00Z
-    assert_eq!(utc_monday(sat, 0), "2026-11-09");
-    assert_eq!(utc_monday(sat, 1), "2026-11-02");
-    assert_eq!(utc_monday(sat, 3), "2026-10-19");
-    // Chu Nhat 23:59:59Z van thuoc tuan truoc; Thu Hai 00:00:00Z sang tuan moi.
-    assert_eq!(utc_monday(1_794_182_399, 0), "2026-11-02"); // 2026-11-08T23:59:59Z (Chu Nhat)
-    assert_eq!(utc_monday(1_794_182_400, 0), "2026-11-09"); // 2026-11-09T00:00:00Z (Thu Hai)
-    assert_eq!(week_window("2026-11-09").unwrap(), ("2026-11-09T00:00:00Z".into(), "2026-11-16T00:00:00Z".into()));
-    assert_eq!(week_window("2026-12-28").unwrap().1, "2027-01-04T00:00:00Z");
-    assert!(week_window("2026-13-40x").is_none());
+fn week_math_is_local_monday_to_monday() {
+    let utc = |_: i64| 0;
+    let sat = 1_794_657_600; // 2026-11-14T12:00:00Z (Thu Bay)
+    assert_eq!(local_monday(sat, 0, &utc), "2026-11-09");
+    assert_eq!(local_monday(sat, 1, &utc), "2026-11-02");
+    assert_eq!(local_monday(sat, 3, &utc), "2026-10-19");
+    assert_eq!(local_monday(1_794_182_399, 0, &utc), "2026-11-02"); // Chu Nhat 23:59:59
+    assert_eq!(local_monday(1_794_182_400, 0, &utc), "2026-11-09"); // Thu Hai 00:00:00
+    let (s, e) = local_week_epochs("2026-11-09", &utc).unwrap();
+    assert_eq!((epoch_to_utc_rfc3339(s), epoch_to_utc_rfc3339(e)), ("2026-11-09T00:00:00Z".into(), "2026-11-16T00:00:00Z".into()));
+    assert_eq!(epoch_to_utc_rfc3339(local_week_epochs("2026-12-28", &utc).unwrap().1), "2027-01-04T00:00:00Z");
+    assert!(local_week_epochs("2026-13-40x", &utc).is_none());
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn parses_schema_examples() {
     assert_eq!(a[0].request_scope, "api");
     assert_eq!(a[0].model, "stt-async-v3");
     assert_eq!(a[0].input_audio_duration_ms, 12_000);
-    assert_eq!(a[0].end_day_utc(), Some("2026-04-28"));
+    assert_eq!(a[0].end_epoch(), parse_rfc3339("2026-04-28T09:00:12Z"));
     assert_eq!(a[1].request_scope, "playground");
     let (b, next) = parse_logs_page(P2).unwrap();
     assert_eq!(b.len(), 1);
@@ -176,10 +176,10 @@ fn summary_uses_start_end_only() {
 }
 
 #[test]
-fn week_report_combines_money_from_summary_and_audio_from_logs() {
+fn week_report_groups_money_and_audio_from_logs_by_local_day() {
     let f = Fake::start(ok_handler());
     let c = SonioxUsageClient::new(&f.base).unwrap();
-    let w = fetch_week(&c, &store_with_key(), "2026-04-27").unwrap();
+    let w = fetch_week(&c, &store_with_key(), "2026-04-27", &|_| 0).unwrap();
     assert_eq!(w.days.len(), 7);
     assert_eq!(w.days[0].date, "2026-04-27");
     assert_eq!(w.days[6].date, "2026-05-03");
@@ -189,7 +189,7 @@ fn week_report_combines_money_from_summary_and_audio_from_logs() {
     assert_eq!(w.playground_cost_micros, 60_000);
     // gio am thanh cong tu usage-logs: 12.000 + 1.800.000 + 3.600.000 ms
     assert_eq!(w.total_audio_ms, 5_412_000);
-    // end_time 2026-05-01T00:30Z thuoc ngay UTC 05-01, du start_time la 04-30
+    // end_time 2026-05-01T00:30Z thuoc ngay 05-01 (offset 0), du start_time la 04-30
     let d = |s: &str| w.days.iter().find(|d| d.date == s).unwrap();
     assert_eq!(d("2026-04-30").audio_ms, 0);
     assert_eq!(d("2026-05-01").audio_ms, 3_600_000);
@@ -208,7 +208,7 @@ fn missing_key_is_reported_without_calling_the_server() {
     let f = Fake::start(ok_handler());
     let c = SonioxUsageClient::new(&f.base).unwrap();
     let empty = InMemorySecretStore::new();
-    assert_eq!(fetch_week(&c, &empty, "2026-04-27").unwrap_err(), UsageApiError::NoKey);
+    assert_eq!(fetch_week(&c, &empty, "2026-04-27", &|_| 0).unwrap_err(), UsageApiError::NoKey);
     assert!(f.reqs().is_empty());
 }
 
@@ -217,7 +217,7 @@ fn http_errors_map_to_stable_codes() {
     for (status, want) in [(401, UsageApiError::Unauthorized), (403, UsageApiError::Forbidden), (429, UsageApiError::RateLimited), (500, UsageApiError::Server), (503, UsageApiError::Server), (400, UsageApiError::BadResponse)] {
         let f = Fake::start(Box::new(move |_| (status, "{}".into())));
         let c = SonioxUsageClient::new(&f.base).unwrap();
-        assert_eq!(fetch_week(&c, &store_with_key(), "2026-04-27").unwrap_err(), want, "{status}");
+        assert_eq!(fetch_week(&c, &store_with_key(), "2026-04-27", &|_| 0).unwrap_err(), want, "{status}");
     }
 }
 
@@ -226,7 +226,7 @@ fn network_failure_is_network_error() {
     // cong dong: bind roi bo ngay de chac chan khong co ai lang nghe
     let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
     let c = SonioxUsageClient::new(&format!("http://127.0.0.1:{port}")).unwrap();
-    assert_eq!(fetch_week(&c, &store_with_key(), "2026-04-27").unwrap_err(), UsageApiError::Network);
+    assert_eq!(fetch_week(&c, &store_with_key(), "2026-04-27", &|_| 0).unwrap_err(), UsageApiError::Network);
 }
 
 #[test]
@@ -235,14 +235,14 @@ fn key_never_leaks_into_errors_or_results() {
     for status in [400u16, 401, 403, 429, 500] {
         let f = Fake::start(Box::new(move |r| (status, format!(r#"{{"message":"bad key {}","auth":"{}"}}"#, KEY, r.auth))));
         let c = SonioxUsageClient::new(&f.base).unwrap();
-        let e = fetch_week(&c, &store_with_key(), "2026-04-27").unwrap_err();
+        let e = fetch_week(&c, &store_with_key(), "2026-04-27", &|_| 0).unwrap_err();
         assert!(!format!("{e:?} {e}").contains(KEY));
         assert!(!format!("{e:?} {e}").contains("FAKE-SONIOX"));
     }
     // thanh cong: ket qua khong chua khoa
     let f = Fake::start(ok_handler());
     let c = SonioxUsageClient::new(&f.base).unwrap();
-    let w = fetch_week(&c, &store_with_key(), "2026-04-27").unwrap();
+    let w = fetch_week(&c, &store_with_key(), "2026-04-27", &|_| 0).unwrap();
     assert!(!format!("{w:?}").contains(KEY));
     // khoa chi di qua header Authorization, khong qua URL/query
     for r in f.reqs() {

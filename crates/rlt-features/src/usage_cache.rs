@@ -1,7 +1,7 @@
-//! Cache SQLite cua so lieu Soniox theo tung tuan UTC (US-32, stale-while-revalidate cho man Usage Logs).
+//! Cache SQLite cua so lieu Soniox theo tung tuan (Thu Hai theo gio dia phuong, payload mang `tz_offset_secs`) (US-32, stale-while-revalidate cho man Usage Logs).
 //!
 //! Chi luu chuoi JSON da lam sach do nguoi goi dua vao (khong bao gio la khoa API) cung thoi diem lay.
-//! Moi tuan (Thu Hai UTC) mot hang rieng. Hang qua `MAX_AGE_SECS` coi nhu het han: khong tra ve, bi xoa khi doc/ghi.
+//! Moi tuan (Thu Hai dia phuong) mot hang rieng. Hang qua `MAX_AGE_SECS` coi nhu het han: khong tra ve, bi xoa khi doc/ghi.
 
 use crate::Result;
 use rlt_store::Store;

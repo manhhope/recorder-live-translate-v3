@@ -384,7 +384,7 @@ fn usage_cache() -> &'static usage_soniox::UsageCache {
     C.get_or_init(Default::default)
 }
 
-/// So lieu tuan `weeks_ago` (0 = tuan nay) tu API usage cua Soniox (ngay UTC); loi/thieu khoa/mat mang thi roi ve
+/// So lieu tuan `weeks_ago` (0 = tuan nay) tu API usage cua Soniox (ngay, tuan theo gio dia phuong cua may); loi/thieu khoa/mat mang thi roi ve
 /// bang `usage_logs` cuc bo, kem `source` va `reason`. Khoa doc trong Rust tu Keychain, khong ra frontend.
 /// Goi mang chay tren luong rieng de khong chan giao dien.
 #[tauri::command]
@@ -395,7 +395,7 @@ pub async fn usage_week_source(s: State<'_, SessionState>, weeks_ago: i64) -> Re
     let now = usage_soniox::now_secs();
     let net = tauri::async_runtime::spawn_blocking(move || {
         let client = rlt_features::soniox_usage::SonioxUsageClient::new(rlt_features::soniox_usage::DEFAULT_BASE_URL)?;
-        usage_soniox::soniox_week(usage_cache(), &client, crate::ai::secret_store().as_ref(), now, weeks_ago)
+        usage_soniox::soniox_week(usage_cache(), &client, crate::ai::secret_store().as_ref(), now, weeks_ago, &rlt_features::usage::local_utc_offset_secs)
     })
     .await
     .map_err(|_| "task_failed".to_string())?;
@@ -405,7 +405,7 @@ pub async fn usage_week_source(s: State<'_, SessionState>, weeks_ago: i64) -> Re
             let _ = s.with_store(|st| usage_soniox::persist_fresh(st, &o, now));
             Ok(o)
         }
-        Err(e) => s.with_store(|st| usage_soniox::local_week(st, now, weeks_ago, e.code())),
+        Err(e) => s.with_store(|st| usage_soniox::local_week(st, now, weeks_ago, e.code(), &rlt_features::usage::local_utc_offset_secs)),
     }
 }
 
@@ -416,7 +416,7 @@ pub fn usage_week_cached(s: State<'_, SessionState>, weeks_ago: i64) -> Res<usag
     if !(0..=3).contains(&weeks_ago) {
         return Err("invalid_week".into());
     }
-    s.with_store(|st| usage_soniox::week_cached_or_local(st, usage_soniox::now_secs(), weeks_ago))
+    s.with_store(|st| usage_soniox::week_cached_or_local(st, usage_soniox::now_secs(), weeks_ago, &rlt_features::usage::local_utc_offset_secs))
 }
 
 /// CSV cua tuan dang xem, dung so lieu va nguon nhu `usage_week_source` (co cot `source`).

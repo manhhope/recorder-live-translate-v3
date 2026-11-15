@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyRefresh, applyFailure, updatedTime, showsUpdatedAt, hasSoniox } from "./usage-swr.ts";
+import { applyRefresh, applyFailure, updatedTime, showsUpdatedAt, hasSoniox, weekdayIndex, shortDate } from "./usage-swr.ts";
 import type { UsageSourceOut } from "./api.ts";
 
 const base = { basis: "utc", reason: null, weekStart: "2026-11-09", weekEnd: "2026-11-15", days: [], totalCostUsdMicros: 0, totalAudioMs: 0, apiCostUsdMicros: 0,
@@ -49,4 +49,15 @@ test("chi ban Soniox co gio 'Cap nhat luc'; so cuc bo thi khong", () => {
 test("updatedTime: HH:mm 24 gio", () => {
   const t = updatedTime(Date.UTC(2026, 10, 15, 9, 5) / 1000, "en");
   assert.match(t, /^\d{2}:\d{2}$/);
+});
+
+test("weekdayIndex: Thu Hai = 0, Chu Nhat = 6, khong phu thuoc mui gio", () => {
+  assert.equal(weekdayIndex("2026-11-09"), 0);
+  assert.equal(weekdayIndex("2026-11-15"), 6);
+  assert.equal(weekdayIndex("2026-11-12"), 3);
+});
+
+test("shortDate: ngay + thang ngan theo lich", () => {
+  assert.equal(shortDate("2026-11-09", "en"), "9 Nov");
+  assert.match(shortDate("2026-11-15", "pt-PT"), /15/);
 });

@@ -4,7 +4,8 @@
 //!
 //! - Khoa chi doc tu kho bi mat (`rlt-secrets`) o day, di vao header `Authorization: Bearer`, KHONG vao log, URL,
 //!   loi hay ket qua tra ve. Loi chi mang MA on dinh (`UsageApiError::code`), khong mang noi dung than phan hoi.
-//! - Moi ngay la ngay UTC (luoc do: `days` la "One UTC day"; loc theo `end_time`). Khong tron voi gio may.
+//! - Ngay, tuan Thu Hai-Chu Nhat tinh theo GIO DIA PHUONG cua may (chu doi 2026-11-15): moi ban ghi usage-logs co `end_time` la mot instant
+//!   nen duoc gom lai theo ngay dia phuong. `usage/summary` chi theo ngay UTC nen khong dung de dung bieu do.
 //! - Tien la chuoi thap phan 10 chu so; cong don o don vi 1e-10 USD (so nguyen) roi moi doi sang micro-USD.
 //! - Doi dia chi goc qua `base_url` de test chay voi may chu gia, khong goi Soniox that.
 
@@ -103,9 +104,9 @@ pub struct LogEntry {
 }
 
 impl LogEntry {
-    /// Ngay UTC `YYYY-MM-DD` cua `end_time` (loc cua Soniox theo end_time). `None` neu khong doc duoc.
-    pub fn end_day_utc(&self) -> Option<&str> {
-        self.end_time.get(..10).filter(|d| is_date(d))
+    /// Thoi diem ket thuc (epoch giay, la mot INSTANT) cua ban ghi; Soniox loc theo `end_time`. `None` neu khong doc duoc.
+    pub fn end_epoch(&self) -> Option<i64> {
+        parse_rfc3339(&self.end_time)
     }
 }
 
@@ -231,17 +232,78 @@ pub fn days_to_date(days: i64) -> String {
     crate::usage::local_date_at(days * 86_400, 0)
 }
 
-/// Thu Hai cua tuan (theo lich UTC) chua `epoch_secs`, lui `weeks_ago` tuan. 1970-01-01 la Thu Nam.
-pub fn utc_monday(epoch_secs: i64, weeks_ago: i64) -> String {
-    let d = epoch_secs.div_euclid(86_400);
+/// Do lech UTC (giay) cua mui gio may tai mot thoi diem Unix (bao gom gio mua he). Tiem vao de test mui gio co dinh.
+pub type OffsetFn<'a> = &'a dyn Fn(i64) -> i64;
+
+/// Ngay dia phuong (so ngay ke tu 1970-01-01) cua thoi diem `epoch`.
+pub fn local_day_of(epoch: i64, off: OffsetFn) -> i64 {
+    (epoch + off(epoch)).div_euclid(86_400)
+}
+
+/// Thoi diem Unix cua 00:00 DIA PHUONG ngay `days` (so ngay ke tu 1970-01-01). Lap diem co dinh de dung qua ranh gioi gio mua he.
+pub fn local_midnight_epoch(days: i64, off: OffsetFn) -> i64 {
+    let base = days * 86_400;
+    let mut t = base - off(base);
+    for _ in 0..3 {
+        t = base - off(t);
+    }
+    t
+}
+
+/// Thu Hai (ngay dia phuong) cua tuan chua `epoch_secs`, lui `weeks_ago` tuan. 1970-01-01 la Thu Nam.
+pub fn local_monday(epoch_secs: i64, weeks_ago: i64, off: OffsetFn) -> String {
+    let d = local_day_of(epoch_secs, off);
     let monday = d - (d + 3).rem_euclid(7);
     days_to_date(monday - 7 * weeks_ago)
 }
 
-/// `[start, end)` cua tuan bat dau `monday`: `YYYY-MM-DDT00:00:00Z` toi Thu Hai ke tiep (7 ngay < 31 ngay toi da).
-pub fn week_window(monday: &str) -> Option<(String, String)> {
+/// `[start, end)` (epoch UTC) cua tuan dia phuong bat dau `monday`: 00:00 Thu Hai toi 00:00 Thu Hai ke tiep (gio dia phuong).
+pub fn local_week_epochs(monday: &str, off: OffsetFn) -> Option<(i64, i64)> {
     let d = date_to_days(monday)?;
-    Some((format!("{monday}T00:00:00Z"), format!("{}T00:00:00Z", days_to_date(d + 7))))
+    Some((local_midnight_epoch(d, off), local_midnight_epoch(d + 7, off)))
+}
+
+/// `YYYY-MM-DDTHH:MM:SSZ` cua thoi diem Unix (cho tham so API).
+pub fn epoch_to_utc_rfc3339(epoch: i64) -> String {
+    let rem = epoch.rem_euclid(86_400);
+    format!("{}T{:02}:{:02}:{:02}Z", days_to_date(epoch.div_euclid(86_400)), rem / 3600, rem % 3600 / 60, rem % 60)
+}
+
+/// `YYYY-MM-DDTHH:MM:SS+HH:MM` theo do lech `offset_secs` (dung cho CSV: moc gio kem mui gio).
+pub fn epoch_to_rfc3339_offset(epoch: i64, offset_secs: i64) -> String {
+    let l = epoch + offset_secs;
+    let rem = l.rem_euclid(86_400);
+    let (sign, o) = if offset_secs < 0 { ('-', -offset_secs) } else { ('+', offset_secs) };
+    format!("{}T{:02}:{:02}:{:02}{sign}{:02}:{:02}", days_to_date(l.div_euclid(86_400)), rem / 3600, rem % 3600 / 60, rem % 60, o / 3600, o % 3600 / 60)
+}
+
+/// Epoch giay cua chuoi RFC 3339 (`...Z` hoac `+HH:MM`/`-HH:MM`, co the co phan thap phan giay). None neu khong doc duoc.
+pub fn parse_rfc3339(s: &str) -> Option<i64> {
+    let b = s.as_bytes();
+    if b.len() < 20 || !is_date(s.get(..10)?) || !(b[10] == b'T' || b[10] == b' ') || b[13] != b':' || b[16] != b':' {
+        return None;
+    }
+    let n = |r: std::ops::Range<usize>| s.get(r)?.parse::<i64>().ok();
+    let (h, mi, sec) = (n(11..13)?, n(14..16)?, n(17..19)?);
+    if h > 23 || mi > 59 || sec > 60 {
+        return None;
+    }
+    let mut i = 19;
+    if b[i] == b'.' {
+        i += 1;
+        while i < b.len() && b[i].is_ascii_digit() {
+            i += 1;
+        }
+    }
+    let off = match *b.get(i)? {
+        b'Z' | b'z' if i + 1 == b.len() => 0,
+        c @ (b'+' | b'-') if b.len() == i + 6 && b[i + 3] == b':' => {
+            let v = n(i + 1..i + 3)? * 3600 + n(i + 4..i + 6)? * 60;
+            if c == b'+' { v } else { -v }
+        }
+        _ => return None,
+    };
+    Some(date_to_days(s.get(..10)?)? * 86_400 + h * 3600 + mi * 60 + sec - off)
 }
 
 // ---------------------------------------------------------------- Client
@@ -312,17 +374,21 @@ impl SonioxUsageClient {
     }
 }
 
-// ---------------------------------------------------------------- Tong hop theo tuan
+// ---------------------------------------------------------------- Tong hop theo tuan (gio dia phuong)
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WeekDay {
-    /// Ngay UTC.
+    /// Ngay DIA PHUONG `YYYY-MM-DD`.
     pub date: String,
+    /// 00:00 dia phuong cua ngay, RFC 3339 kem do lech (vd `2026-11-09T00:00:00+02:00`).
+    pub start_at: String,
+    /// 00:00 dia phuong cua ngay ke tiep.
+    pub end_at: String,
     pub cost_micros: i64,
     pub api_cost_micros: i64,
     pub playground_cost_micros: i64,
     pub requests: i64,
-    /// Cong tu usage-logs: `input_audio_duration_ms`, theo ngay UTC cua end_time.
+    /// Cong tu usage-logs: `input_audio_duration_ms`, theo ngay dia phuong cua end_time.
     pub audio_ms: i64,
 }
 
@@ -345,62 +411,82 @@ pub struct WeekReport {
     pub models: Vec<WeekModel>,
 }
 
-/// Gop `summary` (tien, theo ngay UTC) voi `logs` (gio am thanh). `monday` lam truc 7 ngay; ngay thieu trong
-/// `summary` thanh 0. Log co end_time ngoai tuan bi bo qua (khong xay ra khi cua so dung).
-pub fn build_week(monday: &str, summary: &Summary, logs: &[LogEntry]) -> Option<WeekReport> {
+/// Ranh gioi hai dau cua 7 ngay dia phuong cua tuan bat dau `monday`: `(ngay, start_epoch, end_epoch)`.
+pub fn local_week_days(monday: &str, off: OffsetFn) -> Option<Vec<(String, i64, i64)>> {
     let d0 = date_to_days(monday)?;
-    let axis: Vec<String> = (0..7).map(|i| days_to_date(d0 + i)).collect();
-    let idx: BTreeMap<&str, usize> = summary.total.days.iter().enumerate().map(|(i, d)| (d.as_str(), i)).collect();
-    let mut audio: BTreeMap<&str, i64> = BTreeMap::new();
-    let mut model_audio: BTreeMap<&str, i64> = BTreeMap::new();
+    Some((0..7).map(|i| (days_to_date(d0 + i), local_midnight_epoch(d0 + i, off), local_midnight_epoch(d0 + i + 1, off))).collect())
+}
+
+/// Gom TOAN BO so lieu (tien, am thanh, so lan goi, theo nguon va theo model) tu `logs` theo NGAY DIA PHUONG cua `end_time`.
+/// Tien cong don o don vi 1e-10 USD roi moi doi sang micro-USD. Ban ghi ngoai tuan hoac khong doc duoc `end_time` bi bo qua.
+pub fn build_week_local(monday: &str, logs: &[LogEntry], off: OffsetFn) -> Option<WeekReport> {
+    let axis = local_week_days(monday, off)?;
+    #[derive(Default, Clone)]
+    struct Acc {
+        total: i128,
+        api: i128,
+        play: i128,
+        req: i64,
+        audio: i64,
+    }
+    let mut per_day = vec![Acc::default(); 7];
+    let mut per_model: BTreeMap<&str, Acc> = BTreeMap::new();
     for l in logs {
-        if let Some(d) = l.end_day_utc() {
-            if axis.iter().any(|a| a == d) {
-                *audio.entry(d).or_default() += l.input_audio_duration_ms;
-                *model_audio.entry(l.model.as_str()).or_default() += l.input_audio_duration_ms;
+        let Some(e) = l.end_epoch() else { continue };
+        let Some(i) = axis.iter().position(|(_, s, en)| e >= *s && e < *en) else { continue };
+        let apply = |a: &mut Acc| {
+            a.total += l.cost_e10;
+            if l.request_scope == "playground" {
+                a.play += l.cost_e10;
+            } else {
+                a.api += l.cost_e10;
             }
-        }
+            a.req += 1;
+            a.audio += l.input_audio_duration_ms;
+        };
+        apply(&mut per_day[i]);
+        apply(per_model.entry(l.model.as_str()).or_default());
     }
     let days: Vec<WeekDay> = axis
         .iter()
-        .map(|d| {
-            let i = idx.get(d.as_str()).copied();
-            let g = |v: &Vec<i128>| i.map(|i| e10_to_micros(v[i])).unwrap_or(0);
-            WeekDay {
-                date: d.clone(),
-                cost_micros: g(&summary.total.cost_e10),
-                api_cost_micros: g(&summary.total.api_cost_e10),
-                playground_cost_micros: g(&summary.total.playground_cost_e10),
-                requests: i.map(|i| summary.total.num_requests[i]).unwrap_or(0),
-                audio_ms: audio.get(d.as_str()).copied().unwrap_or(0),
-            }
+        .zip(&per_day)
+        .map(|((d, s, e), a)| WeekDay {
+            date: d.clone(),
+            start_at: epoch_to_rfc3339_offset(*s, off(*s)),
+            end_at: epoch_to_rfc3339_offset(*e, off(*e)),
+            cost_micros: e10_to_micros(a.total),
+            api_cost_micros: e10_to_micros(a.api),
+            playground_cost_micros: e10_to_micros(a.play),
+            requests: a.req,
+            audio_ms: a.audio,
         })
         .collect();
-    let mut models: Vec<WeekModel> = summary
-        .models
-        .iter()
-        .map(|m| {
-            let name = m.model.clone().unwrap_or_default();
-            WeekModel { audio_ms: model_audio.get(name.as_str()).copied().unwrap_or(0), model: name, cost_micros: e10_to_micros(m.total_cost_e10), requests: m.total_num_requests }
-        })
-        .collect();
+    let all = per_day.iter().fold(Acc::default(), |mut t, a| {
+        t.total += a.total;
+        t.api += a.api;
+        t.play += a.play;
+        t.req += a.req;
+        t.audio += a.audio;
+        t
+    });
+    let mut models: Vec<WeekModel> = per_model.iter().map(|(m, a)| WeekModel { model: m.to_string(), cost_micros: e10_to_micros(a.total), requests: a.req, audio_ms: a.audio }).collect();
     models.sort_by(|a, b| b.cost_micros.cmp(&a.cost_micros).then(a.model.cmp(&b.model)));
     Some(WeekReport {
-        total_cost_micros: e10_to_micros(summary.total.total_cost_e10),
-        api_cost_micros: e10_to_micros(summary.total.total_api_cost_e10),
-        playground_cost_micros: e10_to_micros(summary.total.total_playground_cost_e10),
-        total_audio_ms: days.iter().map(|d| d.audio_ms).sum(),
-        total_requests: summary.total.total_num_requests,
+        total_cost_micros: e10_to_micros(all.total),
+        api_cost_micros: e10_to_micros(all.api),
+        playground_cost_micros: e10_to_micros(all.play),
+        total_audio_ms: all.audio,
+        total_requests: all.req,
         days,
         models,
     })
 }
 
-/// Lay du lieu that cua mot tuan (Thu Hai `monday`, ngay UTC): doc khoa, goi summary roi logs.
-pub fn fetch_week(client: &SonioxUsageClient, secrets: &dyn SecretStore, monday: &str) -> Result<WeekReport, UsageApiError> {
+/// Lay du lieu that cua mot tuan DIA PHUONG (Thu Hai `monday`): doc khoa, goi `usage-logs` voi cua so UTC tuong ung roi gom lai
+/// theo ngay dia phuong. KHONG dung `usage/summary` (chi tra theo ngay UTC, khong gom lai duoc).
+pub fn fetch_week(client: &SonioxUsageClient, secrets: &dyn SecretStore, monday: &str, off: OffsetFn) -> Result<WeekReport, UsageApiError> {
     let key = SonioxUsageClient::read_key(secrets)?;
-    let (start, end) = week_window(monday).ok_or(UsageApiError::BadResponse)?;
-    let summary = client.fetch_summary(&key, &start, &end)?;
-    let logs = client.fetch_logs(&key, &start, &end)?;
-    build_week(monday, &summary, &logs).ok_or(UsageApiError::BadResponse)
+    let (s, e) = local_week_epochs(monday, off).ok_or(UsageApiError::BadResponse)?;
+    let logs = client.fetch_logs(&key, &epoch_to_utc_rfc3339(s), &epoch_to_utc_rfc3339(e))?;
+    build_week_local(monday, &logs, off).ok_or(UsageApiError::BadResponse)
 }

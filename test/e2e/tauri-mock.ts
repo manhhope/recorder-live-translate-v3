@@ -118,7 +118,7 @@ export function installTauriMock(seed: MockSeed): void {
   const sonioxWeek = (cost: number, fetchedAt: number, cached: boolean) => {
     const ms = [0, 1_200_000, 2_400_000, 600_000, 3_600_000, 0, 0];
     return {
-      source: "soniox", basis: "utc", reason: null, weekStart: "2026-11-09", weekEnd: "2026-11-15",
+      source: "soniox", basis: "local", tzOffsetSecs: 0, reason: null, weekStart: "2026-11-09", weekEnd: "2026-11-15",
       days: ms.map((audioMs, i) => ({ date: "2026-11-" + String(9 + i).padStart(2, "0"), audioMs, costUsdMicros: Math.round(cost / 4), apiCostUsdMicros: Math.round(cost / 4), playgroundCostUsdMicros: 0, requests: audioMs ? 1 : 0 })),
       totalCostUsdMicros: cost, totalAudioMs: ms.reduce((x, y) => x + y, 0), apiCostUsdMicros: cost, playgroundCostUsdMicros: 0, totalRequests: 4,
       models: [{ model: "stt-rt-v4", costUsdMicros: cost, audioMs: 7_800_000, requests: 4 }], estimated: false, cached, fetchedAt, sessionsCount: 0, failedStartCount: 0,
@@ -267,7 +267,7 @@ export function installTauriMock(seed: MockSeed): void {
       if (u.live) return sonioxWeek(u.live.costUsdMicros, u.live.fetchedAt, false);
       return localWeek(a.weeksAgo as number, "no_key");
     },
-    usage_export_week_csv: () => "source,day_basis,date,audio_seconds,requests,cost_usd,api_cost_usd,playground_cost_usd\nlocal_estimate,local,2026-11-09,1800,1,0.126,0,0\n",
+    usage_export_week_csv: () => "source,day_basis,date,day_start,day_end,audio_seconds,requests,cost_usd,api_cost_usd,playground_cost_usd\nlocal_estimate,local,2026-11-09,2026-11-09T00:00:00+00:00,2026-11-10T00:00:00+00:00,1800,1,0.126,0,0\n",
     usage_export_csv: () => "date,audio_ms,cost\n2026-11-09,1800000,0.126\n",
     usage_clear: () => { state.usageCleared = true; return 4; },
 
