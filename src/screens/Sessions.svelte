@@ -4,6 +4,7 @@
   import Icon from "../lib/Icon.svelte";
   import AskAiPopup from "../ai/AskAiPopup.svelte";
   import TermContext from "../lib/TermContext.svelte";
+  import ExportDialog from "../lib/ExportDialog.svelte";
   import { DEFAULT_DST } from "../lib/langs.ts";
   import { app, fmtClock, openAiSettings } from "../lib/app.svelte.ts";
   import * as api from "../lib/api.ts";
@@ -21,6 +22,7 @@
   let renaming = $state<string | null>(null);
   let confirmDel = $state<string | null>(null);
   let askOpen = $state(false);
+  let exportOpen = $state(false);
 
   const loc = $derived(($locale as "en" | "pt-PT") ?? currentLocale());
   const errKey = (c: string) => api.errKeyOf(c, k => $_(k) !== k);
@@ -52,7 +54,7 @@
   });
 
   async function open(id: string) {
-    error = null; notice = null; drive = null; askOpen = false;
+    error = null; notice = null; drive = null; askOpen = false; exportOpen = false;
     try { detail = await api.sessionGet(id); } catch (e) { error = api.errCode(e); }
     caps = [];
     try { caps = await api.sessionCaptures(id); } catch { /* chi tiet van hien du khi khong doc duoc anh */ }
@@ -61,10 +63,12 @@
     error = null;
     try { await fn(); } catch (e) { error = api.errCode(e); }
   }
-  const exportAs = (f: "md" | "txt" | "srt") => guard(async () => {
+  const onExported = (path: string) => { exportOpen = false; error = null; notice = $_("exp.saved", { values: { path } }); };
+  const attach = (c: api.CaptureRow) => guard(async () => {
     if (!detail) return;
-    const p = await api.sessionExport(detail.session.sessionId, f, loc);
-    notice = p ? $_("ses.exported") : null;
+    try { await api.sessionCaptureAttach(detail.session.sessionId, c.screenCaptureId, !c.isAttached); }
+    catch { throw "attach_failed"; }
+    caps = await api.sessionCaptures(detail.session.sessionId);
   });
   const star = (lineId: number) => guard(async () => {
     if (!detail) return;
@@ -96,13 +100,14 @@
       <b>{d.session.title}</b>
     </div>
     <div class="tr2">
-      {#each ["md", "txt", "srt"] as const as f (f)}
-        <button type="button" class="btn sm" onclick={() => exportAs(f)}><Icon name="download" />{f.toUpperCase()}</button>
-      {/each}
+      <button type="button" class="btn sm" aria-expanded={exportOpen} onclick={() => (exportOpen = !exportOpen)}><Icon name="download" />{$_("exp.open")}</button>
       <button type="button" class="btn sm" aria-pressed={askOpen} onclick={() => (askOpen = !askOpen)}><Icon name="sparkle" />{$_("nav.askai")}</button>
       <button type="button" class="btn sm" onclick={sync}><Icon name="refresh" />{$_("ses.drive.sync")}</button>
     </div>
   </div>
+  {#if exportOpen}
+    <ExportDialog sessionId={d.session.sessionId} uiLang={loc} onClose={() => (exportOpen = false)} onDone={onExported} onError={c => (error = c)} />
+  {/if}
   {#if error}<div class="card" role="alert" style="margin:8px 18px"><span class="bd rec"><Icon name="warn" />{$_(errKey(error))}</span></div>{/if}
   {#if notice}<div class="hint" style="padding:0 18px">{notice}</div>{/if}
   <div class="hint" style="padding:0 18px">
@@ -120,10 +125,12 @@
   {#if caps.length}
     <div class="caps" aria-label={$_("ses.captures")}>
       <b>{$_("ses.captures")}</b>
+      {#if !caps.some(c => c.isAttached)}<span class="hint">{$_("ses.attach.none")}</span>{/if}
       {#each caps as c (c.screenCaptureId)}
         <figure class="cap">
           {#if c.thumbDataUrl}<img src={c.thumbDataUrl} alt={fmtClock(Math.floor(c.offsetMs / 1000))} />{/if}
           <figcaption class="ts">{fmtClock(Math.floor(c.offsetMs / 1000))}</figcaption>
+          <button type="button" class="btn sm" aria-pressed={c.isAttached} onclick={() => attach(c)}>{$_(c.isAttached ? "ses.detach" : "ses.attach")}</button>
         </figure>
       {/each}
     </div>

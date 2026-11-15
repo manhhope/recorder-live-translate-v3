@@ -99,6 +99,9 @@ pub enum CoreEvent {
     Device(DeviceEvent),
     /// Lỗi không thể thử lại (hết quota, sai khoá...): phiên bị cắt (status `interrupted`).
     Failed(CoreError),
+    /// Hết quota Soniox giữa phiên: từ đây không còn dịch, nhưng âm thanh vẫn được ghi vào file WAV cục bộ
+    /// (đường dẫn tuyệt đối) và phiên chạy tiếp tới khi bấm Dừng (US-56).
+    TranslationLost { local_audio_path: String },
     /// Một đoạn không ghi được vào store; phiên vẫn chạy.
     StoreError(String),
     /// Phiên đóng. `drained` = false khi hết hạn chờ drain mà Soniox chưa báo finished.
@@ -126,6 +129,8 @@ pub struct SessionConfig {
     pub activity: Option<Arc<ActivityLog>>,
     /// Hạn chờ Soniox `finished` sau khi bấm Dừng.
     pub drain_timeout: Duration,
+    /// Thư mục ghi âm cục bộ khi hết quota (`<dir>/audio-local.wav`). `None` = hết quota thì cắt phiên như lỗi khác.
+    pub local_audio_dir: Option<std::path::PathBuf>,
 }
 
 impl SessionConfig {
@@ -147,6 +152,7 @@ impl SessionConfig {
             auth,
             activity: None,
             drain_timeout: Duration::from_secs(3),
+            local_audio_dir: None,
         }
     }
 }
@@ -326,6 +332,8 @@ pub async fn start_session(
         seq: 0,
         lines: 0,
         last_offset: 0,
+        local: None,
+        translation_lost: false,
     };
     let task = tokio::spawn(actor.run());
     Ok(SessionHandle { cmd: cmd_tx, state: state_rx, task, stop_sent: AtomicBool::new(false) })
@@ -351,6 +359,9 @@ struct Actor {
     seq: i64,
     lines: i64,
     last_offset: i64,
+    /// Ghi âm cục bộ sau khi hết quota; `translation_lost` = Soniox đã đóng, không còn dịch.
+    local: Option<crate::wav::WavWriter>,
+    translation_lost: bool,
 }
 
 enum Ending {
@@ -412,7 +423,12 @@ impl Actor {
                     Some(AudioMessage::Event(e)) => self.emit(CoreEvent::Device(e)).await,
                     None => {} // nguồn tự đóng: chờ lệnh Dừng
                 },
-                ev = self.soniox_ev_rx.recv() => match ev {
+                ev = self.soniox_ev_rx.recv(), if !self.translation_lost => match ev {
+                    Some(Event::Failed(SonioxError::QuotaExhausted { error_type })) => {
+                        if !self.keep_recording_locally().await {
+                            return Ending::Failed(CoreError::Soniox(SonioxError::QuotaExhausted { error_type }));
+                        }
+                    }
                     Some(Event::Failed(e)) => return Ending::Failed(CoreError::Soniox(e)),
                     Some(Event::Finished) | None => {
                         // Soniox kết thúc khi chưa có lệnh Dừng: không còn gì để ghi.
@@ -460,11 +476,33 @@ impl Actor {
         if self.state != SessionState::Recording && self.state != SessionState::Stopping {
             return; // tạm dừng: bỏ khung, keepalive của Soniox giữ luồng sống
         }
+        if self.translation_lost {
+            if let Some(w) = &mut self.local {
+                if w.write(&bytes_to_samples(&bytes)).is_ok() {
+                    self.audio_ms += ms;
+                }
+            }
+            return;
+        }
         if let Some(tx) = &self.soniox_audio_tx {
             if tx.send(bytes).await.is_ok() {
                 self.audio_ms += ms;
             }
         }
+    }
+
+    /// Hết quota: mở file WAV, đóng luồng Soniox và ghi tiếp cục bộ. `false` = không mở được file (cắt phiên).
+    async fn keep_recording_locally(&mut self) -> bool {
+        let Some(dir) = self.cfg.local_audio_dir.clone() else { return false };
+        let path = dir.join("audio-local.wav");
+        let Ok(w) = crate::wav::WavWriter::create(&path) else { return false };
+        self.local = Some(w);
+        self.translation_lost = true;
+        self.soniox_audio_tx = None;
+        self.soniox_task.abort();
+        self.emit(CoreEvent::Partial(None)).await;
+        self.emit(CoreEvent::TranslationLost { local_audio_path: path.to_string_lossy().into_owned() }).await;
+        true
     }
 
     /// Dừng có drain: đóng nguồn, đẩy nốt khung còn trong hàng đợi, đóng luồng audio để Soniox gửi
@@ -475,6 +513,12 @@ impl Actor {
             if let AudioMessage::Frame(f) = msg {
                 self.forward(f.to_le_bytes(), f.duration_ms()).await;
             }
+        }
+        if self.translation_lost {
+            if let Some(w) = &mut self.local {
+                let _ = w.finish();
+            }
+            return Ending::Stopped { drained: true };
         }
         self.soniox_audio_tx = None;
         let deadline = Instant::now() + self.cfg.drain_timeout;
@@ -591,6 +635,10 @@ impl Actor {
             }
         }
     }
+}
+
+fn bytes_to_samples(b: &[u8]) -> Vec<i16> {
+    b.as_chunks::<2>().0.iter().map(|c| i16::from_le_bytes(*c)).collect()
 }
 
 #[cfg(test)]

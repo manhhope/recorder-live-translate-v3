@@ -10,6 +10,7 @@ pub mod audio;
 pub mod mix;
 pub mod session;
 pub mod state;
+pub mod wav;
 
 pub use audio::{
     AudioError, AudioMessage, AudioSink, AudioSource, AudioSourceKind, AudioSourceProvider,

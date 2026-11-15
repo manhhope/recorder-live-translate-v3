@@ -18,6 +18,19 @@ test.describe("Man Ghi: bat dau, tam dung, dung", () => {
     await expect(page.locator(".cfg")).toHaveClass(/lock/);
   });
 
+  for (const [code, key] of [["mixed_no_mic", "rec.notice.mixednomic"], ["translation_quota", "rec.notice.translationquota"]] as const) {
+    test(`thong bao ${code} hien ro cho nguoi dung va xoa khi bat dau phien moi`, async ({ page, rlt }) => {
+      await rlt.open();
+      await rlt.startRecording();
+      await rlt.emit({ kind: "notice", code });
+      await expect(page.getByRole("status").filter({ hasText: rlt.t(key) })).toBeVisible();
+      await rlt.btn("tool.stop").click();
+      await expect(page.getByRole("status").filter({ hasText: rlt.t(key) })).toBeVisible();
+      await rlt.startRecording();
+      await expect(page.getByText(rlt.t(key))).toHaveCount(0);
+    });
+  }
+
   test("tam dung roi tiep tuc", async ({ page, rlt }) => {
     await rlt.open();
     await rlt.startRecording();

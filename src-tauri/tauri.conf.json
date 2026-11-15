@@ -30,6 +30,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    },
     "resources": {
       "lproj/en.lproj/InfoPlist.strings": "en.lproj/InfoPlist.strings",
       "lproj/pt-PT.lproj/InfoPlist.strings": "pt-PT.lproj/InfoPlist.strings"

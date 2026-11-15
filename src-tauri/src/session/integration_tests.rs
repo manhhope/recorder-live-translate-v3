@@ -165,12 +165,18 @@ async fn full_flow_start_lines_stop_read_search_export() {
     let hits_pt = records::search(&store, "bom dia", None, 20).unwrap();
     assert_eq!(hits_pt.lines.len(), 1);
     // xuat
+    let tmp = std::env::temp_dir();
     for f in ["md", "txt", "srt"] {
-        let (name, body) = records::export_text(&store, &id, f, "en").unwrap();
+        let (name, bytes) = records::export_bytes(&store, &id, f, "both", "en", &tmp).unwrap();
+        let body = String::from_utf8(bytes).unwrap();
         assert!(name.ends_with(f));
         assert!(body.contains("Good morning everyone."), "{f}: {body}");
         assert!(body.contains("Bom dia a todos."), "{f}");
     }
+    let (name, docx) = records::export_bytes(&store, &id, "docx", "both", "en", &tmp).unwrap();
+    assert!(name.ends_with(".docx") && docx.starts_with(b"PK"));
+    assert_eq!(records::export_bytes(&store, &id, "pdf", "both", "en", &tmp).unwrap_err(), "format_invalid");
+    assert_eq!(records::export_bytes(&store, &id, "md", "x", "en", &tmp).unwrap_err(), "content_invalid");
     // highlight
     let line = detail.lines.iter().find(|l| l.source_text.is_some()).unwrap();
     assert!(records::toggle_highlight(&store, &id, line.caption_line_id, Some("ghi chu")).unwrap());
@@ -664,4 +670,100 @@ async fn partial_text_reaches_ui_before_final_replaces_in_place_and_labels_mixed
     assert_eq!(sub[0], ("partial".into(), "First".into(), "".into()));
     assert_eq!(sub[1], ("partial".into(), "First sent".into(), "Prim".into()));
     assert_eq!(sub[2].0, "clear");
+}
+
+// ---- US-56: mixed khi khong co micro, va het quota Soniox van ghi cuc bo
+
+struct NoMicProvider;
+impl AudioSourceProvider for NoMicProvider {
+    fn open(&self, kind: AudioSourceKind) -> Result<Box<dyn AudioSource>, AudioError> {
+        match kind {
+            AudioSourceKind::Microphone => Err(AudioError::Device("khong co micro mac dinh".into())),
+            _ => Ok(Box::new(TickSource { run: Arc::new(std::sync::atomic::AtomicBool::new(false)) })),
+        }
+    }
+}
+
+#[tokio::test]
+async fn mixed_without_microphone_falls_back_to_system_only_and_tells_the_user() {
+    let url = fake_soniox(false).await;
+    let store = Arc::new(Mutex::new(Store::open_in_memory().unwrap()));
+    let svc = SessionService::new(store, Arc::new(InMemorySecretStore::new()), Arc::new(NoMicProvider))
+        .with_soniox_url(url)
+        .with_drain_timeout(Duration::from_secs(2));
+    svc.save_key(FAKE_KEY).unwrap();
+    svc.accept_consent().unwrap();
+    let (sink, ev) = collector();
+    let id = svc.start(params(RecordMode::Mixed), sink).await.expect("mixed khong co micro van phai bat dau duoc");
+    assert!(ev.lock().unwrap().iter().any(|e| matches!(e, UiEvent::Notice { code: "mixed_no_mic" })), "phai bao nguoi dung");
+    assert!(wait_for(&ev, |e| matches!(e, UiEvent::Line { .. })).await, "van co dong chu tu am thanh he thong");
+    svc.stop().unwrap();
+    assert!(wait_for(&ev, |e| matches!(e, UiEvent::Stopped { .. })).await);
+    let store = svc.store.lock().unwrap();
+    let (mode, status): (String, String) = store
+        .conn()
+        .query_row("SELECT audio_source_mode, status FROM sessions WHERE session_id = ?1", [&id], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap();
+    assert_eq!((mode.as_str(), status.as_str()), ("system_only", "stopped"));
+}
+
+/// Soniox gia: nhan 3 khung roi tra 402 het quota va dong.
+async fn fake_soniox_quota() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("ws://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move {
+        while let Ok((tcp, _)) = listener.accept().await {
+            tokio::spawn(async move {
+                #[allow(clippy::result_large_err)]
+                let cb = |_: &Request, r: Response| -> Result<Response, ErrorResponse> { Ok(r) };
+                let Ok(mut ws) = accept_hdr_async(tcp, cb).await else { return };
+                let _ = ws.next().await;
+                let mut frames = 0;
+                while let Some(Ok(msg)) = ws.next().await {
+                    if let Message::Binary(_) = msg {
+                        frames += 1;
+                        if frames == 3 {
+                            let m = r#"{"error_code":402,"error_type":"organization_balance_exhausted","error_message":"x"}"#;
+                            ws.send(Message::Text(m.into())).await.ok();
+                            ws.close(None).await.ok();
+                            return;
+                        }
+                    }
+                }
+            });
+        }
+    });
+    url
+}
+
+#[tokio::test]
+async fn quota_exhausted_keeps_recording_locally_and_says_there_is_no_translation() {
+    let url = fake_soniox_quota().await;
+    let dir = std::env::temp_dir().join(format!("rlt-quota-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Arc::new(Mutex::new(Store::open_in_memory().unwrap()));
+    let svc = SessionService::new(store, Arc::new(InMemorySecretStore::new()), Arc::new(FakeProvider))
+        .with_soniox_url(url)
+        .with_data_dir(dir.clone())
+        .with_drain_timeout(Duration::from_secs(2));
+    svc.save_key(FAKE_KEY).unwrap();
+    svc.accept_consent().unwrap();
+    let (sink, ev) = collector();
+    let id = svc.start(params(RecordMode::Mic), sink).await.unwrap();
+    assert!(wait_for(&ev, |e| matches!(e, UiEvent::Notice { code: "translation_quota" })).await, "phai bao ro khong co ban dich");
+    // Phien KHONG bi cat: van dang ghi sau khi het quota.
+    tokio::time::sleep(Duration::from_millis(400)).await;
+    assert_eq!(svc.active_session_id().as_deref(), Some(id.as_str()), "het quota khong duoc cat phien");
+    assert!(!ev.lock().unwrap().iter().any(|e| matches!(e, UiEvent::State { state: "idle" })));
+    svc.stop().unwrap();
+    assert!(wait_for(&ev, |e| matches!(e, UiEvent::Stopped { .. })).await);
+    let wav = dir.join(format!("sessions/{id}/audio-local.wav"));
+    let bytes = std::fs::read(&wav).expect("file ghi am cuc bo phai ton tai");
+    assert_eq!(&bytes[0..4], b"RIFF");
+    let data_len = u32::from_le_bytes(bytes[40..44].try_into().unwrap()) as usize;
+    assert_eq!(bytes.len(), 44 + data_len, "tieu de WAV da va dung do dai");
+    assert!(data_len >= 16_000 * 2 / 4, "it nhat ~250 ms am thanh sau luc het quota, co {data_len} byte");
+    let status: String = svc.store.lock().unwrap().conn().query_row("SELECT status FROM sessions WHERE session_id = ?1", [&id], |r| r.get(0)).unwrap();
+    assert_eq!(status, "stopped", "ket thuc binh thuong, khong phai interrupted");
+    let _ = std::fs::remove_dir_all(&dir);
 }

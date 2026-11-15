@@ -162,6 +162,19 @@ pub fn session_captures(app: AppHandle, session_id: String) -> Result<Vec<persis
     persist::list_for_session(&store, &st.data_dir, &session_id).map_err(|e| format!("list_failed:{e:?}"))
 }
 
+/// Đính kèm / gỡ đính kèm một ảnh của phiên vào biên bản (US-56). Ảnh phải thuộc đúng phiên.
+#[tauri::command]
+pub fn session_capture_attach(app: AppHandle, session_id: String, screen_capture_id: i64, attached: bool) -> Result<bool, String> {
+    let st = app.state::<CaptureState>();
+    let store = st.store.lock().map_err(|_| "store_poisoned".to_string())?;
+    let rows = persist::list_for_session(&store, &st.data_dir, &session_id).map_err(|e| format!("list_failed:{e:?}"))?;
+    if !rows.iter().any(|r| r.screen_capture_id == screen_capture_id) {
+        return Err("not_found".into());
+    }
+    store.set_capture_attached(screen_capture_id, attached).map_err(|_| "attach_failed".to_string())?;
+    Ok(attached)
+}
+
 #[tauri::command]
 pub fn capture_cancel(app: AppHandle) {
     close_overlays(&app);

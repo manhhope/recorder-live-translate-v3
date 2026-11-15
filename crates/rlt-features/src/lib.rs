@@ -13,5 +13,7 @@ pub mod import_dotnet;
 pub mod search;
 pub mod soniox_usage;
 pub mod usage;
+pub mod docx;
+pub mod zipmini;
 
 pub use error::{FeatureError, Result};

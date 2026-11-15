@@ -17,6 +17,8 @@ export interface MockSeed {
   fail: Record<string, string>;
   // Ban chup dong chu cua popup phu de (lenh subtitle_lines): cac dong da co truoc khi popup mo.
   subtitleLines?: unknown[];
+  // Anh chup theo phien (lenh session_captures): sessionId -> CaptureRow[]. Mac dinh khong co anh.
+  captures?: Record<string, unknown[]>;
 }
 
 export function installTauriMock(seed: MockSeed): void {
@@ -38,6 +40,7 @@ export function installTauriMock(seed: MockSeed): void {
     lineIds: new Set<number>(),
     sessions: clone(seed.sessions),
     details: clone(seed.details),
+    captures: clone(seed.captures ?? {}) as Record<string, any[]>,
     aiKeys: { ...seed.aiKeys },
     ai: {
       default_provider: null, context_max_chars: 60000, context_max_turns: 10,
@@ -143,8 +146,19 @@ export function installTauriMock(seed: MockSeed): void {
     },
     // Hop dong: Rust `session_captures(session_id) -> Result<Vec<CaptureRow>, String>` (src-tauri/src/capture/mod.rs),
     // api.ts `sessionCaptures(sessionId) -> CaptureRow[]`. Phien test khong co anh chup nen tra mang rong (hop le), khong bia dong anh.
-    session_captures: () => [],
-    session_export: (a) => `/tmp/${a.sessionId}.${a.format}`,
+    session_captures: (a) => clone(state.captures[a.sessionId] ?? []),
+    // Hop dong: Rust `session_capture_attach(session_id, screen_capture_id, attached) -> Result<bool, String>`.
+    session_capture_attach: (a) => {
+      const c = (state.captures[a.sessionId] ?? []).find((x: any) => x.screenCaptureId === a.screenCaptureId);
+      if (!c) throw "not_found";
+      c.isAttached = a.attached;
+      return a.attached;
+    },
+    // Hop dong: Rust `export_default_dir() -> Option<String>`, `export_pick_dir() -> Option<String>` (None = huy),
+    // `session_export(session_id, format, content, ui_lang, dir) -> Result<String, String>` (duong dan file da ghi).
+    export_default_dir: () => "/Users/test/Documents",
+    export_pick_dir: () => state.pickDir === undefined ? "/Users/test/Exports" : state.pickDir,
+    session_export: (a) => `${a.dir ?? "/Users/test/Documents"}/${a.sessionId}.${a.format}`,
     highlight_toggle: (a) => {
       const l = state.details[a.sessionId].lines.find((x: any) => x.captionLineId === a.captionLineId);
       l.highlighted = !l.highlighted;

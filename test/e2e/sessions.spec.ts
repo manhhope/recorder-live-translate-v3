@@ -50,24 +50,76 @@ test.describe("Danh sach phien, tim kiem, xuat", () => {
     await expect(page.locator(".ln .meta b", { hasText: rlt.t("src.name.mic") })).toHaveCount(1);
   });
 
-  for (const fmt of ["md", "txt", "srt"] as const) {
-    test(`xuat ${fmt.toUpperCase()}: goi lenh dung dinh dang + ngon ngu va bao da luu`, async ({ page, rlt }) => {
-      await rlt.open();
-      await rlt.nav("nav.sessions").click();
-      await page.getByRole("button", { name: "Weekly product meeting" }).click();
-      await page.getByRole("button", { name: new RegExp("^" + fmt.toUpperCase() + "$") }).click();
-      await expect(page.getByText(rlt.t("ses.exported"))).toBeVisible();
-      const [call] = await rlt.calls("session_export");
-      expect(call.args).toEqual({ sessionId: "s-weekly", format: fmt, uiLang: "en" });
-    });
-  }
-
-  test("xuat that bai (loi luu tru) hien thong bao loi", async ({ page, rlt }) => {
-    await rlt.open({ fail: { session_export: "store_error" } });
+  const openWeekly = async (page: any, rlt: any, over: any = {}) => {
+    await rlt.open(over);
     await rlt.nav("nav.sessions").click();
     await page.getByRole("button", { name: "Weekly product meeting" }).click();
-    await page.getByRole("button", { name: /^MD$/ }).click();
+    await page.getByRole("button", { name: rlt.t("exp.open") }).click();
+    await expect(page.getByRole("dialog", { name: rlt.t("exp.title") })).toBeVisible();
+  };
+
+  for (const fmt of ["md", "txt", "srt", "docx"] as const) {
+    for (const content of ["both", "translation", "source"] as const) {
+      test(`xuat ${fmt.toUpperCase()} / ${content}: goi lenh dung dinh dang, noi dung, ngon ngu, thu muc Documents`, async ({ page, rlt }) => {
+        await openWeekly(page, rlt);
+        await page.getByRole("radio", { name: new RegExp("^" + fmt.toUpperCase() + "$") }).click();
+        await page.getByRole("radio", { name: rlt.t("exp.content." + content) }).click();
+        await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
+        await expect(page.getByText(rlt.t("exp.saved", { path: `/Users/test/Documents/s-weekly.${fmt}` }))).toBeVisible();
+        const [call] = await rlt.calls("session_export");
+        expect(call.args).toEqual({ sessionId: "s-weekly", format: fmt, content, uiLang: "en", dir: "/Users/test/Documents" });
+      });
+    }
+  }
+
+  test("mac dinh Md + Ca nguon va dich; nho lua chon lan truoc (dinh dang, noi dung, thu muc)", async ({ page, rlt }) => {
+    await openWeekly(page, rlt);
+    await expect(page.getByRole("radio", { name: /^MD$/ })).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByRole("radio", { name: rlt.t("exp.content.both") })).toHaveAttribute("aria-checked", "true");
+    await page.getByRole("radio", { name: /^DOCX$/ }).click();
+    await page.getByRole("radio", { name: rlt.t("exp.content.translation") }).click();
+    await page.getByRole("button", { name: rlt.t("exp.dir.change") }).click();
+    await expect(page.getByRole("dialog").locator("code")).toHaveText("/Users/test/Exports");
+    await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
+    await expect(page.getByText(rlt.t("exp.saved", { path: "/Users/test/Exports/s-weekly.docx" }))).toBeVisible();
+    // Mo lai dialog: giu lua chon lan truoc.
+    await page.getByRole("button", { name: rlt.t("exp.open") }).click();
+    await expect(page.getByRole("radio", { name: /^DOCX$/ })).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByRole("radio", { name: rlt.t("exp.content.translation") })).toHaveAttribute("aria-checked", "true");
+    await expect(page.getByRole("dialog").locator("code")).toHaveText("/Users/test/Exports");
+  });
+
+  test("dialog xuat hien nhan theo pt-PT", async ({ page, rlt }) => {
+    await openWeekly(page, rlt, { locale: "pt-PT" });
+    await expect(page.getByRole("radio", { name: rlt.t("exp.content.source") })).toBeVisible();
+    await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
+    const [call] = await rlt.calls("session_export");
+    expect(call.args.uiLang).toBe("pt-PT");
+  });
+
+  test("xuat that bai (loi luu tru) hien thong bao loi", async ({ page, rlt }) => {
+    await openWeekly(page, rlt, { fail: { session_export: "store_error" } });
+    await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
     await expect(page.getByRole("alert")).toContainText(rlt.t("err.storeerror"));
+  });
+
+  test("thu muc xuat khong ton tai hien loi rieng", async ({ page, rlt }) => {
+    await openWeekly(page, rlt, { fail: { session_export: "export_dir_missing" } });
+    await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
+    await expect(page.getByRole("alert")).toContainText(rlt.t("err.exportdirmissing"));
+  });
+
+  test("dinh kem / go dinh kem anh chup goi lenh dung va doi nhan nut", async ({ page, rlt }) => {
+    const cap = { screenCaptureId: 7, offsetMs: 5000, absPath: "/x.png", widthPx: 64, heightPx: 60, byteSize: 10, isAttached: false, thumbDataUrl: "" };
+    await rlt.open({ captures: { "s-weekly": [cap] } });
+    await rlt.nav("nav.sessions").click();
+    await page.getByRole("button", { name: "Weekly product meeting" }).click();
+    await expect(page.getByText(rlt.t("ses.attach.none"))).toBeVisible();
+    await page.getByRole("button", { name: rlt.t("ses.attach") }).click();
+    await expect(page.getByRole("button", { name: rlt.t("ses.detach") })).toHaveAttribute("aria-pressed", "true");
+    const [call] = await rlt.calls("session_capture_attach");
+    expect(call.args).toEqual({ sessionId: "s-weekly", screenCaptureId: 7, attached: true });
+    await expect(page.getByText(rlt.t("ses.attach.none"))).toHaveCount(0);
   });
 
   test("danh dau dong, dong bo Drive chua ket noi", async ({ page, rlt }) => {

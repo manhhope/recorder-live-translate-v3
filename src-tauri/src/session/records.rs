@@ -3,7 +3,7 @@
 
 use rlt_features::drive::{self, DriveClient, Sleeper, SyncOutcome};
 use rlt_features::drive_google::GoogleDrive;
-use rlt_features::export::{export_session, ExportFormat, Labels};
+use rlt_features::export::{export_session_mode, ExportFormat, Labels};
 use rlt_features::{glossary, highlights, import_dotnet, search, usage, FeatureError};
 use rlt_store::Store;
 use serde::{Deserialize, Serialize};
@@ -196,6 +196,7 @@ pub fn parse_format(f: &str) -> Res<ExportFormat> {
         "md" => Ok(ExportFormat::Markdown),
         "txt" => Ok(ExportFormat::Txt),
         "srt" => Ok(ExportFormat::Srt),
+        "docx" => Ok(ExportFormat::Docx),
         _ => Err("format_invalid".into()),
     }
 }
@@ -208,12 +209,28 @@ pub fn labels(lang: &str) -> Labels {
     }
 }
 
-pub fn export_text(store: &Store, id: &str, format: &str, ui_lang: &str) -> Res<(String, String)> {
+pub fn parse_content(c: &str) -> Res<rlt_features::export::ContentMode> {
+    rlt_features::export::ContentMode::parse(c).ok_or_else(|| "content_invalid".to_string())
+}
+
+fn safe_name(title: &str) -> String {
+    let safe: String = title.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
+    let t = safe.trim();
+    if t.is_empty() { "session".into() } else { t.to_string() }
+}
+
+/// Xuat ra byte (van ban UTF-8 hoac goi .docx). `data_dir` chi can cho docx (doc anh da dinh kem).
+pub fn export_bytes(store: &Store, id: &str, format: &str, content: &str, ui_lang: &str, data_dir: &std::path::Path) -> Res<(String, Vec<u8>)> {
     let fmt = parse_format(format)?;
+    let mode = parse_content(content)?;
     let s = store.get_session(id).map_err(se)?.ok_or("not_found")?;
-    let body = export_session(store, id, fmt, &labels(ui_lang)).map_err(err)?;
-    let safe: String = s.title.chars().map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' { c } else { '_' }).collect();
-    Ok((format!("{}.{}", safe.trim(), fmt.extension()), body))
+    let lb = labels(ui_lang);
+    let bytes = if fmt == ExportFormat::Docx {
+        rlt_features::docx::export_docx(store, id, &lb, mode, data_dir).map_err(err)?
+    } else {
+        export_session_mode(store, id, fmt, &lb, mode).map_err(err)?.into_bytes()
+    };
+    Ok((format!("{}.{}", safe_name(&s.title), fmt.extension()), bytes))
 }
 
 // ---------------------------------------------------------------- highlight

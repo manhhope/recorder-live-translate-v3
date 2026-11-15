@@ -120,6 +120,8 @@ pub struct CaptureRow {
     pub width_px: i64,
     pub height_px: i64,
     pub byte_size: i64,
+    /// Ảnh đã đính kèm vào biên bản (chỉ ảnh đính kèm mới vào file .docx).
+    pub is_attached: bool,
     /// Thumbnail PNG dạng `data:` URL (CSP chỉ cho `img-src 'self' data:`); rỗng nếu file thumbnail mất.
     pub thumb_data_url: String,
 }
@@ -159,6 +161,7 @@ pub fn list_for_session(store: &Store, data_dir: &Path, session_id: &str) -> Res
                 width_px: r.width_px,
                 height_px: r.height_px,
                 byte_size: r.byte_size,
+                is_attached: r.is_attached,
                 thumb_data_url,
             }
         })

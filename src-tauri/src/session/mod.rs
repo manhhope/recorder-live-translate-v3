@@ -42,6 +42,8 @@ pub const SESSION_COMMANDS: &[&str] = &[
     "session_delete",
     "records_search",
     "session_export",
+    "export_default_dir",
+    "export_pick_dir",
     "highlight_toggle",
     "glossary_list",
     "glossary_add",
@@ -67,9 +69,9 @@ pub struct SessionState {
 }
 
 impl SessionState {
-    pub fn new(store: Arc<Mutex<rlt_store::Store>>) -> Self {
+    pub fn new(store: Arc<Mutex<rlt_store::Store>>, data_dir: std::path::PathBuf) -> Self {
         let provider: Arc<dyn AudioSourceProvider> = Arc::new(rlt_platform::PlatformSources);
-        Self { svc: Arc::new(SessionService::new(store, crate::ai::secret_store(), provider)) }
+        Self { svc: Arc::new(SessionService::new(store, crate::ai::secret_store(), provider).with_data_dir(data_dir)) }
     }
 
     fn with_store<T>(&self, f: impl FnOnce(&rlt_store::Store) -> Res<T>) -> Res<T> {
@@ -254,22 +256,63 @@ pub fn records_search(s: State<'_, SessionState>, query: String, session_id: Opt
     s.with_store(|st| search(st, &query, session_id.as_deref(), 50))
 }
 
-/// Xuat ra file nguoi dung chon (hop thoai luu cua he dieu hanh). Tra duong dan, hoac None neu huy.
+/// Thu muc xuat mac dinh: Documents cua nguoi dung (None neu he dieu hanh khong co).
+#[tauri::command]
+pub fn export_default_dir(app: tauri::AppHandle) -> Option<String> {
+    use tauri::Manager;
+    app.path().document_dir().ok().map(|p| p.to_string_lossy().into_owned())
+}
+
+/// Hop thoai chon thu muc xuat. None neu huy.
+#[tauri::command]
+pub async fn export_pick_dir(app: tauri::AppHandle) -> Option<String> {
+    let p = app.dialog().file().blocking_pick_folder()?;
+    p.into_path().ok().map(|p| p.to_string_lossy().into_owned())
+}
+
+/// Ten file chua ton tai trong `dir` (them " (2)", " (3)"... de khong ghi de file cu).
+fn free_path(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let first = dir.join(name);
+    if !first.exists() {
+        return first;
+    }
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((a, b)) => (a.to_string(), format!(".{b}")),
+        None => (name.to_string(), String::new()),
+    };
+    (2..1000).map(|n| dir.join(format!("{stem} ({n}){ext}"))).find(|p| !p.exists()).unwrap_or(first)
+}
+
+/// Xuat vao thu muc `dir` (mac dinh Documents). Dinh dang md/txt/srt/docx, noi dung both/translation/source.
+/// Ghi vao file tam roi doi ten de khong de lai file nua chung. Tra duong dan file.
 #[tauri::command]
 pub async fn session_export(
     app: tauri::AppHandle,
     s: State<'_, SessionState>,
     session_id: String,
     format: String,
+    content: String,
     ui_lang: String,
-) -> Res<Option<String>> {
-    let (name, body) = s.with_store(|st| export_text(st, &session_id, &format, &ui_lang))?;
-    let Some(path) = app.dialog().file().set_file_name(&name).blocking_save_file() else {
-        return Ok(None);
+    dir: Option<String>,
+) -> Res<String> {
+    use tauri::Manager;
+    let data_dir = app.state::<crate::capture::CaptureState>().data_dir.clone();
+    let dir = match dir {
+        Some(d) if !d.is_empty() => std::path::PathBuf::from(d),
+        _ => app.path().document_dir().map_err(|_| "export_dir_missing".to_string())?,
     };
-    let path = path.into_path().map_err(|_| "export_failed".to_string())?;
-    std::fs::write(&path, body).map_err(|_| "export_failed".to_string())?;
-    Ok(Some(path.to_string_lossy().into_owned()))
+    if !dir.is_dir() {
+        return Err("export_dir_missing".into());
+    }
+    let (name, bytes) = s.with_store(|st| export_bytes(st, &session_id, &format, &content, &ui_lang, &data_dir))?;
+    let path = free_path(&dir, &name);
+    let tmp = path.with_extension("part");
+    std::fs::write(&tmp, bytes).map_err(|_| "export_failed".to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|_| {
+        let _ = std::fs::remove_file(&tmp);
+        "export_failed".to_string()
+    })?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 #[tauri::command]

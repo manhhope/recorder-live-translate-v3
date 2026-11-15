@@ -33,7 +33,7 @@ fn main() {
             let quick_store = rlt_store::Store::open(dir_for_shell.join("rlt.db"))?;
             app.manage(quick::QuickState::new(dir_for_shell.clone(), quick_store));
             let sess_store = std::sync::Arc::new(std::sync::Mutex::new(rlt_store::Store::open(dir_for_shell.join("rlt.db"))?));
-            app.manage(session::SessionState::new(sess_store));
+            app.manage(session::SessionState::new(sess_store, dir_for_shell.clone()));
             shell::setup(app.handle(), dir_for_shell)?;
             quick::setup(app.handle());
             Ok(())
@@ -117,6 +117,9 @@ fn main() {
             session::session_delete,
             session::records_search,
             session::session_export,
+            session::export_default_dir,
+            session::export_pick_dir,
+            capture::session_capture_attach,
             session::highlight_toggle,
             session::glossary_list,
             session::glossary_add,

@@ -104,10 +104,13 @@ pub enum UiEvent {
     /// `code` = None: het loi. Ma: `permission`, `auth`, `quota`, `network`, `timeout`.
     Status { code: Option<&'static str> },
     Stopped { session_id: String, lines: i64, duration_ms: i64, drained: bool },
+    /// Thong bao cho nguoi dung ma phien van chay. `code`: `mixed_no_mic` (che do tron ha xuong chi he thong vi
+    /// khong co micro), `translation_quota` (het quota Soniox: van ghi am cuc bo, khong co ban dich).
+    Notice { code: &'static str },
 }
 
 /// Nguon da dung: nguon am thanh, loai ghi vao dong chu, nhan che do tron (neu co).
-type BuiltSource = (Box<dyn AudioSource>, AudioSourceKind, Option<&'static str>, Option<Arc<ActivityLog>>);
+type BuiltSource = (Box<dyn AudioSource>, AudioSourceKind, Option<&'static str>, Option<Arc<ActivityLog>>, Option<&'static str>);
 
 pub type UiSink = Arc<dyn Fn(UiEvent) + Send + Sync>;
 
@@ -293,6 +296,8 @@ pub struct SessionService {
     /// Ghi de URL Soniox (test dung server gia); None = that.
     soniox_url: Option<String>,
     drain_timeout: Duration,
+    /// Goc luu du lieu app: ghi am cuc bo khi het quota o `<dir>/sessions/<id>/`.
+    data_dir: Option<std::path::PathBuf>,
     active: Arc<Mutex<Option<Active>>>,
 }
 
@@ -320,12 +325,17 @@ impl SessionService {
         secrets: Arc<dyn SecretStore>,
         provider: Arc<dyn AudioSourceProvider>,
     ) -> Self {
-        Self { store, secrets, provider, soniox_url: None, drain_timeout: Duration::from_secs(3), active: Arc::new(Mutex::new(None)) }
+        Self { store, secrets, provider, soniox_url: None, drain_timeout: Duration::from_secs(3), data_dir: None, active: Arc::new(Mutex::new(None)) }
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn with_soniox_url(mut self, url: impl Into<String>) -> Self {
         self.soniox_url = Some(url.into());
+        self
+    }
+
+    pub fn with_data_dir(mut self, dir: std::path::PathBuf) -> Self {
+        self.data_dir = Some(dir);
         self
     }
 
@@ -456,13 +466,23 @@ impl SessionService {
             RecordMode::System => (self.provider.open(AudioSourceKind::System)?, AudioSourceKind::System, None, None),
             RecordMode::Mixed => {
                 let log = ActivityLog::new();
-                let sys = ActivitySource::new(self.provider.open(AudioSourceKind::System)?, LineSource::System, log.clone());
-                let mic = ActivitySource::new(self.provider.open(AudioSourceKind::Microphone)?, LineSource::Mic, log.clone());
+                let sys_raw = self.provider.open(AudioSourceKind::System)?;
+                let mic = match self.provider.open(AudioSourceKind::Microphone) {
+                    Ok(m) => m,
+                    // Khong co micro: ha xuong chi am thanh he thong va bao nguoi dung (khong tu choi bat dau phien).
+                    Err(e) if audio_start_code(&e) == "no_mic" => {
+                        log_event("mixed_fallback_system_only", &[("detail", e.to_string())]);
+                        return Ok((Box::new(TappedSource::new(sys_raw, on_level)), AudioSourceKind::System, None, None, Some("mixed_no_mic")));
+                    }
+                    Err(e) => return Err(e),
+                };
+                let sys = ActivitySource::new(sys_raw, LineSource::System, log.clone());
+                let mic = ActivitySource::new(mic, LineSource::Mic, log.clone());
                 // Tron xong khong con biet ai noi, nen moi dong duoc gan nguon theo nang luong tung nguon (rlt-core::mix).
                 (Box::new(MixedSource::new(Box::new(sys), Box::new(mic))), AudioSourceKind::System, Some("mixed"), Some(log))
             }
         };
-        Ok((Box::new(TappedSource::new(inner, on_level)), kind, label, activity))
+        Ok((Box::new(TappedSource::new(inner, on_level)), kind, label, activity, None))
     }
 
     pub async fn start(&self, p: StartParams, sink: UiSink) -> Result<String, String> {
@@ -475,7 +495,7 @@ impl SessionService {
         let auth = self.read_key()?;
         let level_sink = sink.clone();
         let on_level: LevelFn = Arc::new(move |l| level_sink(UiEvent::Level { level: l }));
-        let (source, kind, label, activity) = self.build_source(p.mode, on_level).map_err(|e| {
+        let (source, kind, label, activity, notice) = self.build_source(p.mode, on_level).map_err(|e| {
             let code = audio_start_code(&e);
             log_event("session_start_failed", &[("stage", "open_source".into()), ("mode", format!("{:?}", p.mode)), ("code", code.into()), ("detail", e.to_string())]);
             code.to_string()
@@ -488,6 +508,7 @@ impl SessionService {
         cfg.audio_mode = label;
         cfg.activity = activity;
         cfg.drain_timeout = self.drain_timeout;
+        cfg.local_audio_dir = self.data_dir.as_ref().map(|d| d.join(format!("sessions/{id}")));
         let (tx, rx) = mpsc::channel(64);
         let handle = match start_session(cfg, source, self.store.clone(), tx).await {
             Ok(h) => h,
@@ -502,6 +523,9 @@ impl SessionService {
             }
         };
         *self.active.lock().unwrap_or_else(|e| e.into_inner()) = Some(Active { handle, session_id: id.clone() });
+        if let Some(code) = notice {
+            sink(UiEvent::Notice { code });
+        }
         tokio::spawn(pump(rx, sink, id.clone(), self.store.clone(), self.active.clone()));
         Ok(id)
     }
@@ -582,6 +606,11 @@ async fn pump(
                 // Phien bi cat: nguoi dung thay trang thai loi va ve Idle.
                 *active.lock().unwrap_or_else(|e| e.into_inner()) = None;
                 sink(UiEvent::State { state: "idle" });
+            }
+            CoreEvent::TranslationLost { local_audio_path } => {
+                log_event("translation_lost_quota", &[("session", session_id.clone()), ("audio", "local".into())]);
+                let _ = local_audio_path;
+                sink(UiEvent::Notice { code: "translation_quota" });
             }
             CoreEvent::StoreError(m) => log_event("store_error", &[("session", session_id.clone()), ("detail", m)]),
             CoreEvent::Stopped { lines, duration_ms, drained } => {

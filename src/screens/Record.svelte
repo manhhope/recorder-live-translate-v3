@@ -26,6 +26,7 @@
   let loaded = $state(false);
   let sessionId = $state<string | null>(null);
   let lastStop = $state<{ lines: number; drained: boolean } | null>(null);
+  let notices = $state<string[]>([]);
   let timer: ReturnType<typeof setInterval> | undefined;
   const follow = new Follow();
 
@@ -68,6 +69,7 @@
       live = afterFinal(live, e.line.sourceText, e.line.translatedText);
     } else if (e.kind === "level") level = e.level;
     else if (e.kind === "status") status = e.code;
+    else if (e.kind === "notice") { if (!notices.includes(e.code)) notices.push(e.code); }
     else if (e.kind === "stopped") lastStop = { lines: e.lines, drained: e.drained };
   }
 
@@ -90,7 +92,7 @@
 
   async function begin() {
     if (!mode) return;
-    busy = true; errCode = null; status = null; lastStop = null;
+    busy = true; errCode = null; status = null; lastStop = null; notices = [];
     try {
       const listenLangs = app.src === AUTO ? [] : [app.src];
       await api.prefsSet({ targetLang: app.dst, listenLangs, mode, uiLanguage: document.documentElement.lang === "en" ? "en" : "pt-PT" });
@@ -169,6 +171,10 @@
     <span class="bd {state === 'recording' ? 'rec' : ''}"><Icon name="dot" />{$_(state === "recording" ? "tool.badge.rec" : statusKey)}</span>
   </div>
 </div>
+
+{#each notices as n (n)}
+  <div class="card" role="status" style="margin:8px 18px"><span class="bd warn"><Icon name="warn" />{$_("rec.notice." + n.replace(/_/g, ""))}</span></div>
+{/each}
 
 <div class="cfg {active ? 'lock' : ''}" role="group" aria-label={$_("cfg.group.aria")}>
   <div class="cg lg2" role="group" aria-label={$_("cfg.lang.group")}>

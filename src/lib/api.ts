@@ -15,7 +15,9 @@ export type UiEvent =
   | { kind: "partial"; partial: PartialDto | null }
   | { kind: "level"; level: number }
   | { kind: "status"; code: StatusCode | null }
-  | { kind: "stopped"; sessionId: string; lines: number; durationMs: number; drained: boolean };
+  | { kind: "stopped"; sessionId: string; lines: number; durationMs: number; drained: boolean }
+  /** Thong bao ma phien van chay: che do tron ha xuong chi he thong (khong co micro), hoac het quota (ghi cuc bo, khong dich). */
+  | { kind: "notice"; code: "mixed_no_mic" | "translation_quota" };
 
 export interface StartParams { targetLang: string; listenLangs: string[]; mode: RecordMode; title?: string | null }
 export interface RecordPrefs { targetLang: string; listenLangs: string[]; mode: RecordMode; uiLanguage: string }
@@ -73,8 +75,13 @@ export const sessionGet = (sessionId: string) => invoke<SessionDetail>("session_
 export const sessionRename = (sessionId: string, title: string) => invoke<void>("session_rename", { sessionId, title });
 export const sessionDelete = (sessionId: string) => invoke<boolean>("session_delete", { sessionId });
 export const recordsSearch = (query: string, sessionId?: string) => invoke<SearchOut>("records_search", { query, sessionId: sessionId ?? null });
-export const sessionExport = (sessionId: string, format: "md" | "txt" | "srt", uiLang: string) =>
-  invoke<string | null>("session_export", { sessionId, format, uiLang });
+export type ExportFormat = "md" | "txt" | "srt" | "docx";
+export type ExportContent = "both" | "translation" | "source";
+/** Ghi file vao thu muc `dir` (mac dinh Documents) va tra duong dan file da ghi. */
+export const sessionExport = (sessionId: string, format: ExportFormat, content: ExportContent, uiLang: string, dir: string | null) =>
+  invoke<string>("session_export", { sessionId, format, content, uiLang, dir });
+export const exportDefaultDir = () => invoke<string | null>("export_default_dir");
+export const exportPickDir = () => invoke<string | null>("export_pick_dir");
 export const highlightToggle = (sessionId: string, captionLineId: number, note: string | null = null) =>
   invoke<boolean>("highlight_toggle", { sessionId, captionLineId, note });
 export const glossaryList = () => invoke<TermRow[]>("glossary_list");
@@ -161,10 +168,12 @@ export const subtitleSetHidden = (hidden: boolean) => invoke<SubtitleSettings>("
 export const subtitleResetPosition = () => invoke<void>("subtitle_reset_position");
 
 export interface CaptureRow {
-  screenCaptureId: number; offsetMs: number; absPath: string; widthPx: number; heightPx: number; byteSize: number; thumbDataUrl: string;
+  screenCaptureId: number; offsetMs: number; absPath: string; widthPx: number; heightPx: number; byteSize: number; isAttached: boolean; thumbDataUrl: string;
 }
 /** Anh chup vung cua mot phien, theo moc thoi gian tuong doi (ms). */
 export const sessionCaptures = (sessionId: string) => invoke<CaptureRow[]>("session_captures", { sessionId });
+export const sessionCaptureAttach = (sessionId: string, screenCaptureId: number, attached: boolean) =>
+  invoke<boolean>("session_capture_attach", { sessionId, screenCaptureId, attached });
 export const captureBegin = () => invoke<void>("capture_begin");
 export const glossaryAdd = (term: TermInput) => invoke<number>("glossary_add", { term });
 export const glossaryDelete = (id: number) => invoke<boolean>("glossary_delete", { id });

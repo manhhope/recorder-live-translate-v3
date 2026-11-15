@@ -11,6 +11,8 @@
 		<string>en</string>
 		<string>pt-PT</string>
 	</array>
+	<key>LSMinimumSystemVersion</key>
+	<string>13.0</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 </dict>
