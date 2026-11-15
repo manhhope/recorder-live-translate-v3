@@ -127,7 +127,7 @@ pub fn capture_begin_now(app: AppHandle) -> Result<(), String> {
     app.run_on_main_thread(move || {
         for (i, m) in monitors(&a).iter().enumerate() {
             let label = format!("{OVERLAY_PREFIX}{i}");
-            let built = WebviewWindowBuilder::new(&a, &label, WebviewUrl::App(format!("capture.html?m={i}").into()))
+            let builder = crate::diag::instrument(WebviewWindowBuilder::new(&a, &label, WebviewUrl::App(format!("capture.html?m={i}").into())))
                 .decorations(false)
                 .transparent(true)
                 .shadow(false)
@@ -138,8 +138,8 @@ pub fn capture_begin_now(app: AppHandle) -> Result<(), String> {
                 .resizable(false)
                 .content_protected(true)
                 .position(m.bounds.x, m.bounds.y)
-                .inner_size(m.bounds.w, m.bounds.h)
-                .build();
+                .inner_size(m.bounds.w, m.bounds.h);
+            let built = crate::diag::timed_build(&label, "capture.html", || builder.build());
             #[cfg(target_os = "macos")]
             if let Ok(w) = &built {
                 if let Ok(ptr) = w.ns_window() {

@@ -51,6 +51,7 @@ fn main() {
             diag::mark("stores_open");
             shell::setup(app.handle(), dir_for_shell)?;
             diag::mark("shell_setup_done");
+            diag::mark("quick_setup_begin");
             quick::setup(app.handle());
             diag::mark("quick_setup_done");
             diag::start_watchdog(app.handle().clone());
@@ -60,6 +61,7 @@ fn main() {
         .invoke_handler(timed(tauri::generate_handler![
             core_version,
             diag::diag_open_logs,
+            diag::diag_js,
             ai::ai_get_settings,
             ai::ai_save_settings,
             ai::ai_set_api_key,

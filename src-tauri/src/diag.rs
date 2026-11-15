@@ -277,6 +277,92 @@ pub fn start_watchdog(app: tauri::AppHandle) {
     });
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Chan doan cua so phu (task t_561bc49f1edc): moc thoi gian truoc/sau build, on_page_load, loi JS, vong IPC.
+// Muc dich: chu chay ban nay tren Windows, gui lai diag.log. KHONG phai sua loi; nguyen nhan that chua duoc chung minh.
+// ---------------------------------------------------------------------------------------------------------------------
+
+static JS_SEEN: OnceLock<Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+
+fn js_seen() -> &'static Mutex<std::collections::HashSet<String>> {
+    JS_SEEN.get_or_init(|| Mutex::new(std::collections::HashSet::new()))
+}
+
+/// Kieu bao cao tu JS duoc chap nhan (danh sach trang: khong ghi chuoi tuy y cua trang vao nhan).
+const JS_KINDS: &[&str] = &["boot", "dom_ready", "load", "js_error", "js_rejection", "csp", "ipc_rtt", "alive_5s", "alive_20s", "alive_40s"];
+
+/// Doan JS chen vao MOI cua so phu. Gui `diag_js` qua IPC (lenh khong nam trong manifest ACL nen khong can capability).
+/// Neu IPC hong thi cac dong nay khong toi duoc; khi do `js_silent` (Rust, sau on_page_load) la bang chung.
+pub const INIT_SCRIPT: &str = r#"(function(){
+var t0=Date.now();
+function s(k,d){try{return window.__TAURI_INTERNALS__.invoke('diag_js',{kind:k,detail:String(d).slice(0,300)});}catch(e){return null;}}
+function a(){var e=document.getElementById('app');return 'app_children='+(e?e.children.length:-1)+' title='+document.title;}
+s('boot','url='+location.href+' ready='+document.readyState);
+window.addEventListener('error',function(e){s('js_error',(e.message||'')+' @'+(e.filename||'')+':'+(e.lineno||0));});
+window.addEventListener('unhandledrejection',function(e){var r=e.reason;s('js_rejection',r&&r.message?r.message:r);});
+document.addEventListener('securitypolicyviolation',function(e){s('csp',e.violatedDirective+' blocked='+e.blockedURI);});
+document.addEventListener('DOMContentLoaded',function(){s('dom_ready','t_ms='+(Date.now()-t0));var t1=Date.now();var p=s('ipc_rtt','ping');if(p&&p.then){p.then(function(){s('ipc_rtt','round_trip_ms='+(Date.now()-t1));});}});
+window.addEventListener('load',function(){s('load','t_ms='+(Date.now()-t0)+' '+a());});
+setTimeout(function(){s('alive_5s',a());},5000);
+setTimeout(function(){s('alive_20s',a());},20000);
+setTimeout(function(){s('alive_40s',a());},40000);
+})();"#;
+
+/// Lenh JS bao ve Rust. `async` de khong chiem luong UI. Chi nhan `kind` trong danh sach; `detail` bi cat va che khoa.
+#[tauri::command]
+pub async fn diag_js(window: tauri::WebviewWindow, kind: String, detail: String) {
+    if !JS_KINDS.contains(&kind.as_str()) {
+        return;
+    }
+    if kind == "dom_ready" || kind == "boot" {
+        js_seen().lock().unwrap_or_else(|e| e.into_inner()).insert(window.label().to_string());
+    }
+    log("webview_js", &format!("window={} kind={kind} {detail}", window.label()));
+}
+
+/// Gan moc `on_page_load`, `on_navigation` va doan JS chan doan vao mot builder cua so.
+pub fn instrument<'a, R: tauri::Runtime, M: tauri::Manager<R>>(
+    b: tauri::webview::WebviewWindowBuilder<'a, R, M>,
+) -> tauri::webview::WebviewWindowBuilder<'a, R, M> {
+    b.initialization_script(INIT_SCRIPT)
+        .on_navigation(|url| {
+            log("webview", &format!("navigation url={url}"));
+            true
+        })
+        .on_page_load(|w, payload| {
+            let label = w.label().to_string();
+            let ev = match payload.event() {
+                tauri::webview::PageLoadEvent::Started => "started",
+                tauri::webview::PageLoadEvent::Finished => "finished",
+            };
+            log("webview", &format!("page_load window={label} event={ev} url={}", payload.url()));
+            if ev == "finished" {
+                // Sau 8 s ma JS chua bao `boot`/`dom_ready` thi trang khong chay duoc JS hoac IPC khong toi Rust.
+                let _ = std::thread::Builder::new().name("rlt-diag-js-watch".into()).spawn(move || {
+                    std::thread::sleep(Duration::from_secs(8));
+                    let seen = js_seen().lock().unwrap_or_else(|e| e.into_inner()).contains(&label);
+                    if !seen {
+                        log("webview", &format!("js_silent window={label} after_page_load_finished_ms=8000"));
+                    }
+                });
+            }
+        })
+}
+
+/// Ghi moc truoc/sau `build()` cua mot cua so phu, kem thoi luong va ket qua.
+pub fn timed_build<T, E: std::fmt::Display>(label: &str, url: &str, build: impl FnOnce() -> Result<T, E>) -> Result<T, E> {
+    let thread = std::thread::current();
+    log("window", &format!("build_begin window={label} url={url} thread={}", thread.name().unwrap_or("?")));
+    let t = Instant::now();
+    let r = build();
+    let ms = t.elapsed().as_millis();
+    match &r {
+        Ok(_) => log("window", &format!("build_end window={label} ok=true ms={ms}")),
+        Err(e) => log("window", &format!("build_end window={label} ok=false ms={ms} err={e}")),
+    }
+    r
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -294,6 +380,22 @@ mod tests {
     fn long_line_is_truncated() {
         let l = format_line("t", "x", &"a b ".repeat(500));
         assert!(l.chars().count() < MAX_LINE + 40);
+    }
+
+    #[test]
+    fn init_script_is_ascii_and_reports_only_whitelisted_kinds() {
+        assert!(INIT_SCRIPT.is_ascii());
+        for k in INIT_SCRIPT.split("s('").skip(1).filter_map(|x| x.split('\'').next()) {
+            assert!(JS_KINDS.contains(&k), "kind {k} khong nam trong JS_KINDS");
+        }
+    }
+
+    #[test]
+    fn timed_build_passes_result_through() {
+        let ok: Result<i32, String> = timed_build("w", "u.html", || Ok(5));
+        assert_eq!(ok, Ok(5));
+        let err: Result<i32, String> = timed_build("w", "u.html", || Err("boom".into()));
+        assert_eq!(err, Err("boom".to_string()));
     }
 
     #[test]

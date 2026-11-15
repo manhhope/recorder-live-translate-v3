@@ -344,7 +344,7 @@ pub fn prewarm(app: &AppHandle) {
     if app.get_webview_window(WINDOW).is_some() {
         return;
     }
-    let built = WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App("quick.html".into()))
+    let builder = crate::diag::instrument(WebviewWindowBuilder::new(app, WINDOW, WebviewUrl::App("quick.html".into())))
         .title("Quick Translate")
         .inner_size(520.0, 420.0)
         .decorations(false)
@@ -352,8 +352,8 @@ pub fn prewarm(app: &AppHandle) {
         .resizable(false)
         .skip_taskbar(true)
         .visible(false)
-        .center()
-        .build();
+        .center();
+    let built = crate::diag::timed_build(WINDOW, "quick.html", || builder.build());
     match built {
         Ok(_w) => {
             #[cfg(target_os = "macos")]
@@ -554,7 +554,7 @@ fn show_toolbar(app: &AppHandle) {
         let w = match a.get_webview_window(TOOLBAR) {
             Some(w) => w,
             None => {
-                let built = WebviewWindowBuilder::new(&a, TOOLBAR, WebviewUrl::App("quick.html?view=toolbar".into()))
+                let builder = crate::diag::instrument(WebviewWindowBuilder::new(&a, TOOLBAR, WebviewUrl::App("quick.html?view=toolbar".into())))
                     .title("Quick Translate toolbar")
                     .inner_size(132.0, 40.0)
                     .decorations(false)
@@ -562,8 +562,8 @@ fn show_toolbar(app: &AppHandle) {
                     .resizable(false)
                     .skip_taskbar(true)
                     .focusable(false)
-                    .visible(false)
-                    .build();
+                    .visible(false);
+                let built = crate::diag::timed_build(TOOLBAR, "quick.html?view=toolbar", || builder.build());
                 let Ok(w) = built else { return };
                 #[cfg(target_os = "macos")]
                 if let Ok(p) = w.ns_window() {

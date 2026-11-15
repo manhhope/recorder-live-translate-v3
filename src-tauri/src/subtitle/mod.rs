@@ -124,7 +124,7 @@ pub fn open(app: &AppHandle) -> Result<(), String> {
     let mons = monitors(app);
     let (idx, r) = st.book.lock().unwrap().resolve(&mons).ok_or("no_monitor")?;
     let _ = idx;
-    let w = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("subtitle.html".into()))
+    let builder = crate::diag::instrument(WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("subtitle.html".into())))
         .title("Subtitles")
         .inner_size(r.w, r.h)
         .position(r.x, r.y)
@@ -136,10 +136,11 @@ pub fn open(app: &AppHandle) -> Result<(), String> {
         .focusable(false)
         .focused(false)
         .resizable(true)
-        .content_protected(cfg.hidden_from_capture)
-        .build()
-        .map_err(|e| e.to_string())?;
+        .content_protected(cfg.hidden_from_capture);
+    let w = crate::diag::timed_build(LABEL, "subtitle.html", || builder.build()).map_err(|e| e.to_string())?;
+    crate::diag::log("window", "subtitle apply_panel begin");
     apply_panel(&w, cfg.hidden_from_capture);
+    crate::diag::log("window", "subtitle apply_panel end");
     track_hover(app.clone());
     let handle = app.clone();
     w.on_window_event(move |ev| {
