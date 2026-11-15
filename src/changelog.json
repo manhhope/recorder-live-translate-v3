@@ -1,6 +1,44 @@
 {
   "entries": [
     {
+      "version": "3.0.1",
+      "date": "2026-11-15",
+      "groups": {
+        "new": {
+          "en": [
+            "Connect Google Drive with one button: the Google Client ID is built in, no setup needed.",
+            "The Sessions list shows how many images are attached to each session (N images)."
+          ],
+          "pt-PT": [
+            "Ligue o Google Drive com um só botão: o Client ID da Google já vem incluído, sem configuração.",
+            "A lista de Sessões mostra quantas imagens estão anexadas a cada sessão (N imagens)."
+          ]
+        },
+        "improved": {
+          "en": [
+            "Export is compact: format, content and the Export button on one line, and the save dialog remembers the folder.",
+            "Usage Logs are compact: one control row, weeks follow your local time zone, and the last numbers show instantly from the cache.",
+            "More display options for the transcript: text size, colors, show or hide the source."
+          ],
+          "pt-PT": [
+            "Exportar é compacto: formato, conteúdo e o botão Exportar numa só linha, e a janela de guardar memoriza a pasta.",
+            "O Usage Logs é compacto: uma só linha de controlos, semanas segundo o seu fuso horário e os últimos valores aparecem de imediato a partir da cache.",
+            "Mais opções de apresentação da transcrição: tamanho do texto, cores, mostrar ou ocultar o original."
+          ]
+        },
+        "fixed": {
+          "en": [
+            "Exports no longer overwrite a file with the same temporary name, and very long file names are handled safely.",
+            "A warning appears when a Word export could not include some screenshots."
+          ],
+          "pt-PT": [
+            "As exportações já não substituem um ficheiro com o mesmo nome temporário, e nomes de ficheiro muito longos são tratados em segurança.",
+            "Aparece um aviso quando uma exportação Word não conseguiu incluir algumas capturas de ecrã."
+          ]
+        }
+      }
+    },
+    {
       "version": "3.0.0",
       "date": "2026-11-15",
       "groups": {

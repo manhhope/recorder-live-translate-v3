@@ -83,3 +83,28 @@ export function runWhenIdle(run: () => void, busy: () => boolean, schedule: (f: 
   const tick = () => { if (busy() && ++n < maxTries) schedule(tick, everyMs); else run(); };
   tick();
 }
+
+const VI_CHARS = /[\u0102\u0103\u01A0\u01A1\u01AF\u01B0\u0110\u0111\u1EA0-\u1EF9]/;
+/** Kiem changelog: tra ve danh sach loi (rong = hop le). Muc moi nhat phai khop phien ban ung dung; en va pt-PT cung so cau; khong tieng Viet. */
+export function validateChangelog(log: ChangelogEntry[], appVersion: string): string[] {
+  const errs: string[] = [];
+  if (!log.length) return ["changelog rong"];
+  const valid = log.filter(x => parseVersion(x.version));
+  const top = [...valid].sort((a, b) => compareVersions(b.version, a.version)!)[0];
+  if (!top || top.version !== appVersion) errs.push(`changelog thieu muc cho phien ban hien tai ${appVersion}`);
+  for (const x of log) {
+    if (!parseVersion(x.version)) { errs.push(`phien ban sai dinh dang: ${x.version}`); continue; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(x.date)) errs.push(`${x.version}: ngay sai dinh dang`);
+    const gs = Object.entries(x.groups);
+    if (!gs.length) errs.push(`${x.version}: khong co nhom nao`);
+    for (const [g, l] of gs) {
+      if (!GROUP_ORDER.includes(g as GroupId)) errs.push(`${x.version}: nhom la ${g}`);
+      if (!l || !l.en?.length || l.en.length !== l["pt-PT"]?.length) { errs.push(`${x.version}/${g}: en va pt-PT khong cung so cau`); continue; }
+      for (const t of [...l.en, ...l["pt-PT"]]) {
+        if (t.trim().length <= 3) errs.push(`${x.version}/${g}: cau qua ngan`);
+        if (VI_CHARS.test(t)) errs.push(`${x.version}/${g}: co tieng Viet: ${t}`);
+      }
+    }
+  }
+  return errs;
+}

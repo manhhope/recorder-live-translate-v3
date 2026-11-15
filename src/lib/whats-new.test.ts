@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { compareVersions, parseVersion, mergeNotes, decide, manualNotes, runWhenIdle, loadSeen, saveSeen, SEEN_KEY, type ChangelogEntry } from "./whats-new.ts";
+import { validateChangelog, compareVersions, parseVersion, mergeNotes, decide, manualNotes, runWhenIdle, loadSeen, saveSeen, SEEN_KEY, type ChangelogEntry } from "./whats-new.ts";
 
 const e = (version: string, n: string[], f: string[] = []): ChangelogEntry => ({
   version, date: "2026-11-15",
@@ -101,20 +101,41 @@ test("phien ban: tauri.conf.json (nguon duy nhat) khop package.json", () => {
   assert.equal(rd("../../package.json").version, tauri, "package.json lech tauri.conf.json");
 });
 
-test("changelog that: ban moi nhat khop phien ban ung dung, du en va pt-PT, khong tieng Viet", () => {
+test("changelog that: hop le, ban moi nhat khop phien ban ung dung", () => {
   const log = rd("../changelog.json").entries as ChangelogEntry[];
-  assert.ok(log.length >= 1);
-  const top = [...log].sort((a, b) => compareVersions(b.version, a.version)!)[0];
-  assert.equal(top.version, tauri, "changelog thieu muc cho phien ban hien tai");
-  const VI = /[\u0102\u0103\u01A0\u01A1\u01AF\u01B0\u0110\u0111\u1EA0-\u1EF9]/;
-  for (const x of log) {
-    assert.ok(parseVersion(x.version), x.version);
-    assert.match(x.date, /^\d{4}-\d{2}-\d{2}$/);
-    assert.ok(Object.keys(x.groups).length > 0);
-    for (const [g, l] of Object.entries(x.groups)) {
-      assert.ok(["new", "improved", "fixed"].includes(g), g);
-      assert.ok(l!.en.length > 0 && l!.en.length === l!["pt-PT"].length, `${x.version}/${g}: en va pt-PT khong cung so cau`);
-      for (const t of [...l!.en, ...l!["pt-PT"]]) { assert.ok(t.trim().length > 3); assert.ok(!VI.test(t), t); }
-    }
+  assert.deepEqual(validateChangelog(log, tauri), []);
+  assert.equal(log[0].version, tauri);
+});
+
+test("changelog gia: validateChangelog bat dung tung loai lech", () => {
+  const ok = (): ChangelogEntry[] => [e("1.0.1", ["fresh item"]), e("1.0.0", ["old item"])];
+  assert.deepEqual(validateChangelog(ok(), "1.0.1"), []);
+  assert.ok(validateChangelog(ok(), "1.0.2").some(x => x.includes("thieu muc")), "thieu muc cho phien ban");
+  assert.ok(validateChangelog([], "1.0.1").length > 0, "rong");
+  const lech = ok(); lech[0].groups.new!["pt-PT"].pop();
+  assert.ok(validateChangelog(lech, "1.0.1").some(x => x.includes("cung so cau")), "lech so cau en/pt-PT");
+  const vi = ok(); vi[0].groups.new!.en[0] = "Xin ch\u00e0o b\u1ea1n \u0111\u00e3";
+  assert.ok(validateChangelog(vi, "1.0.1").some(x => x.includes("tieng Viet")), "tieng Viet");
+  const badVer = ok(); badVer[1].version = "abc";
+  assert.ok(validateChangelog(badVer, "1.0.1").some(x => x.includes("sai dinh dang")), "phien ban sai");
+  const badDate = ok(); badDate[0].date = "15/11/2026";
+  assert.ok(validateChangelog(badDate, "1.0.1").some(x => x.includes("ngay")), "ngay sai");
+  const badGroup = ok(); (badGroup[0].groups as any).misc = badGroup[0].groups.new;
+  assert.ok(validateChangelog(badGroup, "1.0.1").some(x => x.includes("nhom la")), "nhom la");
+});
+
+test("changelog that: mergeNotes tu ban da xem 3.0.0 len 3.0.1 chi gop muc 3.0.1, du hai ngon ngu", () => {
+  const log = rd("../changelog.json").entries as ChangelogEntry[];
+  for (const lang of ["en", "pt-PT"] as const) {
+    const n = mergeNotes(log, "3.0.0", "3.0.1", lang);
+    const want = Object.entries(log.find(x => x.version === "3.0.1")!.groups).flatMap(([, l]) => l![lang]);
+    assert.deepEqual(n.flatMap(g => g.items).sort(), [...want].sort());
+    assert.ok(n.length >= 2);
+    const d = decide(log, "3.0.0", "3.0.1", lang);
+    assert.equal(d.show, true);
+    assert.deepEqual(d.notes, n);
+    assert.equal(decide(log, "3.0.1", "3.0.1", lang).show, false);
   }
+  // lan mo dau tien: chi ghi chu cua 3.0.1
+  assert.equal(decide(log, null, "3.0.1", "en").show, true);
 });
