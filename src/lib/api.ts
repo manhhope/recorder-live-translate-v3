@@ -4,7 +4,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 
 export type RecordMode = "system" | "mic" | "mixed";
 export type SessionStateName = "idle" | "recording" | "paused" | "stopping";
-export type StatusCode = "permission" | "audio_device" | "auth" | "rejected" | "quota" | "network" | "timeout";
+export type StatusCode = "permission" | "audio_device" | "auth" | "rejected" | "quota" | "network" | "timeout" | "storage" | "internal";
 
 export interface LineDto { captionLineId: number; seq: number; offsetMs: number; sourceLang: string; sourceText: string; translatedText: string | null }
 export type { PartialDto } from "./live.ts";
@@ -122,7 +122,16 @@ export const driveSyncNow = () => invoke<DriveSyncAllOut>("drive_sync_now");
 
 /** Ma loi tra ve la chuoi ngan (vd `key_missing`); dua ve mot khoa i18n `err.*`, khong ro thi `err.generic`. */
 export function errCode(e: unknown): string {
-  return typeof e === "string" ? e : (e as { message?: string })?.message ?? "unknown";
+  const raw = typeof e === "string" ? e : (e as { message?: string })?.message ?? "unknown";
+  const i = raw.indexOf("|");
+  return i < 0 ? raw : raw.slice(0, i);
+}
+/** Dong ky thuat ngan sau dau `|` (chi `storage` va `internal` mang theo), Rust da scrub va cat 200 ky tu; khong co thi `null`. */
+export function errDetail(e: unknown): string | null {
+  const raw = typeof e === "string" ? e : (e as { message?: string })?.message ?? "";
+  const i = raw.indexOf("|");
+  const d = i < 0 ? "" : raw.slice(i + 1).trim();
+  return d ? d.slice(0, 200) : null;
 }
 export function usd(micros: number): number { return micros / 1_000_000; }
 export function mondayOf(offsetWeeks: number, now = new Date()): string {

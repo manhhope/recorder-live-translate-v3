@@ -154,6 +154,10 @@ pub enum ErrKind {
     Network,
     /// 408: thap nhat.
     Timeout,
+    /// Loi doc/ghi CSDL cuc bo (khoa hong, SQLite busy, rang buoc): khong lien quan mang.
+    Storage,
+    /// Loi trang thai noi bo (chuyen trang thai khong hop le, phien da dong): khong lien quan mang.
+    Internal,
 }
 
 impl ErrKind {
@@ -166,10 +170,12 @@ impl ErrKind {
             Self::Quota => "quota",
             Self::Network => "network",
             Self::Timeout => "timeout",
+            Self::Storage => "storage",
+            Self::Internal => "internal",
         }
     }
-    fn bit(self) -> u8 {
-        1 << (self as u8)
+    fn bit(self) -> u16 {
+        1 << (self as u16)
     }
     /// Loi tam (tu het khi co chu moi); cac loi con lai giu den het phien.
     fn transient(self) -> bool {
@@ -179,10 +185,19 @@ impl ErrKind {
 
 /// Tap hop loi dang co; hien loi uu tien cao nhat: Thieu quyen > Khoa sai > Het quota > Mat mang > 408.
 #[derive(Debug, Default)]
-pub struct ErrorTracker(u8);
+pub struct ErrorTracker(u16);
 
-const ORDER: [ErrKind; 7] =
-    [ErrKind::Permission, ErrKind::Device, ErrKind::Auth, ErrKind::Rejected, ErrKind::Quota, ErrKind::Network, ErrKind::Timeout];
+const ORDER: [ErrKind; 9] = [
+    ErrKind::Permission,
+    ErrKind::Device,
+    ErrKind::Auth,
+    ErrKind::Rejected,
+    ErrKind::Quota,
+    ErrKind::Network,
+    ErrKind::Timeout,
+    ErrKind::Storage,
+    ErrKind::Internal,
+];
 
 impl ErrorTracker {
     pub fn current(&self) -> Option<ErrKind> {
@@ -274,6 +289,34 @@ fn log_dir() -> Option<std::path::PathBuf> {
     rlt_platform::paths::data_dir("com.mmola.recorderlivetranslate")
 }
 
+/// Dong ghi vao diag.log: moi truong qua `scrub_log`; `detail` (ly do ky thuat) ghi them, da scrub, bo xuong dong
+/// va cat toi da 200 ky tu. Khong bao gio chua khoa Soniox (chuoi dai giong khoa bi che thanh `[che]`).
+pub fn diag_line(event: &str, fields: &[(&str, String)]) -> String {
+    let parts: Vec<String> = fields
+        .iter()
+        .map(|(k, v)| {
+            let clean = scrub_log(v);
+            if *k == "detail" {
+                format!("detail=\"{}\"", clean.replace('"', "'").chars().filter(|c| !c.is_control()).take(200).collect::<String>())
+            } else {
+                format!("{k}={clean}")
+            }
+        })
+        .collect();
+    format!("{event} {}", parts.join(" "))
+}
+
+/// Ma gui giao dien khi bat dau phien that bai. Loi luu tru/noi bo di kem mot dong ky thuat ngan sau dau `|`
+/// (`storage|loi luu tru: ...`); giao dien tach ma o dau `|` (`errCode`) va hien phan con lai (`errDetail`).
+pub fn start_error_string(code: &str, e: &CoreError) -> String {
+    if matches!(code, "storage" | "internal") {
+        let d: String = scrub_log(&e.to_string()).chars().filter(|c| !c.is_control() && *c != '|').take(200).collect();
+        format!("{code}|{d}")
+    } else {
+        code.to_string()
+    }
+}
+
 /// Mot dong log co cau truc `ts=.. event=.. k=v ...` ra stderr va `session-errors.log` (cat khi > 256 KB).
 /// Chi nhan ma loi va chuoi da `scrub_log`; khong bao gio nhan khoa Soniox.
 pub fn log_event(event: &str, fields: &[(&str, String)]) {
@@ -283,7 +326,7 @@ pub fn log_event(event: &str, fields: &[(&str, String)]) {
         line.push_str(&format!(" {k}=\"{}\"", scrub_log(v).replace('"', "'")));
     }
     eprintln!("{line}");
-    crate::diag::log("session_event", &format!("{event} {}", fields.iter().filter(|(k, _)| *k != "detail").map(|(k, v)| format!("{k}={}", scrub_log(v))).collect::<Vec<_>>().join(" ")));
+    crate::diag::log("session_event", &diag_line(event, fields));
     if cfg!(test) {
         return; // test khong ghi vao thu muc du lieu that cua nguoi dung
     }
@@ -310,7 +353,8 @@ fn classify_core(e: &CoreError) -> ErrKind {
     match e {
         CoreError::Soniox(s) => classify_soniox(s),
         CoreError::Audio(a) => classify_audio(a),
-        _ => ErrKind::Network,
+        CoreError::Store(_) => ErrKind::Storage,
+        CoreError::Transition(_) | CoreError::Closed => ErrKind::Internal,
     }
 }
 
@@ -572,7 +616,7 @@ impl SessionService {
                     other => classify_core(other).code(),
                 };
                 log_event("session_start_failed", &[("stage", "start_session".into()), ("session", id.clone()), ("mode", format!("{:?}", p.mode)), ("code", code.into()), ("detail", e.to_string())]);
-                return Err(code.to_string());
+                return Err(start_error_string(code, &e));
             }
         };
         *self.active.lock().unwrap_or_else(|e| e.into_inner()) = Some(Active { handle, session_id: id.clone() });
@@ -729,6 +773,56 @@ mod tests {
         assert_eq!(t.raise(ErrKind::Quota), Some(ErrKind::Quota));
         assert_eq!(t.raise(ErrKind::Auth), Some(ErrKind::Auth));
         assert_eq!(t.raise(ErrKind::Permission), Some(ErrKind::Permission));
+    }
+
+    #[test]
+    fn core_errors_map_to_specific_codes_never_network() {
+        use rlt_core::{SessionState, Transition};
+        let tr = SessionState::Idle.apply(Transition::Pause).unwrap_err();
+        assert_eq!(classify_core(&CoreError::Store("x".into())).code(), "storage");
+        assert_eq!(classify_core(&CoreError::Transition(tr)).code(), "internal");
+        assert_eq!(classify_core(&CoreError::Closed).code(), "internal");
+        assert_eq!(classify_core(&CoreError::Soniox(SonioxError::Auth { code: 401 })).code(), "auth");
+        assert_eq!(classify_core(&CoreError::Soniox(SonioxError::Timeout)).code(), "timeout");
+        assert_eq!(classify_core(&CoreError::Soniox(SonioxError::Network("x".into()))).code(), "network");
+        assert_eq!(classify_core(&CoreError::Audio(AudioError::Device("denied".into()))).code(), "permission");
+        assert_eq!(classify_core(&CoreError::Audio(AudioError::Device("boom".into()))).code(), "audio_device");
+    }
+
+    #[test]
+    fn storage_and_internal_rank_below_network_in_tracker() {
+        let mut t = ErrorTracker::default();
+        assert_eq!(t.raise(ErrKind::Internal), Some(ErrKind::Internal));
+        assert_eq!(t.raise(ErrKind::Storage), Some(ErrKind::Storage));
+        assert_eq!(t.raise(ErrKind::Network), Some(ErrKind::Network));
+        assert!(t.recovered());
+        assert_eq!(t.current(), Some(ErrKind::Storage), "loi luu tru khong la loi tam");
+    }
+
+    #[test]
+    fn diag_line_keeps_scrubbed_detail_capped_at_200() {
+        let key = "abcdefghijklmnopqrstuvwxyz0123456789";
+        let line = diag_line("session_start_failed", &[("code", "storage".into()), ("detail", format!("loi luu tru: database is locked key={key} \"q\"\n{}", "x ".repeat(300)))]);
+        assert!(line.starts_with("session_start_failed code=storage detail=\""), "{line}");
+        assert!(line.contains("database is locked"), "{line}");
+        assert!(!line.contains(key), "khoa phai bi che: {line}");
+        assert!(line.contains("[che]"), "{line}");
+        assert!(!line.contains('\n'));
+        let detail = line.split("detail=\"").nth(1).unwrap().trim_end_matches('"');
+        assert!(detail.chars().count() <= 200, "{}", detail.chars().count());
+        assert!(detail.chars().count() >= 150, "van phai du dai de chan doan");
+    }
+
+    #[test]
+    fn start_error_string_carries_short_detail_only_for_storage_and_internal() {
+        let e = CoreError::Store("database is locked".into());
+        let s = start_error_string("storage", &e);
+        assert_eq!(s, "storage|loi luu tru: database is locked");
+        assert_eq!(start_error_string("network", &CoreError::Closed), "network");
+        let long = CoreError::Store(format!("a|b {}", "y".repeat(500)));
+        let s = start_error_string("storage", &long);
+        assert!(s.chars().count() <= "storage|".len() + 200);
+        assert_eq!(s.matches('|').count(), 1, "{s}");
     }
 
     #[test]

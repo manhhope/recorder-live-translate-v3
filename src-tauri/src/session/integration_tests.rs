@@ -810,3 +810,64 @@ fn export_writes_via_unique_temp_and_never_leaves_part_files() {
     assert_eq!(std::fs::read(&long).unwrap(), b"ok");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ================================================================= Loi "Start luon bao network" tren Windows (win-fix-start)
+
+/// Cau hinh cua chu may Windows: nguon He thong, ngon ngu nguon Auto-detect (`listen_langs` rong), dich sang `vi`, khong dat tieu de.
+fn owner_params() -> StartParams {
+    StartParams { target_lang: "vi".into(), listen_langs: vec![], mode: RecordMode::System, title: None }
+}
+
+#[tokio::test]
+async fn owner_config_system_auto_vi_starts_and_stores_the_row() {
+    let url = fake_soniox(false).await;
+    let svc = service(&url, true, true);
+    let (sink, events) = collector();
+    let id = svc.start(owner_params(), sink).await.expect("cau hinh cua chu phai bat dau duoc, khong loi luu tru");
+    let row = svc.store.lock().unwrap().get_session(&id).unwrap().expect("hang sessions");
+    assert_eq!(row.audio_source_mode, "system_only");
+    assert_eq!(row.target_lang, "vi");
+    assert_eq!(row.listen_langs, "[]");
+    assert!(row.title.starts_with("Session "), "{}", row.title);
+    svc.stop().unwrap();
+    assert!(wait_for(&events, |e| matches!(e, UiEvent::Stopped { .. })).await);
+}
+
+/// Nguyen nhan co the: mot luong khac panic khi giu khoa Store -> `start_session` tra `CoreError::Store("khoa bi hong")`,
+/// ban cu dan nhan `network`. Gio phai la `storage` kem dong ky thuat.
+#[tokio::test]
+async fn poisoned_store_lock_reports_storage_not_network() {
+    let svc = service("ws://127.0.0.1:1", true, true);
+    let store = svc.store.clone();
+    let _ = std::thread::spawn(move || {
+        let _g = store.lock().unwrap();
+        panic!("gia lap luong panic khi giu khoa Store");
+    })
+    .join();
+    let (sink, _events) = collector();
+    let err = svc.start(owner_params(), sink).await.unwrap_err();
+    assert!(err.starts_with("storage|"), "{err}");
+    assert!(err.contains("khoa bi hong"), "{err}");
+    assert!(!err.starts_with("network"), "{err}");
+}
+
+/// Nguyen nhan co the: main.rs mo 4 ket noi toi cung rlt.db; neu mot ket noi khac giu khoa ghi thi INSERT bi `database is locked`.
+#[tokio::test]
+async fn busy_database_reports_storage_not_network() {
+    let dir = std::env::temp_dir().join(format!("rlt-busy-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("rlt.db");
+    let store = Arc::new(Mutex::new(Store::open(&path).unwrap()));
+    store.lock().unwrap().conn().busy_timeout(Duration::from_millis(50)).unwrap();
+    let svc = SessionService::new(store, Arc::new(InMemorySecretStore::new()), Arc::new(FakeProvider)).with_soniox_url("ws://127.0.0.1:1");
+    svc.save_key(FAKE_KEY).unwrap();
+    svc.accept_consent().unwrap();
+    let other = Store::open(&path).unwrap();
+    other.conn().execute_batch("BEGIN IMMEDIATE").unwrap();
+    let (sink, _events) = collector();
+    let err = svc.start(owner_params(), sink).await.unwrap_err();
+    other.conn().execute_batch("ROLLBACK").unwrap();
+    assert!(err.starts_with("storage|"), "{err}");
+    assert!(err.to_lowercase().contains("locked") || err.to_lowercase().contains("busy"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
