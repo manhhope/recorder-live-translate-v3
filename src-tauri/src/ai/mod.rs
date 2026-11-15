@@ -67,28 +67,28 @@ fn code<T>(r: rlt_ai::Result<T>) -> Result<T, String> {
 }
 
 #[tauri::command]
-pub fn ai_get_settings(s: State<'_, AiState>) -> Result<AiSettings, String> {
+pub async fn ai_get_settings(s: State<'_, AiState>) -> Result<AiSettings, String> {
     code(s.svc.get_settings())
 }
 
 #[tauri::command]
-pub fn ai_save_settings(s: State<'_, AiState>, input: AiSettingsInput) -> Result<(), String> {
+pub async fn ai_save_settings(s: State<'_, AiState>, input: AiSettingsInput) -> Result<(), String> {
     code(s.svc.save_settings(&input))
 }
 
 /// Chi nhan khoa vao Keychain. Khong co lenh doc lai.
 #[tauri::command]
-pub fn ai_set_api_key(s: State<'_, AiState>, provider: ProviderKind, value: String) -> Result<(), String> {
+pub async fn ai_set_api_key(s: State<'_, AiState>, provider: ProviderKind, value: String) -> Result<(), String> {
     code(s.svc.set_api_key(provider, &value))
 }
 
 #[tauri::command]
-pub fn ai_clear_api_key(s: State<'_, AiState>, provider: ProviderKind) -> Result<(), String> {
+pub async fn ai_clear_api_key(s: State<'_, AiState>, provider: ProviderKind) -> Result<(), String> {
     code(s.svc.clear_api_key(provider))
 }
 
 #[tauri::command]
-pub fn ai_accept_consent(s: State<'_, AiState>, provider: ProviderKind) -> Result<(), String> {
+pub async fn ai_accept_consent(s: State<'_, AiState>, provider: ProviderKind) -> Result<(), String> {
     code(s.svc.accept_consent(provider))
 }
 
@@ -99,12 +99,12 @@ pub async fn ai_test_connection(s: State<'_, AiState>, provider: ProviderKind) -
 }
 
 #[tauri::command]
-pub fn ai_list_conversations(s: State<'_, AiState>, session_id: String) -> Result<Vec<Conversation>, String> {
+pub async fn ai_list_conversations(s: State<'_, AiState>, session_id: String) -> Result<Vec<Conversation>, String> {
     code(s.svc.list_conversations(&session_id))
 }
 
 #[tauri::command]
-pub fn ai_list_messages(s: State<'_, AiState>, conversation_id: i64) -> Result<Vec<Message>, String> {
+pub async fn ai_list_messages(s: State<'_, AiState>, conversation_id: i64) -> Result<Vec<Message>, String> {
     code(s.svc.list_messages(conversation_id))
 }
 
@@ -141,12 +141,12 @@ pub fn ai_cancel(s: State<'_, AiState>) {
 }
 
 #[tauri::command]
-pub fn ai_clear_history(s: State<'_, AiState>, conversation_id: i64) -> Result<usize, String> {
+pub async fn ai_clear_history(s: State<'_, AiState>, conversation_id: i64) -> Result<usize, String> {
     code(s.svc.clear_history(conversation_id))
 }
 
 #[tauri::command]
-pub fn ai_delete_conversation(s: State<'_, AiState>, conversation_id: i64) -> Result<bool, String> {
+pub async fn ai_delete_conversation(s: State<'_, AiState>, conversation_id: i64) -> Result<bool, String> {
     code(s.svc.delete_conversation(conversation_id))
 }
 

@@ -51,9 +51,18 @@ fn main() {
             diag::mark("stores_open");
             shell::setup(app.handle(), dir_for_shell)?;
             diag::mark("shell_setup_done");
-            diag::mark("quick_setup_begin");
-            quick::setup(app.handle());
-            diag::mark("quick_setup_done");
+            // Tao WebView2 thu hai (prewarm quick) va doi monitor tren luong UI ngay trong `setup`, luc vong lap su kien
+            // chua chay, la nghi van treo C (chua kiem tren Windows). Tri hoan: sau khi cua so main da len, chay tren luong UI.
+            let qa = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+                diag::mark("quick_setup_begin");
+                let qb = qa.clone();
+                let _ = qa.run_on_main_thread(move || {
+                    quick::setup(&qb);
+                    diag::mark("quick_setup_done");
+                });
+            });
             diag::start_watchdog(app.handle().clone());
             diag::mark("setup_done");
             Ok(())
