@@ -101,6 +101,8 @@ pub const APP_COMMANDS: &[&str] = &[
     "drive_save_client_config",
     "drive_connect",
     "drive_disconnect",
+    "drive_connect_cancel",
+    "drive_sync_now",
     "mic_permission_request",
     "import_dotnet_pick",
     "open_system_settings",
@@ -108,6 +110,8 @@ pub const APP_COMMANDS: &[&str] = &[
 
 fn main() {
     // screencapturekit nối thư viện Swift; test/bin cần tìm runtime hệ thống (macOS 12+ có sẵn ở /usr/lib/swift).
+    // Client ID OAuth dung san cua Drive: nap luc build (option_env! trong session/mod.rs), mac dinh rong.
+    println!("cargo:rerun-if-env-changed=RLT_DRIVE_BUILTIN_CLIENT_ID");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
     }

@@ -24,7 +24,8 @@ export interface RecordPrefs { targetLang: string; listenLangs: string[]; mode: 
 /** `mic`: notDetermined | denied | restricted | authorized. */
 export interface PermissionsOut { mic: string; screen: string }
 export type DriveConnState = "not_configured" | "disconnected" | "connected";
-export interface DriveConnOut { state: DriveConnState }
+export interface DriveConnOut { state: DriveConnState; email: string | null; builtin: boolean }
+export interface DriveSyncAllOut { total: number; synced: number; failed: number; waiting: number; oauthConnected: boolean }
 export interface DriveDisconnectOut { revoked: boolean }
 
 export interface SessionRow {
@@ -110,6 +111,8 @@ export const driveSaveClientConfig = (clientId: string, clientSecret: string | n
 export const driveConnect = () => invoke<DriveConnOut>("drive_connect");
 export const driveDisconnect = () => invoke<DriveDisconnectOut>("drive_disconnect");
 export const importDotnetPick = () => invoke<ImportOut | null>("import_dotnet_pick");
+export const driveConnectCancel = () => invoke<void>("drive_connect_cancel");
+export const driveSyncNow = () => invoke<DriveSyncAllOut>("drive_sync_now");
 
 /** Ma loi tra ve la chuoi ngan (vd `key_missing`); dua ve mot khoa i18n `err.*`, khong ro thi `err.generic`. */
 export function errCode(e: unknown): string {

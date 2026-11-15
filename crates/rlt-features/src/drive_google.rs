@@ -18,6 +18,7 @@ use rlt_secrets::{SecretError, SecretKind, SecretStore, SecretValue};
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -32,6 +33,8 @@ pub struct Endpoints {
     pub revoke: String,
     /// Goc upload: `.../upload/drive/v3/files`.
     pub upload: String,
+    /// `.../drive/v3/about`: lay email tai khoan vua ket noi.
+    pub about: String,
 }
 
 impl Endpoints {
@@ -41,6 +44,7 @@ impl Endpoints {
             token: "https://oauth2.googleapis.com/token".into(),
             revoke: "https://oauth2.googleapis.com/revoke".into(),
             upload: "https://www.googleapis.com/upload/drive/v3/files".into(),
+            about: "https://www.googleapis.com/drive/v3/about".into(),
         }
     }
 }
@@ -74,6 +78,8 @@ pub enum ConnectError {
     StateMismatch,
     BrowserFailed,
     Network,
+    /// Nguoi dung bam Huy trong app.
+    Cancelled,
     /// May chu token tu choi hoac tra du lieu thieu (vd khong co refresh token).
     Token(String),
     Secret,
@@ -88,6 +94,7 @@ impl ConnectError {
             ConnectError::StateMismatch => "drive_auth_state_mismatch".into(),
             ConnectError::BrowserFailed => "drive_browser_failed".into(),
             ConnectError::Network => "drive_network".into(),
+            ConnectError::Cancelled => "drive_auth_cancelled".into(),
             ConnectError::Token(c) => c.clone(),
             ConnectError::Secret => "keychain_error".into(),
         }
@@ -106,6 +113,8 @@ pub struct AuthRequest {
 pub struct GoogleDrive {
     secrets: Arc<dyn SecretStore>,
     ep: Endpoints,
+    /// Client ID dung san luc build (rong = khong co). Chi dung khi nguoi dung/moi truong khong cap Client ID nao.
+    builtin_client_id: Option<String>,
     /// Tao muon (lan goi mang dau tien): Client blocking khong duoc tao/huy trong ngu canh async cua tokio.
     http_cell: std::sync::OnceLock<Client>,
     access: Mutex<Option<String>>,
@@ -179,7 +188,18 @@ impl GoogleDrive {
     }
 
     pub fn with_endpoints(secrets: Arc<dyn SecretStore>, ep: Endpoints) -> Self {
-        GoogleDrive { secrets, ep, http_cell: std::sync::OnceLock::new(), access: Mutex::new(None) }
+        GoogleDrive { secrets, ep, builtin_client_id: None, http_cell: std::sync::OnceLock::new(), access: Mutex::new(None) }
+    }
+
+    /// Dat Client ID dung san (nap luc build, mac dinh rong). Gia tri rong/khoang trang = khong co.
+    pub fn with_builtin_client_id(mut self, id: Option<&str>) -> Self {
+        self.builtin_client_id = id.map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
+        self
+    }
+
+    /// true khi app co Client ID dung san.
+    pub fn has_builtin_client_id(&self) -> bool {
+        self.builtin_client_id.is_some()
     }
 
     fn http(&self) -> &Client {
@@ -205,7 +225,7 @@ impl GoogleDrive {
     }
 
     fn client_id(&self) -> Option<String> {
-        self.secret_or_env(SecretKind::DriveClientId, ENV_CLIENT_ID)
+        self.secret_or_env(SecretKind::DriveClientId, ENV_CLIENT_ID).or_else(|| self.builtin_client_id.clone())
     }
 
     fn client_secret(&self) -> Option<String> {
@@ -230,7 +250,8 @@ impl GoogleDrive {
     pub fn connection(&self) -> Connection {
         // Chi hoi su ton tai (khong doc gia tri) de man Cai dat khong gay hop thoai Keychain.
         let has_id = self.secrets.exists(SecretKind::DriveClientId).unwrap_or(false)
-            || std::env::var(ENV_CLIENT_ID).ok().is_some_and(|v| !v.trim().is_empty());
+            || std::env::var(ENV_CLIENT_ID).ok().is_some_and(|v| !v.trim().is_empty())
+            || self.builtin_client_id.is_some();
         if !has_id {
             return Connection::NotConfigured;
         }
@@ -267,9 +288,17 @@ impl GoogleDrive {
 
     /// Cho trinh duyet goi lai `127.0.0.1`, kiem `state`, tra `code`.
     pub fn wait_for_code(&self, req: &AuthRequest, timeout: Duration) -> Result<String, ConnectError> {
+        self.wait_for_code_cancellable(req, timeout, &AtomicBool::new(false))
+    }
+
+    /// Nhu `wait_for_code` nhung dung som voi `Cancelled` khi `cancel` duoc bat (nut Huy).
+    pub fn wait_for_code_cancellable(&self, req: &AuthRequest, timeout: Duration, cancel: &AtomicBool) -> Result<String, ConnectError> {
         req.listener.set_nonblocking(true).map_err(|_| ConnectError::Network)?;
         let deadline = Instant::now() + timeout;
         loop {
+            if cancel.load(Ordering::SeqCst) {
+                return Err(ConnectError::Cancelled);
+            }
             match req.listener.accept() {
                 Ok((stream, _)) => {
                     if let Some(r) = handle_callback(stream, &req.state) {
@@ -319,17 +348,48 @@ impl GoogleDrive {
             return Err(ConnectError::Token("drive_no_refresh_token".into()));
         };
         self.secrets.set(SecretKind::DriveRefreshToken, &SecretValue::new(refresh)).map_err(|_| ConnectError::Secret)?;
-        *self.access.lock().unwrap() = body["access_token"].as_str().map(str::to_string);
+        let access = body["access_token"].as_str().map(str::to_string);
+        if let Some(t) = &access {
+            self.store_account_email(t);
+        }
+        *self.access.lock().unwrap() = access;
         Ok(())
+    }
+
+    /// Hoi Drive "about" lay email (best effort: loi thi bo qua, khong chan viec ket noi). Email khong phai bi mat
+    /// nhung gom vao cung kho de khong tao file cau hinh; khong ghi log.
+    fn store_account_email(&self, access: &str) {
+        let url = format!("{}?fields=user(emailAddress)", self.ep.about);
+        let Ok(resp) = self.http().get(url).bearer_auth(access).send() else { return };
+        if resp.status().as_u16() != 200 {
+            return;
+        }
+        let body = json_body(resp);
+        if let Some(e) = body["user"]["emailAddress"].as_str().filter(|e| !e.is_empty() && e.len() <= 320) {
+            let _ = self.secrets.set(SecretKind::DriveAccountEmail, &SecretValue::new(e));
+        }
+    }
+
+    /// Email tai khoan dang ket noi (None neu chua biet).
+    pub fn account_email(&self) -> Option<String> {
+        match self.secrets.get(SecretKind::DriveAccountEmail) {
+            Ok(Some(v)) if !v.is_empty() => Some(v.expose().to_string()),
+            _ => None,
+        }
     }
 
     /// Luong day du: dung URL, nho `open` mo trinh duyet, cho goi lai, doi token.
     pub fn connect(&self, open: impl FnOnce(&str) -> bool, timeout: Duration) -> Result<(), ConnectError> {
+        self.connect_cancellable(open, timeout, &AtomicBool::new(false))
+    }
+
+    /// Nhu `connect`, nhung nut Huy (`cancel`) dung duoc luc dang cho trinh duyet.
+    pub fn connect_cancellable(&self, open: impl FnOnce(&str) -> bool, timeout: Duration, cancel: &AtomicBool) -> Result<(), ConnectError> {
         let req = self.begin_auth()?;
         if !open(&req.url) {
             return Err(ConnectError::BrowserFailed);
         }
-        let code = self.wait_for_code(&req, timeout)?;
+        let code = self.wait_for_code_cancellable(&req, timeout, cancel)?;
         self.complete_auth(req, &code)
     }
 
@@ -348,6 +408,7 @@ impl GoogleDrive {
             _ => true,
         };
         self.secrets.delete(SecretKind::DriveRefreshToken).map_err(|_| ConnectError::Secret)?;
+        let _ = self.secrets.delete(SecretKind::DriveAccountEmail);
         *self.access.lock().unwrap() = None;
         Ok(revoked)
     }
@@ -391,6 +452,7 @@ impl GoogleDrive {
             400 | 401 if body["error"].as_str() == Some("invalid_grant") => {
                 // Nguoi dung da thu hoi quyen (hoac token het han): bo token vo hieu de trang thai la "chua ket noi".
                 let _ = self.secrets.delete(SecretKind::DriveRefreshToken);
+                let _ = self.secrets.delete(SecretKind::DriveAccountEmail);
                 *self.access.lock().unwrap() = None;
                 Err(DriveError::TokenRevoked)
             }

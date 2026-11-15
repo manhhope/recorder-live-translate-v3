@@ -27,10 +27,12 @@ pub enum SecretKind {
     DriveClientSecret,
     /// Khoa DeepL API (dich chu: Quick, Inline, OCR). Chi nam trong Keychain, BYOK.
     DeepL,
+    /// Email tai khoan Google dang ket noi Drive (chi de hien thi o Cai dat; khong phai khoa).
+    DriveAccountEmail,
 }
 
 impl SecretKind {
-    pub const ALL: [SecretKind; 7] = [
+    pub const ALL: [SecretKind; 8] = [
         SecretKind::Soniox,
         SecretKind::Gemini,
         SecretKind::OpenAi,
@@ -38,6 +40,7 @@ impl SecretKind {
         SecretKind::DriveClientId,
         SecretKind::DriveClientSecret,
         SecretKind::DeepL,
+        SecretKind::DriveAccountEmail,
     ];
 
     /// Ten account trong Keychain.
@@ -50,6 +53,7 @@ impl SecretKind {
             SecretKind::DriveClientId => "drive-client-id",
             SecretKind::DriveClientSecret => "drive-client-secret",
             SecretKind::DeepL => "deepl-api-key",
+            SecretKind::DriveAccountEmail => "drive-account-email",
         }
     }
 }

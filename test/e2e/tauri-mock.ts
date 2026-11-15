@@ -21,6 +21,9 @@ export interface MockSeed {
   captures?: Record<string, unknown[]>;
   // So anh docx khong doc duoc ma session_export bao ve (mac dinh 0: khong canh bao).
   exportMissing?: number;
+  // Google Drive: trang thai ban dau cua drive_connection_status va ket qua cua drive_sync_now.
+  drive?: { state?: string; email?: string | null; builtin?: boolean };
+  driveSyncAll?: { total: number; synced: number; failed: number; waiting: number; oauthConnected: boolean };
 }
 
 export function installTauriMock(seed: MockSeed): void {
@@ -57,6 +60,7 @@ export function installTauriMock(seed: MockSeed): void {
     nextConv: 1,
     nextMsg: 1,
     exportMissing: seed.exportMissing ?? 0,
+    drive: { state: "disconnected", email: null, builtin: false, ...(seed.drive ?? {}) } as any,
   };
   const rlt: any = { calls: [] as { cmd: string; args: any }[], unhandled: [] as string[], state, fail: { ...seed.fail } };
   w.__rlt = rlt;
@@ -184,7 +188,20 @@ export function installTauriMock(seed: MockSeed): void {
     subtitle_set_opacity: () => undefined,
     subtitle_lines: () => clone(rlt.subtitleLines ?? []),
     subtitle_get: () => ({ display_mode: "bilingual", font_size_pt: 24, source_color: "#FFFFFF", translation_color: "#FFD60A", opacity_percent: 80, hidden_from_capture: false }),
-    drive_connection_status: () => ({ state: "disconnected" }),
+    // Hop dong: Rust `drive_connection_status() -> {state, email, builtin}`. `drive_connect` CHO den khi test goi
+    // `__rlt.driveFinish("ok" | ma loi)`; `drive_connect_cancel` ket thuc no bang `drive_auth_cancelled`.
+    drive_connection_status: () => clone(state.drive),
+    drive_save_client_config: () => { state.drive.state = "disconnected"; return clone(state.drive); },
+    drive_connect: () => new Promise((resolve, reject) => {
+      rlt.driveFinish = (r: string) => {
+        rlt.driveFinish = null;
+        if (r === "ok") { state.drive = { ...state.drive, state: "connected", email: "chu@example.com" }; resolve(clone(state.drive)); }
+        else reject(r);
+      };
+    }),
+    drive_connect_cancel: () => { rlt.driveFinish?.("drive_auth_cancelled"); },
+    drive_disconnect: () => { state.drive = { ...state.drive, state: "disconnected", email: null }; return { revoked: true }; },
+    drive_sync_now: () => seed.driveSyncAll ?? { total: 2, synced: 2, failed: 0, waiting: 0, oauthConnected: true },
     deepl_has_key: () => false,
     drive_sync: () => ({ status: "not_connected", attempts: 0, oauthConnected: false }),
     import_dotnet_pick: () => ({ totalRows: 12, tables: [["sessions", 12]] }),

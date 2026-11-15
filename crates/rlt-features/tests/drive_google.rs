@@ -8,6 +8,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -63,6 +64,7 @@ impl Fake {
             token: format!("{}/token", self.base),
             revoke: format!("{}/revoke", self.base),
             upload: format!("{}/upload/drive/v3/files", self.base),
+            about: format!("{}/drive/v3/about", self.base),
         }
     }
 }
@@ -481,6 +483,7 @@ fn ngat_mang_khong_co_may_chu_la_offline_khong_tinh_lan_thu() {
         token: format!("{base}/token"),
         revoke: format!("{base}/revoke"),
         upload: format!("{base}/upload"),
+        about: format!("{base}/about"),
     };
     let s = secrets_with(Some("cid"), Some(REFRESH));
     let d = GoogleDrive::with_endpoints(s, ep);
@@ -556,7 +559,7 @@ fn ngat_ket_noi_khi_mat_mang_van_xoa_cuc_bo_va_bao_chua_thu_hoi_duoc() {
         l.local_addr().unwrap().port()
     };
     let b = format!("http://127.0.0.1:{port}");
-    let ep = Endpoints { auth: b.clone(), token: b.clone(), revoke: format!("{b}/revoke"), upload: b };
+    let ep = Endpoints { auth: b.clone(), token: b.clone(), revoke: format!("{b}/revoke"), upload: b.clone(), about: b };
     let s = secrets_with(Some("cid"), Some(REFRESH));
     let d = GoogleDrive::with_endpoints(s.clone(), ep);
     assert_eq!(d.disconnect(), Ok(false));
@@ -584,4 +587,158 @@ fn loi_va_trang_thai_khong_chua_token() {
         assert!(!all.contains(bad) && !last.contains(bad));
     }
     assert_eq!(ConnectError::Token("drive_token_invalid_grant".into()).code(), "drive_token_invalid_grant");
+}
+
+// ---------------------------------------------------------------- nut Connect (t_6ecbe38018bf): may trang thai ket noi
+
+/// May chu gia cho luong Connect: token (co refresh) va about (email).
+fn connect_fake() -> Fake {
+    Fake::start(Box::new(|r| match r.path.as_str() {
+        "/token" => json(200, &format!(r#"{{"access_token":"{ACCESS1}","refresh_token":"{REFRESH}","expires_in":3600}}"#)),
+        p if p.starts_with("/drive/v3/about") => json(200, r#"{"user":{"emailAddress":"chu@example.com"}}"#),
+        _ => json(404, "{}"),
+    }))
+}
+
+#[test]
+fn client_id_dung_san_bat_nut_ket_noi_khi_khong_co_client_id_nao_khac() {
+    let fake = connect_fake();
+    let s = secrets_with(None, None);
+    let d = drive(&fake, &s).with_builtin_client_id(Some("  builtin.apps.example  "));
+    assert!(d.has_builtin_client_id());
+    assert_eq!(d.connection(), Connection::Disconnected);
+    let url = d.begin_auth().unwrap().url;
+    assert!(url.contains("client_id=builtin.apps.example"), "dung Client ID dung san: {url}");
+    // Rong / khoang trang = khong co.
+    let d2 = drive(&fake, &s).with_builtin_client_id(Some("   "));
+    assert!(!d2.has_builtin_client_id());
+    assert_eq!(d2.connection(), Connection::NotConfigured);
+    let d3 = drive(&fake, &s).with_builtin_client_id(None);
+    assert_eq!(d3.connection(), Connection::NotConfigured);
+}
+
+#[test]
+fn client_id_nguoi_dung_nhap_uu_tien_hon_ban_dung_san() {
+    let fake = connect_fake();
+    let s = secrets_with(Some("user.apps.example"), None);
+    let d = drive(&fake, &s).with_builtin_client_id(Some("builtin.apps.example"));
+    assert!(d.begin_auth().unwrap().url.contains("client_id=user.apps.example"));
+}
+
+#[test]
+fn ket_noi_thanh_cong_luu_email_va_ngat_ket_noi_xoa_email() {
+    let fake = connect_fake();
+    let s = secrets_with(Some("cid"), None);
+    let d = drive(&fake, &s);
+    assert_eq!(d.account_email(), None);
+    d.connect(|u| simulated_browser(u, "code=C&"), Duration::from_secs(5)).unwrap();
+    assert_eq!(d.connection(), Connection::Connected);
+    assert_eq!(d.account_email().as_deref(), Some("chu@example.com"));
+    let about = fake.reqs().into_iter().find(|r| r.path.starts_with("/drive/v3/about")).unwrap();
+    assert_eq!(bearer(&about), format!("Bearer {ACCESS1}"));
+    d.disconnect().unwrap();
+    assert_eq!(d.connection(), Connection::Disconnected);
+    assert_eq!(d.account_email(), None);
+}
+
+#[test]
+fn khong_lay_duoc_email_van_ket_noi_thanh_cong() {
+    let fake = Fake::start(Box::new(|r| match r.path.as_str() {
+        "/token" => json(200, &format!(r#"{{"access_token":"{ACCESS1}","refresh_token":"{REFRESH}"}}"#)),
+        _ => json(500, "{}"),
+    }));
+    let s = secrets_with(Some("cid"), None);
+    let d = drive(&fake, &s);
+    d.connect(|u| simulated_browser(u, "code=C&"), Duration::from_secs(5)).unwrap();
+    assert_eq!(d.connection(), Connection::Connected);
+    assert_eq!(d.account_email(), None);
+}
+
+#[test]
+fn nut_huy_dung_viec_cho_trinh_duyet_va_khong_luu_gi() {
+    let fake = connect_fake();
+    let s = secrets_with(Some("cid"), None);
+    let d = drive(&fake, &s);
+    let cancel = Arc::new(AtomicBool::new(false));
+    let c2 = cancel.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(150));
+        c2.store(true, Ordering::SeqCst);
+    });
+    let t0 = std::time::Instant::now();
+    let r = d.connect_cancellable(|_| true, Duration::from_secs(30), &cancel);
+    assert_eq!(r, Err(ConnectError::Cancelled));
+    assert!(t0.elapsed() < Duration::from_secs(5), "Huy phai dung som, khong doi het gio");
+    assert_eq!(ConnectError::Cancelled.code(), "drive_auth_cancelled");
+    assert_eq!(d.connection(), Connection::Disconnected);
+    assert!(fake.reqs().is_empty(), "huy thi khong goi mang");
+}
+
+#[test]
+fn het_thoi_gian_cho_la_timeout_va_co_the_ket_noi_lai_sau_do() {
+    let fake = connect_fake();
+    let s = secrets_with(Some("cid"), None);
+    let d = drive(&fake, &s);
+    assert_eq!(d.connect(|_| true, Duration::from_millis(120)), Err(ConnectError::Timeout));
+    assert_eq!(d.connection(), Connection::Disconnected);
+    d.connect(|u| simulated_browser(u, "code=C&"), Duration::from_secs(5)).unwrap();
+    assert_eq!(d.connection(), Connection::Connected);
+}
+
+#[test]
+fn loi_mang_khi_doi_code_lay_token_la_drive_network_va_khong_luu_gi() {
+    // Cong dong: trinh duyet van goi lai duoc, nhung may chu token khong ton tai.
+    let port = {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        l.local_addr().unwrap().port()
+    };
+    let b = format!("http://127.0.0.1:{port}");
+    let ep = Endpoints { auth: b.clone(), token: format!("{b}/token"), revoke: b.clone(), upload: b.clone(), about: b };
+    let s = secrets_with(Some("cid"), None);
+    let d = GoogleDrive::with_endpoints(s.clone(), ep);
+    let r = d.connect(|u| simulated_browser(u, "code=C&"), Duration::from_secs(5));
+    assert_eq!(r, Err(ConnectError::Network));
+    assert_eq!(ConnectError::Network.code(), "drive_network");
+    assert_eq!(s.get(SecretKind::DriveRefreshToken).unwrap(), None);
+    assert_eq!(d.connection(), Connection::Disconnected);
+}
+
+#[test]
+fn nguoi_dung_tu_choi_quyen_khong_goi_may_chu_token() {
+    let fake = connect_fake();
+    let s = secrets_with(Some("cid"), None);
+    let d = drive(&fake, &s);
+    let r = d.connect(|u| simulated_browser(u, "error=access_denied&"), Duration::from_secs(5));
+    assert_eq!(r, Err(ConnectError::Denied));
+    assert_eq!(ConnectError::Denied.code(), "drive_auth_denied");
+    assert!(fake.reqs().is_empty());
+    assert_eq!(d.account_email(), None);
+}
+
+#[test]
+fn token_chi_nam_trong_kho_bi_mat_khong_vao_ma_loi() {
+    let fake = connect_fake();
+    let s = secrets_with(Some("cid"), None);
+    let d = drive(&fake, &s);
+    d.connect(|u| simulated_browser(u, "code=C&"), Duration::from_secs(5)).unwrap();
+    assert_eq!(s.get(SecretKind::DriveRefreshToken).unwrap().unwrap().expose(), REFRESH);
+    for e in [ConnectError::Timeout, ConnectError::Denied, ConnectError::Network, ConnectError::Cancelled, ConnectError::BrowserFailed] {
+        let c = format!("{e:?} {}", e.code());
+        assert!(!c.contains(REFRESH) && !c.contains(ACCESS1));
+    }
+}
+
+#[test]
+fn ma_nguon_drive_khong_log_va_khong_ghi_file() {
+    // Token/khoa chi di qua kho bi mat: ma nguon luong ket noi khong co lenh in log va khong ghi file thuong.
+    let src = include_str!("../src/drive_google.rs");
+    let code = src.split("#[cfg(test)]").next().unwrap();
+    for bad in ["println!", "eprintln!", "dbg!", "log::", "tracing::", "std::fs", "File::create", "fs::write", "OpenOptions"] {
+        assert!(!code.contains(bad), "drive_google.rs khong duoc chua `{bad}`");
+    }
+    let rec = include_str!("../../../src-tauri/src/session/records.rs");
+    let drive_part = rec.split("Drive (US-10").nth(1).unwrap().split("nhap .NET").next().unwrap();
+    for bad in ["println!", "eprintln!", "dbg!", "log::", "tracing::"] {
+        assert!(!drive_part.contains(bad), "phan Drive cua records.rs khong duoc chua `{bad}`");
+    }
 }

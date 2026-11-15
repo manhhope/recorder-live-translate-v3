@@ -15,6 +15,14 @@ use tokio_tungstenite::accept_hdr_async;
 use tokio_tungstenite::tungstenite::handshake::server::{ErrorResponse, Request, Response};
 use tokio_tungstenite::tungstenite::Message;
 
+/// Drive gia luon thanh cong (khong mang).
+struct OkDrive;
+impl rlt_features::drive::DriveClient for OkDrive {
+    fn upload(&self, _: &rlt_features::drive::UploadRequest) -> Result<rlt_features::drive::DriveFile, rlt_features::drive::DriveError> {
+        Ok(rlt_features::drive::DriveFile { file_id: "FILE-OK".into() })
+    }
+}
+
 const FAKE_KEY: &str = "fake-test-key-not-real";
 
 // ---- nguon am gia: tu day khung 100 ms moi 20 ms den khi dung
@@ -190,6 +198,15 @@ async fn full_flow_start_lines_stop_read_search_export() {
     let d = records::drive_sync(&store, &id, &drive).unwrap();
     assert_eq!(d.status, "not_connected");
     assert!(!d.oauth_connected);
+    // "Sync ngay": chua ket noi thi khong gui phien nao; sau do co may chu gia OK thi gui het, lan hai khong con gi.
+    drop(store);
+    let all = records::drive_sync_all_blocking(&svc.store, &drive).unwrap();
+    assert!(!all.oauth_connected && all.synced == 0, "{all:?}");
+    let all = records::drive_sync_all_blocking(&svc.store, &OkDrive).unwrap();
+    assert_eq!((all.total, all.synced, all.failed, all.waiting, all.oauth_connected), (1, 1, 0, 0, true), "{all:?}");
+    let all = records::drive_sync_all_blocking(&svc.store, &OkDrive).unwrap();
+    assert_eq!(all.total, 0, "phien da dong bo thi khong gui lai");
+    let store = svc.store.lock().unwrap();
     // xoa
     assert!(records::delete_session(&store, &id).unwrap());
     assert!(records::list_sessions(&store, 50, 0).unwrap().is_empty());
