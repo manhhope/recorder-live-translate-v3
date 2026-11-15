@@ -4,6 +4,7 @@ import { get } from "svelte/store";
 import en from "../locales/en.json" with { type: "json" };
 import ptPT from "../locales/pt-PT.json" with { type: "json" };
 import type { Locale } from "./format.ts";
+import { isWindows, platformize } from "../lib/platform.ts";
 
 export const SUPPORTED_LOCALES = ["en", "pt-PT"] as const;
 export const DEFAULT_LOCALE: Locale = "pt-PT";
@@ -26,6 +27,10 @@ function readStored(): string | null {
 }
 
 export function setupI18n(initial?: string | null, messages: { en: Record<string, string>; "pt-PT": Record<string, string> } = { en, "pt-PT": ptPT }) {
+  if (isWindows()) {
+    const fix = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, typeof v === "string" ? platformize(v, true) : v]));
+    messages = { en: fix(messages.en), "pt-PT": fix(messages["pt-PT"]) };
+  }
   dictionary.set({}); // addMessages gop sau, nen xoa de lan khoi tao sau thay the han
   addMessages("en", messages.en);
   addMessages("pt-PT", messages["pt-PT"]);

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { platformize } from "../lib/platform.ts";
   import { onMount } from "svelte";
   import { _ } from "../i18n/index.ts";
   import Icon from "../lib/Icon.svelte";
@@ -166,15 +167,15 @@
 
 <div class="tool">
   <div class="tl">
-    <button type="button" class="btn" disabled={busy} onclick={newSession}><Icon name="plus" />{$_("tool.new")}<kbd>{"⌘N"}</kbd></button>
+    <button type="button" class="btn" disabled={busy} onclick={newSession}><Icon name="plus" />{$_("tool.new")}<kbd>{platformize("⌘N")}</kbd></button>
     {#if active}
-      <button type="button" class="btn stop" disabled={state === "stopping"} onclick={toggle}><Icon name="stop" />{$_("tool.stop")}<kbd>{"⌘."}</kbd></button>
+      <button type="button" class="btn stop" disabled={state === "stopping"} onclick={toggle}><Icon name="stop" />{$_("tool.stop")}<kbd>{platformize("⌘.")}</kbd></button>
       <button type="button" class="btn" disabled={state === "stopping"} onclick={togglePause}>
         <Icon name={state === "paused" ? "play" : "pause"} />{$_(state === "paused" ? "tool.resume" : "tool.pause")}
       </button>
       <span class="tm">{fmtClock(app.seconds)}</span>
     {:else}
-      <button type="button" class="btn primary" disabled={busy || !mode || !loaded} onclick={toggle}><Icon name="play" />{$_("tool.start")}<kbd>{"⌘."}</kbd></button>
+      <button type="button" class="btn primary" disabled={busy || !mode || !loaded} onclick={toggle}><Icon name="play" />{$_("tool.start")}<kbd>{platformize("⌘.")}</kbd></button>
     {/if}
   </div>
   <div class="tr2">

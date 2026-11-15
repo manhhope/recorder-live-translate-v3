@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { platformize } from "./lib/platform.ts";
   import { onMount } from "svelte";
   import { _, currentLocale, locale, setLocale } from "./i18n/index.ts";
   import * as api from "./lib/api.ts";
@@ -16,8 +17,8 @@
   import { app, applyTheme, openAsk, type Screen } from "./lib/app.svelte.ts";
 
   const items: { id: Screen; icon: string; key: string; kbd: string }[] = [
-    { id: "rec", icon: "mic", key: "nav.record", kbd: "⌘1" },
-    { id: "ses", icon: "clock", key: "nav.sessions", kbd: "⌘2" },
+    { id: "rec", icon: "mic", key: "nav.record", kbd: platformize("⌘1") },
+    { id: "ses", icon: "clock", key: "nav.sessions", kbd: platformize("⌘2") },
     { id: "ask", icon: "sparkle", key: "nav.askai", kbd: "" },
   ];
   // Phim tat Hoi AI that (nguoi dung doi duoc o Cai dat), hien canh nhan thanh ben; tat thi khong hien.
@@ -53,7 +54,7 @@
     {/each}
     <div class="nsp"></div>
     <button type="button" class="ni {app.screen === 'set' ? 'on' : ''}" aria-current={app.screen === "set" ? "page" : undefined} onclick={() => (app.screen = "set")}>
-      <Icon name="gear" /><span>{$_("nav.settings")}</span><kbd>{"⌘,"}</kbd>
+      <Icon name="gear" /><span>{$_("nav.settings")}</span><kbd>{platformize("⌘,")}</kbd>
     </button>
     <div class="ntools">
       <button type="button" class="btn sm" aria-label={$_("ui.lang.aria")} title={$_("ui.lang.btn")} onclick={() => api.setUiLocale(setLocale, isPt ? "en" : "pt-PT")}>

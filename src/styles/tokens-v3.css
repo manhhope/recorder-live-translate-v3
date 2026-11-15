@@ -25,8 +25,8 @@
 
 :root {
   /* ---------- Phong chu he thong (SF) ---------- */
-  --rlt-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
-  --rlt-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --rlt-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --rlt-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Cascadia Mono", monospace;
   --rlt-fs: 13px;        /* chu than, nhan, nut */
   --rlt-fh: 15px;        /* tieu de nho */
   --rlt-fdst: 15px;      /* chu dich trong man ghi */
