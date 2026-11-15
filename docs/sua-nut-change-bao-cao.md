@@ -45,7 +45,7 @@ Lỗi cùng loại tìm thấy thêm khi viết kiểm tra tĩnh: `session_captu
 - `src/lib/export-dir.ts` (mới): logic nhớ/lưu thư mục, giữ thư mục cũ khi hủy, rút gọn chi tiết lỗi (tối đa 160 ký tự).
 - `src/lib/ExportDialog.svelte`: dùng module trên; chọn xong lưu ngay vào `localStorage` (lần xuất sau dùng lại); hủy không báo lỗi; lỗi hiện dòng `role="alert"` kèm chi tiết; ô "Save to" hiện "Documents" khi chưa có đường dẫn.
 - i18n phẳng, đủ en và pt-PT: `exp.dir.default`, `exp.dir.error` ({detail}).
-- `scripts/check-capabilities.mjs` + `npm run check:caps`: kiểm tra tĩnh, mọi lệnh manifest mà `api.ts` gọi phải có `allow-*` ở ít nhất một capability. Khi bỏ quyền, script báo: `capabilities thieu quyen cho lenh: export_default_dir, export_pick_dir, subtitle_lines, session_capture_attach` (thoát mã 1). Repo chưa có thư mục CI nên chưa gắn vào workflow nào; cần thêm `npm run check:caps` vào CI khi có. Test Rust ở trên đã chạy trong `cargo test --workspace`.
+- `scripts/check-capabilities.mjs` + `npm run check:caps`: kiểm tra tĩnh, mọi lệnh manifest mà `api.ts` gọi phải có `allow-*` ở ít nhất một capability. Khi bỏ quyền, script báo: `capabilities thieu quyen cho lenh: export_default_dir, export_pick_dir, subtitle_lines, session_capture_attach` (thoát mã 1). Đã gắn vào CI: `.github/workflows/ci.yml` (job `web` chạy `npm run check:caps` ngay sau `npm ci`, cùng test:i18n, scan:i18n, test:unit, build, playwright; job `rust` chạy `cargo test --workspace` và `cargo clippy --workspace --all-targets -- -D warnings`). Test `src/lib/ci-config.test.ts` (trong `npm run test:unit`) fail nếu ci.yml bỏ `check:caps` hoặc các bước bắt buộc. Test Rust ở trên đã chạy trong `cargo test --workspace`.
 - Test: `src/lib/export-dir.test.ts` (6 test, thêm vào `test:unit`), 4 test Playwright "Change:" (chọn, hủy, lỗi en, lỗi pt-PT).
 
 ## Kết quả chạy thật
@@ -105,3 +105,21 @@ Lớp giả không chạy ACL thật của Tauri nên các điểm sau chưa đ�
 2. Bấm Change: hiện hộp chọn thư mục macOS; chọn xong ô cập nhật; Cancel không báo lỗi.
 3. Xuất file, đóng mở lại dialog: vẫn thư mục đã chọn.
 4. Nút đính kèm/gỡ ảnh chụp trong chi tiết phiên (đã cấp quyền thêm).
+
+
+## Bổ sung vòng 2: gắn check:caps vào CI
+
+Chạy lại ngày 2026-11-15, output thật:
+
+```
+cargo test --workspace      -> mọi dòng "test result: ok" (13, 34, 161, 12, 7, 7, 12, 23, 6, 15 passed; 0 failed)
+cargo clippy --workspace --all-targets -- -D warnings -> Finished `dev` profile ... (không cảnh báo)
+npm run build               -> ✓ built in 292ms
+npm run test:i18n           -> ℹ pass 12, ℹ fail 0
+npm run scan:i18n           -> Quet 54 tep trong src/ ... So chuoi cung tim thay: 0
+npx playwright test         -> 140 passed (15.6s)
+npm run test:unit           -> ℹ tests 29, pass 29, fail 0 (gồm ci-config.test.ts)
+npm run check:caps          -> OK: 72 lenh goi tu api.ts, 72 nam trong manifest va deu duoc cap quyen
+```
+
+Chưa chứng minh: workflow GitHub chưa chạy thật vì repo chưa có remote; chỉ kiểm bằng test đọc file ci.yml. Chủ vẫn phải bấm thử Change trên .app thật.
