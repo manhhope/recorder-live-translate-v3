@@ -117,6 +117,11 @@ pub trait ShortcutBackend {
 /// `CommandOrControl` được coi là một phím bổ trợ riêng `cmdorctrl` (trên macOS = Cmd); `Cmd+X` và
 /// `CommandOrControl+X` vẫn là hai chuỗi khác nhau ở bước này nên được gộp: xem `canonical`.
 pub fn canonical(accel: &str) -> Result<String, ShortcutError> {
+    canonical_with(accel, cfg!(windows))
+}
+
+/// `windows = true`: CommandOrControl = Ctrl, còn Cmd/Super/Meta = phím Windows ("super").
+pub fn canonical_with(accel: &str, windows: bool) -> Result<String, ShortcutError> {
     let mut mods: Vec<&'static str> = Vec::new();
     let mut key: Option<String> = None;
     for part in accel.split('+') {
@@ -126,6 +131,8 @@ pub fn canonical(accel: &str) -> Result<String, ShortcutError> {
         }
         let m = match p.as_str() {
             // Trên macOS cmd = super = meta = commandorcontrol (nền tảng đích của M1); gộp để bắt trùng.
+            "commandorcontrol" | "cmdorctrl" | "commandorctrl" if windows => Some("ctrl"),
+            "cmd" | "command" | "super" | "meta" if windows => Some("super"),
             "cmd" | "command" | "super" | "meta" | "commandorcontrol" | "cmdorctrl" | "commandorctrl" => Some("cmd"),
             "ctrl" | "control" => Some("ctrl"),
             "alt" | "option" | "opt" => Some("alt"),
@@ -448,6 +455,14 @@ mod tests {
         assert_eq!(canonical("CommandOrControl+Shift+T").unwrap(), "cmd+shift+t");
         assert_eq!(canonical("shift+cmd+T").unwrap(), "cmd+shift+t");
         assert_eq!(canonical("Option+Command+F5").unwrap(), "alt+cmd+f5");
+    }
+
+    #[test]
+    fn windows_maps_commandorcontrol_to_ctrl_and_cmd_to_super() {
+        assert_eq!(canonical_with("CommandOrControl+Shift+T", true).unwrap(), "ctrl+shift+t");
+        assert_eq!(canonical_with("Ctrl+Shift+T", true).unwrap(), "ctrl+shift+t");
+        assert_eq!(canonical_with("Super+T", true).unwrap(), "super+t");
+        assert_eq!(canonical_with("Cmd+T", false).unwrap(), "cmd+t");
     }
 
     #[test]

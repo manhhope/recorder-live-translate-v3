@@ -323,6 +323,13 @@ pub fn setup(app: &AppHandle, data_dir: PathBuf) -> Result<(), Box<dyn std::erro
             }
         });
     });
+    // Windows/Linux: ban chay khong qua NSIS (portable, dev) can tu dang ky scheme; NSIS da ghi san registry.
+    #[cfg(any(windows, target_os = "linux"))]
+    if !app.deep_link().is_registered("rlt").unwrap_or(false) {
+        if let Err(e) = app.deep_link().register_all() {
+            tracing::warn!("deep_link register_all: {e}");
+        }
+    }
     if let Ok(Some(urls)) = app.deep_link().get_current() {
         for u in urls {
             handle_url(app, u.as_str());
