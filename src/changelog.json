@@ -6,12 +6,12 @@
       "groups": {
         "new": {
           "en": [
-            "Connect Google Drive with one button in Settings, then sync your transcripts.",
+            "Connect Google Drive from Settings (Drive tab) and sync your transcripts.",
             "Export opens the macOS save panel: pick the file name and folder, and the app remembers the folder.",
             "This What's New window, shown on first launch and after each update."
           ],
           "pt-PT": [
-            "Ligue o Google Drive com um botão nas Definições e sincronize as suas transcrições.",
+            "Ligue o Google Drive a partir das Definições (separador Drive) e sincronize as suas transcrições.",
             "Exportar abre o painel de guardar do macOS: escolha o nome e a pasta; a aplicação memoriza a pasta.",
             "Esta janela Novidades, mostrada no primeiro arranque e após cada atualização."
           ]
