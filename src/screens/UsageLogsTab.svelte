@@ -4,14 +4,19 @@
   import Icon from "../lib/Icon.svelte";
   import * as api from "../lib/api.ts";
   import type { UsageSourceOut } from "../lib/api.ts";
+  import { applyFailure, applyRefresh, hasSoniox, showsUpdatedAt, updatedTime, type UsageWarning } from "../lib/usage-swr.ts";
 
   const loc = $derived(($locale as "en" | "pt-PT") ?? currentLocale());
   const weekKeys = ["set.week.0", "set.week.1", "set.week.2", "set.week.3"];
   const dayKeys = ["day.mon", "day.tue", "day.wed", "day.thu", "day.fri", "day.sat", "day.sun"];
   let week = $state(0);
   let data = $state<UsageSourceOut | null>(null);
-  let loading = $state(true);
-  let error = $state<string | null>(null);
+  /** Dang tai lai o nen (so cu van hien, khong xoa). */
+  let refreshing = $state(true);
+  /** Canh bao gon khi tai lai that bai (so cu van giu neu co). */
+  let warning = $state<UsageWarning | null>(null);
+  let dataWeek = -1;
+  let seq = 0;
   let hasKey = $state(false);
   let keyInput = $state("");
   let keyMsg = $state<{ ok: boolean; code: string } | null>(null);
@@ -22,11 +27,20 @@
   const errKey = (c: string) => api.errKeyOf(c, k => $_(k) !== k);
   const max = $derived(Math.max(1, ...(data?.days.map(d => d.audioMs) ?? [0])));
   const isLocal = $derived(data?.source === "local");
+  /** Chua co ban Soniox nao da luu cho tuan nay: dang hien uoc tinh cuc bo + skeleton trong luc cho mang. */
+  const firstLoad = $derived(isLocal && data?.reason === "no_cache" && refreshing && !warning);
+  const fatal = $derived(!data && warning?.kind === "err" ? warning.code : null);
+  const updatedAt = $derived(showsUpdatedAt(data) && data ? $_("set.usage.updatedat", { values: { time: updatedTime(data.fetchedAt, loc) } }) : "");
+  const warnText = $derived.by(() => {
+    if (!warning) return "";
+    if (warning.kind === "err") return $_(errKey(warning.code));
+    const why = $_(reasonKey(warning.code));
+    return $_(hasSoniox(data) ? "set.usage.stale.warn" : "set.usage.fallback", { values: { reason: why } });
+  });
   const emptyWhyKey = $derived((data?.failedStartCount ?? 0) > 0 ? "set.usage.none.failed" : "set.usage.none.noaudio");
   const emptyWhy = $derived($_(emptyWhyKey, { values: { n: data?.sessionsCount ?? 0, f: data?.failedStartCount ?? 0 } }));
   const empty = $derived(!data || (isLocal ? data.totalAudioMs === 0 : data.totalRequests === 0 && data.totalCostUsdMicros === 0));
   const reasonKey = (r: string) => "set.usage.reason." + r.replace(/_/g, "");
-  const fallbackText = (r: string) => $_("set.usage.fallback", { values: { reason: $_(reasonKey(r)) } });
   const requestsText = (n: number) => $_("set.usage.requests", { values: { n: formatNumber(n, loc) } });
   const audioLabel = $derived.by(() => {
     const mins = Math.round((data?.totalAudioMs ?? 0) / 60000);
@@ -34,10 +48,23 @@
   });
   const money = (micros: number) => formatCurrency(api.usd(micros), loc);
 
+  /** Stale-while-revalidate: hien ngay ban da luu (hoac uoc tinh cuc bo), roi hoi Soniox o nen va thay so moi. */
   async function loadWeek() {
-    loading = true; error = null;
-    try { data = await api.usageWeekSource(week); } catch (e) { error = api.errCode(e); }
-    loading = false;
+    const my = ++seq;
+    const w = week;
+    warning = null; refreshing = true;
+    if (!data || dataWeek !== w) {
+      data = null;
+      try { data = await api.usageWeekCached(w); dataWeek = w; } catch (e) {
+        if (my !== seq) return;
+        warning = { kind: "err", code: api.errCode(e) }; refreshing = false; return;
+      }
+      if (my !== seq) return;
+    }
+    let v;
+    try { v = applyRefresh(data, await api.usageWeekSource(w)); } catch (e) { v = applyFailure(data, api.errCode(e)); }
+    if (my !== seq) return;
+    data = v.data; warning = v.warning; refreshing = false;
   }
   onMount(async () => {
     try { hasKey = await api.hasApiKey(); } catch { hasKey = false; }
@@ -68,10 +95,10 @@
       const a = document.createElement("a");
       a.href = url; a.download = "usage-logs.csv"; a.click();
       URL.revokeObjectURL(url);
-    } catch (e) { error = api.errCode(e); }
+    } catch (e) { warning = { kind: "err", code: api.errCode(e) }; }
   }
   async function clearAll() {
-    try { await api.usageClear(); confirmClear = false; cleared = true; await loadWeek(); } catch (e) { error = api.errCode(e); }
+    try { await api.usageClear(); confirmClear = false; cleared = true; data = null; await loadWeek(); } catch (e) { warning = { kind: "err", code: api.errCode(e) }; }
   }
 </script>
 
@@ -101,25 +128,32 @@
   <h4>{$_("set.tab.usagelogs")}</h4>
   <div class="tl2" style="justify-content:space-between;margin-bottom:8px">
     <span class="seg" role="group" aria-label={$_("set.week.pick")}>
-      {#each weekKeys as k, i (k)}<button type="button" class={week === i ? "on" : ""} aria-pressed={week === i} onclick={() => { week = i; cleared = false; void loadWeek(); }}>{$_(k)}</button>{/each}
+      {#each weekKeys as k, i (k)}<button type="button" class={week === i ? "on" : ""} aria-pressed={week === i} onclick={() => { week = i; cleared = false; data = null; void loadWeek(); }}>{$_(k)}</button>{/each}
     </span>
     <span class="rr">
-      <button type="button" class="btn sm" onclick={loadWeek}><Icon name="refresh" />{$_("common.refresh")}</button>
+      <button type="button" class="btn sm" disabled={refreshing} onclick={loadWeek}><Icon name="refresh" />{$_("common.refresh")}</button>
       <button type="button" class="btn sm" onclick={exportCsv}><Icon name="download" />{$_("set.usage.export")}</button>
     </span>
   </div>
-  {#if error}
-    <div class="empty" style="padding:30px"><Icon name="warn" /><b>{$_(errKey(error))}</b>
+  {#if fatal}
+    <div class="empty" style="padding:30px"><Icon name="warn" /><b>{$_(errKey(fatal))}</b>
       <button type="button" class="btn sm" onclick={loadWeek}><Icon name="refresh" />{$_("common.retry")}</button></div>
-  {:else if loading}
+  {:else if !data}
     <div class="empty" style="padding:30px"><Icon name="refresh" /><span>{$_("common.loading")}</span></div>
-  {:else if data}
+  {:else}
     <div class="tl2" style="gap:8px;flex-wrap:wrap">
       <span class="bd {isLocal ? 'rec' : 'acc'}" data-testid="usage-source"><Icon name={isLocal ? "warn" : "check"} />{$_(isLocal ? "set.usage.src.local" : "set.usage.src.soniox")}</span>
+      {#if updatedAt}<span class="hint" style="margin:0" data-testid="usage-updated">{updatedAt}</span>{/if}
+      {#if refreshing}<span class="bd spin" role="status" data-testid="usage-refreshing"><Icon name="refresh" />{$_("set.usage.refreshing")}</span>{/if}
       <span class="hint" style="margin:0" data-testid="usage-basis">{$_(data.basis === "utc" ? "set.usage.basis.utc" : "set.usage.basis.local")}</span>
     </div>
-    {#if isLocal && data.reason}
-      <div class="hint" role="status" data-testid="usage-fallback">{fallbackText(data.reason)}</div>
+    {#if warning}
+      <div class="tl2 warnbar" role="alert" data-testid="usage-warning"><Icon name="warn" /><span>{warnText}</span>
+        <button type="button" class="btn sm" disabled={refreshing} onclick={loadWeek}><Icon name="refresh" />{$_("common.retry")}</button></div>
+    {/if}
+    {#if firstLoad}
+      <div class="hint" role="status" data-testid="usage-nocache">{$_("set.usage.reason.nocache")}</div>
+      <div class="skel" data-testid="usage-skeleton" aria-hidden="true"><i></i><i></i><i></i></div>
     {/if}
     {#if !empty}
       <div class="hint" style="margin:0">{data.weekStart} → {data.weekEnd}</div>
@@ -144,7 +178,6 @@
           {/each}
         {/if}
         <div class="hint">{$_("set.usage.note.soniox")}</div>
-        {#if data.cached}<div class="hint">{$_("set.usage.cached")}</div>{/if}
       {:else}
         <div class="hint">{$_("set.usage.note")}</div>
       {/if}

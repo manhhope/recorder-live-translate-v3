@@ -745,5 +745,10 @@
   "tp.reset": "Repor apresentação",
   "tp.scope": "Aplica-se só a este ecrã. A janela de legendas tem definições próprias em Definições > Legendas.",
   "tp.short.src": "Origem",
-  "tp.short.dst": "Tradução"
+  "tp.short.dst": "Tradução",
+  "set.usage.updatedat": "Atualizado às {time}",
+  "set.usage.refreshing": "A atualizar",
+  "set.usage.stale.warn": "Não foi possível atualizar. A mostrar os últimos valores guardados. {reason}",
+  "set.usage.reason.nocache": "Ainda não há valores do Soniox guardados para esta semana. A mostrar a estimativa local enquanto carrega.",
+  "set.usage.reason.unknown": "Motivo desconhecido. Tente novamente."
 }

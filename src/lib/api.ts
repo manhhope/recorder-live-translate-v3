@@ -98,6 +98,8 @@ export interface UsageSourceOut {
 }
 export const usageWeekSource = (weeksAgo: number) => invoke<UsageSourceOut>("usage_week_source", { weeksAgo });
 export const usageExportWeekCsv = (weeksAgo: number) => invoke<string>("usage_export_week_csv", { weeksAgo });
+/** Ban dau cho tab: so Soniox da luu (cached=true, fetchedAt = luc lay that) hoac uoc tinh cuc bo (reason `no_cache`). Khong dung mang. */
+export const usageWeekCached = (weeksAgo: number) => invoke<UsageSourceOut>("usage_week_cached", { weeksAgo });
 export const usageClear = () => invoke<number>("usage_clear");
 export const driveStatus = (sessionId: string) => invoke<[string, string | null]>("drive_status", { sessionId });
 export const driveSync = (sessionId: string) => invoke<DriveOut>("drive_sync", { sessionId });

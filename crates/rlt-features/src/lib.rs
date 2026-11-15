@@ -13,6 +13,7 @@ pub mod import_dotnet;
 pub mod search;
 pub mod soniox_usage;
 pub mod usage;
+pub mod usage_cache;
 pub mod docx;
 pub mod zipmini;
 

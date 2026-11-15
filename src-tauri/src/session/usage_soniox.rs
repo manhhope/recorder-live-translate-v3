@@ -9,9 +9,10 @@
 use super::records::{self, Res};
 use rlt_features::soniox_usage::{self as su, SonioxUsageClient, UsageApiError, WeekReport};
 use rlt_features::usage;
+use rlt_features::usage_cache;
 use rlt_secrets::SecretStore;
 use rlt_store::Store;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
 /// Thoi gian giu ket qua Soniox thanh cong (giay).
@@ -19,7 +20,7 @@ pub const CACHE_TTL_SECS: i64 = 60;
 /// Sau 429 khong goi Soniox them trong (giay).
 pub const RATE_LIMIT_PAUSE_SECS: i64 = 60;
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DayOut {
     /// Ngay theo `basis` cua ket qua.
@@ -31,7 +32,7 @@ pub struct DayOut {
     pub requests: i64,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelOut {
     pub model: String,
@@ -40,7 +41,7 @@ pub struct ModelOut {
     pub requests: i64,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct UsageSourceOut {
     /// `soniox` (so lieu that tu API) | `local` (uoc tinh cuc bo).
@@ -187,6 +188,58 @@ pub fn resolve_week(store: &Store, cache: &UsageCache, client: &SonioxUsageClien
         Ok(o) => Ok(o),
         Err(e) => local_week(store, now, weeks_ago, e.code()),
     }
+}
+
+// ---------------------------------------------------------------- Cache SQLite (stale-while-revalidate)
+
+impl UsageCache {
+    /// Bo cache trong bo nho va moc tam ngung (dung khi "Xoa du lieu muc dung").
+    pub fn clear(&self) {
+        let mut c = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        c.entries.clear();
+        c.paused_until = 0;
+    }
+}
+
+/// Luu ban Soniox VUA lay tu mang vao SQLite (theo tuan). Chi luu `source = soniox` va khong phai ban tu cache ngan,
+/// de gio "cap nhat" luon la gio that su hoi Soniox. Tra true neu da ghi.
+pub fn persist_fresh(store: &Store, out: &UsageSourceOut, now: i64) -> Res<bool> {
+    if out.source != "soniox" || out.cached {
+        return Ok(false);
+    }
+    let payload = serde_json::to_string(out).map_err(|e| e.to_string())?;
+    usage_cache::put(store, &out.week_start, &payload, out.fetched_at, now).map_err(records::err)?;
+    Ok(true)
+}
+
+/// Ban Soniox da luu cua tuan `weeks_ago`, danh dau `cached = true` va `fetched_at` = luc lay that. Het han / hong thi None.
+pub fn cached_week(store: &Store, now: i64, weeks_ago: i64) -> Res<Option<UsageSourceOut>> {
+    let monday = su::utc_monday(now, weeks_ago);
+    let Some((payload, at)) = usage_cache::get(store, &monday, now).map_err(records::err)? else { return Ok(None) };
+    let Ok(mut out) = serde_json::from_str::<UsageSourceOut>(&payload) else { return Ok(None) };
+    if out.source != "soniox" || out.week_start != monday {
+        return Ok(None);
+    }
+    out.cached = true;
+    out.fetched_at = at;
+    Ok(Some(out))
+}
+
+/// Mo tab: ban Soniox da luu neu co; chua co thi so uoc tinh cuc bo (ly do `no_cache`) de hien ngay luc cho mang.
+pub fn week_cached_or_local(store: &Store, now: i64, weeks_ago: i64) -> Res<UsageSourceOut> {
+    match cached_week(store, now, weeks_ago)? {
+        Some(o) => Ok(o),
+        None => local_week(store, now, weeks_ago, "no_cache"),
+    }
+}
+
+/// "Xoa du lieu muc dung" (AC-32.6, AC-32.12): xoa bang `usage_logs` cuc bo VA moi cache so lieu Soniox tren may
+/// (SQLite + bo nho). Khong dung toi du lieu ben Soniox. Tra so hang `usage_logs` da xoa.
+pub fn clear_local(store: &Store, cache: &UsageCache) -> Res<usize> {
+    let n = records::usage_clear(store)?;
+    usage_cache::clear(store).map_err(records::err)?;
+    cache.clear();
+    Ok(n)
 }
 
 // ---------------------------------------------------------------- CSV (co cot nguon du lieu)
@@ -428,5 +481,96 @@ mod tests {
         let csv = week_csv(&local);
         assert!(csv.lines().skip(1).all(|r| r.starts_with("local_estimate,local,")));
         assert!(csv.contains("local_estimate,local,2026-04-28,3600.000,"));
+    }
+    #[test]
+    fn fresh_soniox_result_is_persisted_per_week_and_read_back_marked_cached() {
+        let (base, _) = fake(ok_status());
+        let c = SonioxUsageClient::new(&base).unwrap();
+        let st = store_with_local_usage();
+        let live = resolve_week(&st, &UsageCache::default(), &c, &secrets(true), NOW, 0).unwrap();
+        assert!(persist_fresh(&st, &live, NOW).unwrap());
+        let back = cached_week(&st, NOW + 3600, 0).unwrap().expect("co cache tuan nay");
+        assert!(back.cached);
+        assert_eq!(back.fetched_at, NOW);
+        assert_eq!(back.total_cost_usd_micros, live.total_cost_usd_micros);
+        assert_eq!(back.days, live.days);
+        // tuan khac (cache rieng) chua co
+        assert!(cached_week(&st, NOW, 1).unwrap().is_none());
+        // payload luu khong chua khoa
+        let payload: String = st.conn().query_row("SELECT payload FROM usage_soniox_cache", [], |r| r.get(0)).unwrap();
+        assert!(!payload.contains(KEY));
+    }
+
+    #[test]
+    fn local_fallback_and_cache_hits_are_never_persisted() {
+        let st = store_with_local_usage();
+        let local = local_week(&st, NOW, 0, "network").unwrap();
+        assert!(!persist_fresh(&st, &local, NOW).unwrap());
+        let (base, _) = fake(ok_status());
+        let c = SonioxUsageClient::new(&base).unwrap();
+        let cache = UsageCache::default();
+        let _ = resolve_week(&st, &cache, &c, &secrets(true), NOW, 0).unwrap();
+        let hit = resolve_week(&st, &cache, &c, &secrets(true), NOW + 5, 0).unwrap();
+        assert!(hit.cached);
+        assert!(!persist_fresh(&st, &hit, NOW + 5).unwrap(), "ban tu cache ngan khong ghi de gio that");
+        let n: i64 = st.conn().query_row("SELECT count(*) FROM usage_soniox_cache", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn api_failure_keeps_the_previous_snapshot_untouched() {
+        let st = store_with_local_usage();
+        let good = {
+            let (base, _) = fake(ok_status());
+            let c = SonioxUsageClient::new(&base).unwrap();
+            resolve_week(&st, &UsageCache::default(), &c, &secrets(true), NOW, 0).unwrap()
+        };
+        persist_fresh(&st, &good, NOW).unwrap();
+        for (status, reason) in [(401, "unauthorized"), (429, "rate_limited"), (500, "server")] {
+            let (base, _) = fake(Arc::new(AtomicUsize::new(status)));
+            let c = SonioxUsageClient::new(&base).unwrap();
+            let later = NOW + 4000;
+            let o = resolve_week(&st, &UsageCache::default(), &c, &secrets(true), later, 0).unwrap();
+            assert_eq!(o.reason.as_deref(), Some(reason));
+            assert!(!persist_fresh(&st, &o, later).unwrap());
+            let kept = cached_week(&st, later, 0).unwrap().unwrap();
+            assert_eq!((kept.fetched_at, kept.total_cost_usd_micros), (NOW, good.total_cost_usd_micros), "{status}");
+        }
+    }
+
+    #[test]
+    fn expired_snapshot_is_dropped_and_first_open_shows_local_with_no_cache_reason() {
+        let st = store_with_local_usage();
+        let first = week_cached_or_local(&st, NOW, 0).unwrap();
+        assert_eq!((first.source.as_str(), first.basis.as_str(), first.reason.as_deref(), first.estimated), ("local", "local", Some("no_cache"), true));
+        let (base, _) = fake(ok_status());
+        let c = SonioxUsageClient::new(&base).unwrap();
+        let live = resolve_week(&st, &UsageCache::default(), &c, &secrets(true), NOW, 0).unwrap();
+        persist_fresh(&st, &live, NOW).unwrap();
+        assert_eq!(week_cached_or_local(&st, NOW + 60, 0).unwrap().source, "soniox");
+        // 31 ngay sau, tuan do khong con nam trong tuan 0 va ban cu da het han
+        let much_later = NOW + 31 * 86_400;
+        assert!(cached_week(&st, much_later, 0).unwrap().is_none());
+        assert!(usage_cache::get(&st, &live.week_start, much_later).unwrap().is_none());
+    }
+
+    #[test]
+    fn clear_local_wipes_usage_logs_and_both_soniox_caches() {
+        let (base, hits) = fake(ok_status());
+        let c = SonioxUsageClient::new(&base).unwrap();
+        let st = store_with_local_usage();
+        let cache = UsageCache::default();
+        let live = resolve_week(&st, &cache, &c, &secrets(true), NOW, 0).unwrap();
+        persist_fresh(&st, &live, NOW).unwrap();
+        let n = clear_local(&st, &cache).unwrap();
+        assert_eq!(n, 1, "xoa 1 hang usage_logs");
+        assert!(cached_week(&st, NOW, 0).unwrap().is_none());
+        let rows: i64 = st.conn().query_row("SELECT count(*) FROM usage_logs", [], |r| r.get(0)).unwrap();
+        assert_eq!(rows, 0);
+        // bo nho cung bi xoa: lan sau phai hoi Soniox lai, va so tu Soniox khong doi (dung AC-32.12)
+        let before = hits.load(Ordering::SeqCst);
+        let again = resolve_week(&st, &cache, &c, &secrets(true), NOW + 5, 0).unwrap();
+        assert!(!again.cached && hits.load(Ordering::SeqCst) > before);
+        assert_eq!(again.total_cost_usd_micros, live.total_cost_usd_micros);
     }
 }

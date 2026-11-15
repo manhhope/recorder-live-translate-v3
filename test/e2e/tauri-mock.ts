@@ -21,6 +21,10 @@ export interface MockSeed {
   captures?: Record<string, unknown[]>;
   // So anh docx khong doc duoc ma session_export bao ve (mac dinh 0: khong canh bao).
   exportMissing?: number;
+  // Usage Logs (stale-while-revalidate). cached = ban Soniox da luu (lenh usage_week_cached); live = so Soniox ma
+  // usage_week_source tra ve; liveFail = ly do du phong cuc bo (vd "network") thay cho live; hold = giu usage_week_source
+  // cho den khi test goi __rlt.releaseUsage(). Moi thoi diem la epoch giay. Mac dinh: khong cache, nguon tra du phong "no_key".
+  usage?: { cached?: { costUsdMicros: number; fetchedAt: number }; live?: { costUsdMicros: number; fetchedAt: number }; liveFail?: string; hold?: boolean };
 }
 
 export function installTauriMock(seed: MockSeed): void {
@@ -62,6 +66,7 @@ export function installTauriMock(seed: MockSeed): void {
   w.__rlt = rlt;
   rlt.subtitleLines = clone(seed.subtitleLines ?? []);
 
+  rlt.usage = clone(seed.usage ?? {});
   rlt.emit = (event: unknown) => {
     const ev = event as any;
     if (ev && ev.kind === "line") { state.lineIds.add(ev.line.captionLineId); state.lineCount = state.lineIds.size; }
@@ -90,6 +95,26 @@ export function installTauriMock(seed: MockSeed): void {
   const lineText = (l: any) => `${l.sourceText ?? ""} ${l.translatedText ?? ""}`.toLowerCase();
 
   const handlers: Record<string, (a: any) => unknown> = {
+  const localWeek = (wk: number, reason: string) => {
+    const ms = wk === 0 && !state.usageCleared ? [0, 1_800_000, 3_600_000, 900_000, 5_400_000, 0, 0] : [0, 0, 0, 0, 0, 0, 0];
+    const total = ms.reduce((x, y) => x + y, 0);
+    return {
+      source: "local", basis: "local", reason, weekStart: "2026-11-09", weekEnd: "2026-11-15",
+      days: ms.map((audioMs, i) => ({ date: "2026-11-" + String(9 + i).padStart(2, "0"), audioMs, costUsdMicros: Math.round(audioMs * 0.07), apiCostUsdMicros: 0, playgroundCostUsdMicros: 0, requests: audioMs ? 1 : 0 })),
+      totalCostUsdMicros: Math.round(total * 0.07), totalAudioMs: total, apiCostUsdMicros: 0, playgroundCostUsdMicros: 0, totalRequests: total ? 4 : 0,
+      models: [], estimated: true, cached: false, fetchedAt: 0, sessionsCount: total ? 4 : 0, failedStartCount: 0,
+    };
+  };
+  const sonioxWeek = (cost: number, fetchedAt: number, cached: boolean) => {
+    const ms = [0, 1_200_000, 2_400_000, 600_000, 3_600_000, 0, 0];
+    return {
+      source: "soniox", basis: "utc", reason: null, weekStart: "2026-11-09", weekEnd: "2026-11-15",
+      days: ms.map((audioMs, i) => ({ date: "2026-11-" + String(9 + i).padStart(2, "0"), audioMs, costUsdMicros: Math.round(cost / 4), apiCostUsdMicros: Math.round(cost / 4), playgroundCostUsdMicros: 0, requests: audioMs ? 1 : 0 })),
+      totalCostUsdMicros: cost, totalAudioMs: ms.reduce((x, y) => x + y, 0), apiCostUsdMicros: cost, playgroundCostUsdMicros: 0, totalRequests: 4,
+      models: [{ model: "stt-rt-v4", costUsdMicros: cost, audioMs: 7_800_000, requests: 4 }], estimated: false, cached, fetchedAt, sessionsCount: 0, failedStartCount: 0,
+    };
+  };
+
     consent_get: () => state.consent,
     consent_accept: () => { state.consent = true; },
     soniox_has_api_key: () => state.hasKey,
@@ -201,16 +226,16 @@ export function installTauriMock(seed: MockSeed): void {
         estimated: true,
       };
     },
-    usage_week_source: (a) => {
-      const wk = a.weeksAgo as number;
-      const ms = wk === 0 && !state.usageCleared ? [0, 1_800_000, 3_600_000, 900_000, 5_400_000, 0, 0] : [0, 0, 0, 0, 0, 0, 0];
-      const total = ms.reduce((x, y) => x + y, 0);
-      return {
-        source: "local", basis: "local", reason: "no_key", weekStart: "2026-11-09", weekEnd: "2026-11-15",
-        days: ms.map((audioMs, i) => ({ date: "2026-11-" + String(9 + i).padStart(2, "0"), audioMs, costUsdMicros: Math.round(audioMs * 0.07), apiCostUsdMicros: 0, playgroundCostUsdMicros: 0, requests: audioMs ? 1 : 0 })),
-        totalCostUsdMicros: Math.round(total * 0.07), totalAudioMs: total, apiCostUsdMicros: 0, playgroundCostUsdMicros: 0, totalRequests: total ? 4 : 0,
-        models: [], estimated: true, cached: false, fetchedAt: 0, sessionsCount: total ? 4 : 0, failedStartCount: 0,
-      };
+    usage_week_cached: (a) => {
+      const c = rlt.usage.cached;
+      return c && !state.usageCleared ? sonioxWeek(c.costUsdMicros, c.fetchedAt, true) : localWeek(a.weeksAgo as number, "no_cache");
+    },
+    usage_week_source: async (a) => {
+      if (rlt.usage.hold) await new Promise<void>(r => { rlt.releaseUsage = () => { rlt.usage.hold = false; r(); }; });
+      const u = rlt.usage;
+      if (u.liveFail) return localWeek(a.weeksAgo as number, u.liveFail);
+      if (u.live) return sonioxWeek(u.live.costUsdMicros, u.live.fetchedAt, false);
+      return localWeek(a.weeksAgo as number, "no_key");
     },
     usage_export_week_csv: () => "source,day_basis,date,audio_seconds,requests,cost_usd,api_cost_usd,playground_cost_usd\nlocal_estimate,local,2026-11-09,1800,1,0.126,0,0\n",
     usage_export_csv: () => "date,audio_ms,cost\n2026-11-09,1800000,0.126\n",

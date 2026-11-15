@@ -86,6 +86,7 @@
     "allow-usage-export-csv",
     "allow-usage-clear",
     "allow-usage-week-source",
+    "allow-usage-week-cached",
     "allow-usage-export-week-csv",
     "allow-drive-status",
     "allow-drive-sync",

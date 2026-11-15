@@ -745,5 +745,10 @@
   "tp.reset": "Reset display",
   "tp.scope": "Applies to this screen only. The subtitle window has its own settings in Settings > Subtitles.",
   "tp.short.src": "Source",
-  "tp.short.dst": "Translation"
+  "tp.short.dst": "Translation",
+  "set.usage.updatedat": "Updated at {time}",
+  "set.usage.refreshing": "Updating",
+  "set.usage.stale.warn": "Could not update. Showing the last saved figures. {reason}",
+  "set.usage.reason.nocache": "No saved Soniox figures for this week yet. Showing the local estimate while loading.",
+  "set.usage.reason.unknown": "Unknown reason. Try again."
 }

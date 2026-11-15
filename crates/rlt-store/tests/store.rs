@@ -17,7 +17,7 @@ fn line(seq: i64, src: &str, tr: Option<&str>) -> NewCaptionLine {
 #[test]
 fn migration_ap_dung_dung_mot_lan_va_bang_ton_tai() {
     let s = Store::open_in_memory().unwrap();
-    assert_eq!(s.user_version().unwrap(), 10);
+    assert_eq!(s.user_version().unwrap(), 11);
     let n: i64 = s
         .conn()
         .query_row(
@@ -28,8 +28,7 @@ fn migration_ap_dung_dung_mot_lan_va_bang_ton_tai() {
         .unwrap();
     assert_eq!(n, 5);
     let m = migrations(SCHEMA_SQL).unwrap();
-    assert_eq!(m.len(), 1);
-    assert_eq!(m[0].0, 10);
+    assert_eq!(m.iter().map(|x| x.0).collect::<Vec<_>>(), [10, 11]);
 }
 
 fn repo_root() -> std::path::PathBuf {
@@ -80,13 +79,13 @@ fn file_db_bat_wal_va_foreign_keys_va_mo_lai_khong_chay_lai_migration() {
             .unwrap();
     }
     let s = Store::open(&path).unwrap();
-    assert_eq!(s.user_version().unwrap(), 10);
+    assert_eq!(s.user_version().unwrap(), 11);
     assert!(s.get_session(SID).unwrap().is_some());
     let n: i64 = s
         .conn()
         .query_row("SELECT count(*) FROM schema_migrations", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(n, 1);
+    assert_eq!(n, 2, "moi migration (10, 11) ghi dung mot dong, mo lai khong chay lai");
     std::fs::remove_dir_all(dir).ok();
 }
 

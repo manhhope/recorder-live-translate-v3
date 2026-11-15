@@ -53,6 +53,7 @@ pub const SESSION_COMMANDS: &[&str] = &[
     "usage_export_csv",
     "usage_clear",
     "usage_week_source",
+    "usage_week_cached",
     "usage_export_week_csv",
     "drive_status",
     "drive_sync",
@@ -418,13 +419,27 @@ pub async fn usage_week_source(s: State<'_, SessionState>, weeks_ago: i64) -> Re
     .await
     .map_err(|_| "task_failed".to_string())?;
     match net {
-        Ok(o) => Ok(o),
+        Ok(o) => {
+            // Luu ban vua lay de lan mo tab sau hien ngay (stale-while-revalidate). Loi ghi cache khong lam hong ket qua.
+            let _ = s.with_store(|st| usage_soniox::persist_fresh(st, &o, now));
+            Ok(o)
+        }
         Err(e) => s.with_store(|st| usage_soniox::local_week(st, now, weeks_ago, e.code())),
     }
 }
 
 /// CSV cua tuan dang xem, dung so lieu va nguon nhu `usage_week_source` (co cot `source`).
 #[tauri::command]
+/// Ban dau cho tab Usage Logs, KHONG dung mang: so Soniox da luu (`cached = true`, `fetchedAt` = luc lay that) hoac,
+/// neu chua co, uoc tinh cuc bo voi ly do `no_cache`. Giao dien hien ngay roi goi `usage_week_source` o nen.
+#[tauri::command]
+pub fn usage_week_cached(s: State<'_, SessionState>, weeks_ago: i64) -> Res<usage_soniox::UsageSourceOut> {
+    if !(0..=3).contains(&weeks_ago) {
+        return Err("invalid_week".into());
+    }
+    s.with_store(|st| usage_soniox::week_cached_or_local(st, usage_soniox::now_secs(), weeks_ago))
+}
+
 pub async fn usage_export_week_csv(s: State<'_, SessionState>, weeks_ago: i64) -> Res<String> {
     let w = usage_week_source(s, weeks_ago).await?;
     Ok(usage_soniox::week_csv(&w))
@@ -432,7 +447,7 @@ pub async fn usage_export_week_csv(s: State<'_, SessionState>, weeks_ago: i64) -
 
 #[tauri::command]
 pub fn usage_clear(s: State<'_, SessionState>) -> Res<usize> {
-    s.with_store(records::usage_clear)
+    s.with_store(|st| usage_soniox::clear_local(st, usage_cache()))
 }
 
 // ---------------------------------------------------------------- Drive (OAuth that)

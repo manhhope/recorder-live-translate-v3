@@ -922,3 +922,19 @@ VALUES (10, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), '3.0.0-dev', NULL, 'Mức n�
 
 PRAGMA user_version = 10;
 -- @@MIGRATION 10 END
+
+-- @@MIGRATION 11 BEGIN
+-- usage_soniox_cache: bản số liệu Soniox gần nhất của TỪNG tuần UTC (stale-while-revalidate cho màn Usage Logs).
+-- Mỗi tuần một hàng (khóa = Thứ Hai UTC). payload là JSON kết quả đã làm sạch; KHÔNG chứa khóa API.
+-- fetched_at = epoch giây lúc lấy từ Soniox. Hàng quá 30 ngày bị bỏ khi đọc/ghi. "Xóa dữ liệu mức dùng" xóa cả bảng này (AC-32.6, AC-32.12).
+CREATE TABLE usage_soniox_cache (
+    week_start  TEXT    NOT NULL PRIMARY KEY CHECK (length(week_start) = 10),
+    payload     TEXT    NOT NULL,
+    fetched_at  INTEGER NOT NULL CHECK (fetched_at >= 0)
+) WITHOUT ROWID;
+
+INSERT INTO schema_migrations (version, applied_at, app_version, backup_file, note)
+VALUES (11, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), '3.0.0-dev', NULL, 'Cache số liệu Soniox theo tuần cho Usage Logs');
+
+PRAGMA user_version = 11;
+-- @@MIGRATION 11 END

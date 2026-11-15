@@ -170,3 +170,12 @@ button{font:inherit;color:inherit;cursor:default}
   .sn{width:auto;height:30px}
   .sbody{padding:14px}
 }
+
+/* Usage Logs: stale-while-revalidate (chi bao Dang cap nhat, canh bao gon, skeleton lan dau) */
+.warnbar{gap:8px;flex-wrap:wrap;margin:6px 0;padding:6px 10px;border:1px solid var(--rlt-rec,#c0392b);border-radius:8px;font-size:12px}
+.spin .i{animation:rlt-spin 1s linear infinite}
+@keyframes rlt-spin{to{transform:rotate(360deg)}}
+.skel{display:grid;gap:8px;margin:8px 0}.skel i{display:block;height:14px;border-radius:6px;background:linear-gradient(90deg,var(--rlt-border,#8883) 25%,#8886 50%,var(--rlt-border,#8883) 75%);background-size:200% 100%;animation:rlt-shim 1.4s linear infinite}
+.skel i:nth-child(2){width:70%}.skel i:nth-child(3){width:45%}
+@keyframes rlt-shim{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.spin .i,.skel i{animation:none}}
