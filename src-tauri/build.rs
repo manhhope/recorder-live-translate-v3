@@ -111,6 +111,7 @@ fn main() {
     // screencapturekit nối thư viện Swift; test/bin cần tìm runtime hệ thống (macOS 12+ có sẵn ở /usr/lib/swift).
     // Client ID OAuth dung san cua Drive: nap luc build (option_env! trong session/mod.rs), mac dinh rong.
     println!("cargo:rerun-if-env-changed=RLT_DRIVE_BUILTIN_CLIENT_ID");
+    println!("cargo:rerun-if-env-changed=RLT_DRIVE_BUILTIN_CLIENT_SECRET");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
         println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
     }

@@ -436,6 +436,8 @@ pub fn usage_clear(s: State<'_, SessionState>) -> Res<usize> {
 /// Client ID OAuth dung san, nap LUC BUILD tu bien moi truong `RLT_DRIVE_BUILTIN_CLIENT_ID` (mac dinh rong;
 /// khong commit gia tri that). Khong co thi nut Connect bi khoa cho den khi nguoi dung nhap Client ID o Nang cao.
 const BUILTIN_DRIVE_CLIENT_ID: Option<&str> = option_env!("RLT_DRIVE_BUILTIN_CLIENT_ID");
+/// Client secret dung san (neu loai client cua Google doi hoi), nap luc build tu `RLT_DRIVE_BUILTIN_CLIENT_SECRET`.
+const BUILTIN_DRIVE_CLIENT_SECRET: Option<&str> = option_env!("RLT_DRIVE_BUILTIN_CLIENT_SECRET");
 
 /// Co `true` khi nguoi dung vua bam Huy luc dang cho trinh duyet.
 static DRIVE_CANCEL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -445,7 +447,8 @@ static DRIVE_CONNECTING: std::sync::atomic::AtomicBool = std::sync::atomic::Atom
 fn google_drive() -> Arc<rlt_features::drive_google::GoogleDrive> {
     Arc::new(
         rlt_features::drive_google::GoogleDrive::new(crate::ai::secret_store())
-            .with_builtin_client_id(BUILTIN_DRIVE_CLIENT_ID),
+            .with_builtin_client_id(BUILTIN_DRIVE_CLIENT_ID)
+            .with_builtin_client_secret(BUILTIN_DRIVE_CLIENT_SECRET),
     )
 }
 

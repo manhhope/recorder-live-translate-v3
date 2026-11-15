@@ -115,6 +115,7 @@ pub struct GoogleDrive {
     ep: Endpoints,
     /// Client ID dung san luc build (rong = khong co). Chi dung khi nguoi dung/moi truong khong cap Client ID nao.
     builtin_client_id: Option<String>,
+    builtin_client_secret: Option<String>,
     /// Tao muon (lan goi mang dau tien): Client blocking khong duoc tao/huy trong ngu canh async cua tokio.
     http_cell: std::sync::OnceLock<Client>,
     access: Mutex<Option<String>>,
@@ -188,12 +189,18 @@ impl GoogleDrive {
     }
 
     pub fn with_endpoints(secrets: Arc<dyn SecretStore>, ep: Endpoints) -> Self {
-        GoogleDrive { secrets, ep, builtin_client_id: None, http_cell: std::sync::OnceLock::new(), access: Mutex::new(None) }
+        GoogleDrive { secrets, ep, builtin_client_id: None, builtin_client_secret: None, http_cell: std::sync::OnceLock::new(), access: Mutex::new(None) }
     }
 
     /// Dat Client ID dung san (nap luc build, mac dinh rong). Gia tri rong/khoang trang = khong co.
     pub fn with_builtin_client_id(mut self, id: Option<&str>) -> Self {
         self.builtin_client_id = id.map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
+        self
+    }
+
+    /// Client secret dung san (nap luc build), chi dung kem Client ID dung san.
+    pub fn with_builtin_client_secret(mut self, secret: Option<&str>) -> Self {
+        self.builtin_client_secret = secret.map(str::trim).filter(|v| !v.is_empty()).map(str::to_string);
         self
     }
 
@@ -229,7 +236,12 @@ impl GoogleDrive {
     }
 
     fn client_secret(&self) -> Option<String> {
-        self.secret_or_env(SecretKind::DriveClientSecret, ENV_CLIENT_SECRET)
+        if let Some(v) = self.secret_or_env(SecretKind::DriveClientSecret, ENV_CLIENT_SECRET) {
+            return Some(v);
+        }
+        // Secret dung san chi hop le khi Client ID cung la ban dung san (khong tron cap cua nguoi dung).
+        let own_id = self.secret_or_env(SecretKind::DriveClientId, ENV_CLIENT_ID).is_some();
+        if own_id { None } else { self.builtin_client_secret.clone() }
     }
 
     /// Luu Client ID (va client secret tuy chon) do nguoi dung nhap. Rong = xoa.
