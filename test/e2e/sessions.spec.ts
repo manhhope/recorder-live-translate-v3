@@ -1,4 +1,9 @@
 import { test, expect } from "./fixtures.ts";
+import type { Page } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+
+const SHOT = process.env.RLT_SHOT_DIR;
+const shot = async (page: Page, name: string) => { if (SHOT) { mkdirSync(SHOT, { recursive: true }); await page.screenshot({ path: `${SHOT}/${name}.png` }); } };
 
 test.describe("Danh sach phien, tim kiem, xuat", () => {
   test("liet ke phien kem huy hieu trang thai va so dong", async ({ page, rlt }) => {
@@ -60,69 +65,103 @@ test.describe("Danh sach phien, tim kiem, xuat", () => {
 
   for (const fmt of ["md", "txt", "srt", "docx"] as const) {
     for (const content of ["both", "translation", "source"] as const) {
-      test(`xuat ${fmt.toUpperCase()} / ${content}: goi lenh dung dinh dang, noi dung, ngon ngu, thu muc Documents`, async ({ page, rlt }) => {
+      test(`xuat ${fmt.toUpperCase()} / ${content}: goi lenh dung dinh dang, noi dung, ngon ngu, thu muc khoi dau mac dinh (chua nho)`, async ({ page, rlt }) => {
         await openWeekly(page, rlt);
         await page.getByRole("radio", { name: new RegExp("^" + fmt.toUpperCase() + "$") }).click();
         await page.getByRole("radio", { name: rlt.t("exp.content." + content) }).click();
         await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
         await expect(page.getByText(rlt.t("exp.saved", { path: `/Users/test/Documents/s-weekly.${fmt}` }))).toBeVisible();
         const [call] = await rlt.calls("session_export");
-        expect(call.args).toEqual({ sessionId: "s-weekly", format: fmt, content, uiLang: "en", dir: "/Users/test/Documents" });
+        expect(call.args).toEqual({ sessionId: "s-weekly", format: fmt, content, uiLang: "en", dir: null });
       });
     }
   }
 
-  test("mac dinh Md + Ca nguon va dich; nho lua chon lan truoc (dinh dang, noi dung, thu muc)", async ({ page, rlt }) => {
+  test("mac dinh Md + Ca nguon va dich; nho lua chon va thu muc luu lan truoc", async ({ page, rlt }) => {
     await openWeekly(page, rlt);
     await expect(page.getByRole("radio", { name: /^MD$/ })).toHaveAttribute("aria-checked", "true");
     await expect(page.getByRole("radio", { name: rlt.t("exp.content.both") })).toHaveAttribute("aria-checked", "true");
     await page.getByRole("radio", { name: /^DOCX$/ }).click();
     await page.getByRole("radio", { name: rlt.t("exp.content.translation") }).click();
-    await page.getByRole("button", { name: rlt.t("exp.dir.change") }).click();
-    await expect(page.getByRole("dialog").locator("code")).toHaveText("/Users/test/Exports");
+    await page.evaluate(() => { (window as any).__rlt.state.savePick = "/Users/test/Exports"; });
     await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
     await expect(page.getByText(rlt.t("exp.saved", { path: "/Users/test/Exports/s-weekly.docx" }))).toBeVisible();
-    // Mo lai dialog: giu lua chon lan truoc.
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("rlt.export.prefs") ?? "{}").dir)).toBe("/Users/test/Exports");
+    // Mo lai dialog: giu lua chon lan truoc, hop thoai luu mo o thu muc da nho.
     await page.getByRole("button", { name: rlt.t("exp.open") }).click();
     await expect(page.getByRole("radio", { name: /^DOCX$/ })).toHaveAttribute("aria-checked", "true");
     await expect(page.getByRole("radio", { name: rlt.t("exp.content.translation") })).toHaveAttribute("aria-checked", "true");
-    await expect(page.getByRole("dialog").locator("code")).toHaveText("/Users/test/Exports");
+    await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
+    const calls = await rlt.calls("session_export");
+    expect(calls[1].args.dir).toBe("/Users/test/Exports");
+    expect(await page.evaluate(() => (window as any).__rlt.state.lastSuggest)).toEqual({ name: "s-weekly.docx", dir: "/Users/test/Exports" });
   });
 
-  test("Change: chon thu muc -> o Save to hien duong dan va luu cho lan sau; chua chon thi hien Documents", async ({ page, rlt }) => {
+  test("dialog gon: khong con dong Save to / nut Change", async ({ page, rlt }) => {
     await openWeekly(page, rlt);
-    const code = page.getByRole("dialog").locator("code");
-    await expect(code).toHaveText("/Users/test/Documents");
-    await page.getByRole("button", { name: rlt.t("exp.dir.change") }).click();
-    await expect(code).toHaveText("/Users/test/Exports");
-    expect((await rlt.calls("export_pick_dir")).length).toBe(1);
-    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("rlt.export.prefs") ?? "{}").dir)).toBe("/Users/test/Exports");
+    const d = page.getByRole("dialog");
+    await expect(d.locator("code")).toHaveCount(0);
+    await expect(d.getByRole("button", { name: /^(Change|Alterar)$/ })).toHaveCount(0);
+    await expect(d).not.toContainText(/Save to|Guardar em/);
+  });
+
+  // Cua so mac dinh cua app la 1000x700 (tauri.conf.json): mot hang, ca en va pt-PT.
+  for (const loc of ["en", "pt-PT"] as const) {
+    test(`Format, Content va Export/Cancel nam tren mot hang o cua so chuan 1000x700 ${loc}`, async ({ page, rlt }) => {
+      await page.setViewportSize({ width: 1000, height: 700 });
+      await openWeekly(page, rlt, { locale: loc });
+      await page.getByRole("radio", { name: /^DOCX$/ }).click(); // tooltip mo ta khong them dong
+      const d = page.getByRole("dialog", { name: rlt.t("exp.title") });
+      const ys = async (l: import("@playwright/test").Locator) => { const b = (await l.boundingBox())!; return b.y + b.height / 2; };
+      const y0 = await ys(d.getByRole("radiogroup", { name: rlt.t("exp.format") }));
+      const y1 = await ys(d.getByRole("radiogroup", { name: rlt.t("exp.content") }));
+      const y2 = await ys(rlt.btn("exp.go", d));
+      const y3 = await ys(rlt.btn("exp.cancel", d));
+      for (const y of [y1, y2, y3]) expect(Math.abs(y - y0)).toBeLessThan(6);
+      const box = (await d.boundingBox())!;
+      expect(box.x + box.width).toBeLessThanOrEqual(1000);
+      await shot(page, `export-chuan-${loc}`);
+    });
+  }
+
+  test("cua so nho toi thieu 720x520: cho phep gap dong, khong tran ngang, nut van bam duoc", async ({ page, rlt }) => {
+    await page.setViewportSize({ width: 720, height: 520 });
+    await openWeekly(page, rlt);
+    const d = page.getByRole("dialog", { name: rlt.t("exp.title") });
+    const box = (await d.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(720);
+    await expect(rlt.btn("exp.go", d)).toBeVisible();
+    await expect(rlt.btn("exp.cancel", d)).toBeVisible();
+    await shot(page, "export-nho-en");
+  });
+
+  test("Export mo hop thoai luu, chon xong moi ghi: hien Saved to duong dan da chon", async ({ page, rlt }) => {
+    await openWeekly(page, rlt);
+    await page.evaluate(() => { (window as any).__rlt.state.savePick = "/Users/test/Desktop"; });
+    await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
+    await expect(page.getByText(rlt.t("exp.saved", { path: "/Users/test/Desktop/s-weekly.md" }))).toBeVisible();
+    await expect(page.getByRole("dialog", { name: rlt.t("exp.title") })).toHaveCount(0);
+    expect((await rlt.calls("session_export")).length).toBe(1);
+  });
+
+  test("huy hop thoai luu: khong ghi, khong bao loi, khong luu thu muc, dialog van mo", async ({ page, rlt }) => {
+    await openWeekly(page, rlt);
+    await page.evaluate(() => { (window as any).__rlt.state.savePick = null; });
+    await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
+    await expect.poll(async () => (await rlt.calls("session_export")).length).toBe(1);
     await expect(page.getByRole("alert")).toHaveCount(0);
+    await expect(page.getByText(/Saved to|Guardado em/)).toHaveCount(0);
+    await expect(page.getByRole("dialog", { name: rlt.t("exp.title") })).toBeVisible();
+    await expect(rlt.btn("exp.go", page.getByRole("dialog"))).toBeEnabled();
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("rlt.export.prefs") ?? "{}").dir ?? null)).toBeNull();
   });
 
-  test("Change: huy hop thoai khong bao loi va giu thu muc cu", async ({ page, rlt }) => {
-    await openWeekly(page, rlt);
-    await page.evaluate(() => { (window as any).__rlt.state.pickDir = null; });
-    await page.getByRole("button", { name: rlt.t("exp.dir.change") }).click();
-    await expect.poll(async () => (await rlt.calls("export_pick_dir")).length).toBe(1);
-    await expect(page.getByRole("dialog").locator("code")).toHaveText("/Users/test/Documents");
-    await expect(page.getByRole("alert")).toHaveCount(0);
-  });
-
-  test("Change: lenh loi (vd ACL tu choi) hien loi co chi tiet, khong phai 'Something went wrong', thu muc khong doi", async ({ page, rlt }) => {
-    await openWeekly(page, rlt);
-    await rlt.setFail("export_pick_dir", "export_pick_dir not allowed by ACL");
-    await page.getByRole("button", { name: rlt.t("exp.dir.change") }).click();
-    const alert = page.getByRole("alert");
-    await expect(alert).toContainText("export_pick_dir not allowed by ACL");
-    await expect(alert).not.toContainText(rlt.t("err.generic"));
-    await expect(page.getByRole("dialog").locator("code")).toHaveText("/Users/test/Documents");
-  });
-
-  test("Change: loi hien theo pt-PT", async ({ page, rlt }) => {
-    await openWeekly(page, rlt, { locale: "pt-PT", fail: { export_pick_dir: "export_pick_failed" } });
-    await page.getByRole("button", { name: rlt.t("exp.dir.change") }).click();
-    await expect(page.getByRole("alert")).toContainText(rlt.t("exp.dir.error", { detail: "export_pick_failed" }));
+  test("hop thoai luu bao loi (vd ACL tu choi): hien loi, khong ghi nho thu muc", async ({ page, rlt }) => {
+    await openWeekly(page, rlt, { fail: { session_export: "export_failed" } });
+    await page.getByRole("dialog").getByRole("button", { name: rlt.t("exp.go") }).click();
+    await expect(page.getByRole("alert")).toBeVisible();
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("rlt.export.prefs") ?? "{}").dir ?? null)).toBeNull();
   });
 
   test("dialog xuat hien nhan theo pt-PT", async ({ page, rlt }) => {

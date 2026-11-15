@@ -42,8 +42,6 @@ pub const SESSION_COMMANDS: &[&str] = &[
     "session_delete",
     "records_search",
     "session_export",
-    "export_default_dir",
-    "export_pick_dir",
     "highlight_toggle",
     "glossary_list",
     "glossary_add",
@@ -257,27 +255,6 @@ pub fn records_search(s: State<'_, SessionState>, query: String, session_id: Opt
     s.with_store(|st| search(st, &query, session_id.as_deref(), 50))
 }
 
-/// Thu muc xuat mac dinh: Documents cua nguoi dung (None neu he dieu hanh khong co).
-#[tauri::command]
-pub fn export_default_dir(app: tauri::AppHandle) -> Option<String> {
-    use tauri::Manager;
-    app.path().document_dir().ok().map(|p| p.to_string_lossy().into_owned())
-}
-
-/// Doi ket qua hop chon thu muc: huy -> `Ok(None)`; duong dan khong phai tep cuc bo (vd URL) -> `export_pick_failed`.
-pub fn picked_folder_to_string(p: Option<tauri_plugin_dialog::FilePath>) -> Res<Option<String>> {
-    match p {
-        None => Ok(None),
-        Some(p) => p.into_path().map(|p| Some(p.to_string_lossy().into_owned())).map_err(|_| "export_pick_failed".to_string()),
-    }
-}
-
-/// Hop thoai chon thu muc xuat. `Ok(None)` neu nguoi dung huy.
-#[tauri::command]
-pub async fn export_pick_dir(app: tauri::AppHandle) -> Res<Option<String>> {
-    picked_folder_to_string(app.dialog().file().blocking_pick_folder())
-}
-
 /// Ket qua xuat: duong dan file da ghi + so anh docx khong doc duoc (`warning` = `export_image_missing` khi > 0).
 #[derive(serde::Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -287,50 +264,50 @@ pub struct ExportOut {
     pub warning: Option<String>,
 }
 
-/// Ghi `bytes` vao file moi trong `dir`. Ten dich la `name`, neu da co thi " (2)", " (3)"...; moi ten duoc GIU CHO bang
-/// `create_new` (khong the ghi de file cu, het race). Du lieu ghi vao file tam ten rieng `.<ten day du>.<pid>.part`
-/// (cung `create_new`) roi doi ten de khong de lai file nua chung.
-pub fn write_export(dir: &std::path::Path, name: &str, bytes: &[u8]) -> Res<std::path::PathBuf> {
+/// Ghi `bytes` vao `path` (nguoi dung da chon va xac nhan ghi de trong hop thoai luu cua macOS). Du lieu ghi vao file tam
+/// ten rieng `.rlt-<pid>-<nano>.part` (`create_new`: khong bao gio dung file cua nguoi dung, ten ngan nen khong vuot gioi han
+/// do dai ten file) roi doi ten; loi giua chung thi xoa file tam, file dich khong bi dong toi.
+pub fn write_export_to(path: &std::path::Path, bytes: &[u8]) -> Res<()> {
     use std::io::Write;
-    let fail = |_| "export_failed".to_string();
-    let (stem, ext) = match name.rsplit_once('.') {
-        Some((a, b)) => (a.to_string(), format!(".{b}")),
-        None => (name.to_string(), String::new()),
-    };
-    let open_new = |p: &std::path::Path| std::fs::OpenOptions::new().write(true).create_new(true).open(p);
-    let mut reserved = None;
-    for n in 1..1000 {
-        let cand = if n == 1 { dir.join(name) } else { dir.join(format!("{stem} ({n}){ext}")) };
-        match open_new(&cand) {
-            Ok(f) => {
-                reserved = Some((cand, f));
-                break;
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(e) => return Err(fail(e)),
-        }
+    let name = path.file_name().ok_or("export_failed")?;
+    if name.len() > 255 {
+        return Err("export_failed".into());
     }
-    let (path, placeholder) = reserved.ok_or("export_failed")?;
-    drop(placeholder);
-    let file_name = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
-    let tmp = dir.join(format!(".{file_name}.{}.part", std::process::id()));
+    let dir = path.parent().filter(|d| d.is_dir()).ok_or("export_dir_missing")?;
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let tmp = dir.join(format!(".rlt-{}-{nanos}.part", std::process::id()));
     let res = (|| -> std::io::Result<()> {
-        let mut f = open_new(&tmp)?;
+        let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
         f.write_all(bytes)?;
         f.sync_all()?;
         drop(f);
-        std::fs::rename(&tmp, &path)
+        std::fs::rename(&tmp, path)
     })();
     if res.is_err() {
         let _ = std::fs::remove_file(&tmp);
-        let _ = std::fs::remove_file(&path);
         return Err("export_failed".into());
     }
-    Ok(path)
+    Ok(())
 }
 
-/// Xuat vao thu muc `dir` (mac dinh Documents). Dinh dang md/txt/srt/docx, noi dung both/translation/source.
-/// Ghi vao file tam roi doi ten de khong de lai file nua chung. Tra duong dan file + so anh bi thieu.
+/// Dam bao file dich co dung duoi dinh dang (nguoi dung co the xoa mat duoi trong hop thoai luu).
+pub fn with_extension(path: std::path::PathBuf, ext: &str) -> std::path::PathBuf {
+    if path.extension().is_some_and(|e| e.eq_ignore_ascii_case(ext)) {
+        return path;
+    }
+    let mut s = path.into_os_string();
+    s.push(".");
+    s.push(ext);
+    s.into()
+}
+
+/// Thu muc khoi dau cua hop thoai luu: thu muc nho lan truoc neu con ton tai, khong thi Documents.
+pub fn start_dir(remembered: Option<&str>, documents: Option<std::path::PathBuf>) -> Option<std::path::PathBuf> {
+    remembered.filter(|d| !d.is_empty()).map(std::path::PathBuf::from).filter(|d| d.is_dir()).or(documents)
+}
+
+/// Xuat phien: mo hop thoai luu cua macOS (ten goi y theo phien + duoi dung dinh dang, thu muc khoi dau = `dir` da nho hoac
+/// Documents). `Ok(None)` neu nguoi dung huy (khong ghi gi, khong loi). Dinh dang md/txt/srt/docx, noi dung both/translation/source.
 #[tauri::command]
 pub async fn session_export(
     app: tauri::AppHandle,
@@ -340,23 +317,25 @@ pub async fn session_export(
     content: String,
     ui_lang: String,
     dir: Option<String>,
-) -> Res<ExportOut> {
+) -> Res<Option<ExportOut>> {
     use tauri::Manager;
     let data_dir = app.state::<crate::capture::CaptureState>().data_dir.clone();
-    let dir = match dir {
-        Some(d) if !d.is_empty() => std::path::PathBuf::from(d),
-        _ => app.path().document_dir().map_err(|_| "export_dir_missing".to_string())?,
-    };
-    if !dir.is_dir() {
-        return Err("export_dir_missing".into());
-    }
     let (name, bytes, missing) = s.with_store(|st| export_bytes(st, &session_id, &format, &content, &ui_lang, &data_dir))?;
-    let path = write_export(&dir, &name, &bytes)?;
-    Ok(ExportOut {
+    let ext = name.rsplit_once('.').map(|(_, e)| e.to_string()).unwrap_or_default();
+    let mut dlg = app.dialog().file().set_file_name(&name).add_filter(ext.to_uppercase(), &[ext.as_str()]);
+    if let Some(d) = start_dir(dir.as_deref(), app.path().document_dir().ok()) {
+        dlg = dlg.set_directory(d);
+    }
+    let Some(picked) = dlg.blocking_save_file() else {
+        return Ok(None);
+    };
+    let path = with_extension(picked.into_path().map_err(|_| "export_failed".to_string())?, &ext);
+    write_export_to(&path, &bytes)?;
+    Ok(Some(ExportOut {
         path: path.to_string_lossy().into_owned(),
         missing_images: missing,
         warning: (missing > 0).then(|| "export_image_missing".to_string()),
-    })
+    }))
 }
 
 #[tauri::command]
@@ -513,8 +492,8 @@ pub async fn import_dotnet_pick(app: tauri::AppHandle, s: State<'_, SessionState
 
 #[cfg(test)]
 mod tests {
-    /// Gap loi 2026-11: `export_pick_dir` co trong manifest nhung `main.json` khong cap `allow-export-pick-dir`,
-    /// nen nut Change bi ACL tu choi. Moi lenh phien phai duoc cua so `main` cap quyen.
+    /// Gap loi 2026-11: mot lenh co trong manifest nhung `main.json` khong cap `allow-<lenh>` thi bi ACL tu choi.
+    /// Moi lenh phien phai duoc cua so `main` cap quyen. Hop thoai luu mo tu Rust (DialogExt), nen KHONG can `dialog:allow-save` cho JS.
     #[test]
     fn every_session_command_is_allowed_for_main_window() {
         let cap: serde_json::Value = serde_json::from_str(include_str!("../../capabilities/main.json")).unwrap();
@@ -526,12 +505,17 @@ mod tests {
     }
 
     #[test]
-    fn picked_folder_cancel_is_none_and_path_is_string() {
-        assert_eq!(super::picked_folder_to_string(None), Ok(None));
-        let p = tauri_plugin_dialog::FilePath::Path(std::path::PathBuf::from("/Users/a/Exports"));
-        assert_eq!(super::picked_folder_to_string(Some(p)), Ok(Some("/Users/a/Exports".to_string())));
-        let url = tauri_plugin_dialog::FilePath::Url("https://x.test/a".parse().unwrap());
-        assert_eq!(super::picked_folder_to_string(Some(url)), Err("export_pick_failed".to_string()));
+    fn save_target_gets_right_extension_and_start_dir_falls_back_to_documents() {
+        use std::path::PathBuf;
+        assert_eq!(super::with_extension(PathBuf::from("/a/Bao cao"), "docx"), PathBuf::from("/a/Bao cao.docx"));
+        assert_eq!(super::with_extension(PathBuf::from("/a/Bao cao.DOCX"), "docx"), PathBuf::from("/a/Bao cao.DOCX"));
+        assert_eq!(super::with_extension(PathBuf::from("/a/v1.2"), "md"), PathBuf::from("/a/v1.2.md"));
+        let docs = Some(PathBuf::from("/Users/a/Documents"));
+        let here = std::env::temp_dir();
+        assert_eq!(super::start_dir(Some(here.to_str().unwrap()), docs.clone()), Some(here));
+        assert_eq!(super::start_dir(Some("/khong/ton/tai/rlt"), docs.clone()), docs);
+        assert_eq!(super::start_dir(Some(""), docs.clone()), docs);
+        assert_eq!(super::start_dir(None, None), None);
     }
 
     #[test]

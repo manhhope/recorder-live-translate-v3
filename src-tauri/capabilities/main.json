@@ -75,8 +75,6 @@
     "allow-session-delete",
     "allow-records-search",
     "allow-session-export",
-    "allow-export-default-dir",
-    "allow-export-pick-dir",
     "allow-highlight-toggle",
     "allow-glossary-list",
     "allow-glossary-add",

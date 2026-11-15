@@ -8,8 +8,9 @@
 
 export interface MockSeed {
   locale: "en" | "pt-PT";
-  // Phien ban What's New da xem (khoa rlt.ui.whatsNewSeen), chi dat khi chua co gia tri (nhu locale). Khong dat = cai moi.
-  whatsNewSeen?: string;
+  // Phien ban What's New da xem (khoa rlt.ui.whatsNewSeen), chi dat khi chua co gia tri (nhu locale).
+  // Khong dat = "999.0.0" (da xem, de khong che cac test khac); null = lan mo dau tien (modal hien).
+  whatsNewSeen?: string | null;
   hasKey: boolean;
   consent: boolean;
   aiKeys: { gemini: boolean; openai: boolean };
@@ -36,7 +37,8 @@ export function installTauriMock(seed: MockSeed): void {
     if (!localStorage.getItem("rlt.ui.locale")) localStorage.setItem("rlt.ui.locale", seed.locale);
   } catch { /* bo qua */ }
   try {
-    if (seed.whatsNewSeen && localStorage.getItem("rlt.ui.whatsNewSeen") === null) localStorage.setItem("rlt.ui.whatsNewSeen", seed.whatsNewSeen);
+    const wn = seed.whatsNewSeen === undefined ? "999.0.0" : seed.whatsNewSeen;
+    if (wn && localStorage.getItem("rlt.ui.whatsNewSeen") === null) localStorage.setItem("rlt.ui.whatsNewSeen", wn);
   } catch { /* bo qua */ }
 
   const callbacks = new Map<number, (m: unknown) => void>();
@@ -187,15 +189,18 @@ export function installTauriMock(seed: MockSeed): void {
       c.isAttached = a.attached;
       return a.attached;
     },
-    // Hop dong: Rust `export_default_dir() -> Option<String>`, `export_pick_dir() -> Option<String>` (None = huy),
-    // `session_export(session_id, format, content, ui_lang, dir) -> Result<{path, missingImages, warning}, String>`.
-    export_default_dir: () => "/Users/test/Documents",
-    export_pick_dir: () => state.pickDir === undefined ? "/Users/test/Exports" : state.pickDir,
-    session_export: (a) => ({
-      path: `${a.dir ?? "/Users/test/Documents"}/${a.sessionId}.${a.format}`,
-      missingImages: state.exportMissing ?? 0,
-      warning: state.exportMissing ? "export_image_missing" : null,
-    }),
+    // Hop dong: Rust `session_export(session_id, format, content, ui_lang, dir) -> Result<Option<{path, missingImages, warning}>, String>`.
+    // `dir` = thu muc khoi dau cua hop thoai luu (null = Documents). Hop thoai luu gia: state.savePick = thu muc nguoi dung chon
+    // (khong dat = giu thu muc khoi dau), null = nguoi dung huy -> lenh tra null (khong ghi). Mock ghi lai ten goi y trong state.lastSuggest.
+    session_export: (a) => {
+      state.lastSuggest = { name: `${a.sessionId}.${a.format}`, dir: a.dir ?? "/Users/test/Documents" };
+      if (state.savePick === null) return null;
+      return {
+        path: `${state.savePick ?? a.dir ?? "/Users/test/Documents"}/${a.sessionId}.${a.format}`,
+        missingImages: state.exportMissing ?? 0,
+        warning: state.exportMissing ? "export_image_missing" : null,
+      };
+    },
     highlight_toggle: (a) => {
       const l = state.details[a.sessionId].lines.find((x: any) => x.captionLineId === a.captionLineId);
       l.highlighted = !l.highlighted;

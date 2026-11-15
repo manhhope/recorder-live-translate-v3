@@ -78,11 +78,9 @@ export const recordsSearch = (query: string, sessionId?: string) => invoke<Searc
 export type ExportFormat = "md" | "txt" | "srt" | "docx";
 export type ExportContent = "both" | "translation" | "source";
 export interface ExportOut { path: string; missingImages: number; warning: string | null }
-/** Ghi file vao thu muc `dir` (mac dinh Documents); tra duong dan file + so anh docx khong doc duoc (`warning` = `export_image_missing`). */
+/** Mo hop thoai luu cua macOS (ten goi y theo phien, thu muc khoi dau = `dir` da nho hoac Documents) roi ghi file. `null` = nguoi dung huy (khong ghi, khong loi). `warning` = `export_image_missing`. */
 export const sessionExport = (sessionId: string, format: ExportFormat, content: ExportContent, uiLang: string, dir: string | null) =>
-  invoke<ExportOut>("session_export", { sessionId, format, content, uiLang, dir });
-export const exportDefaultDir = () => invoke<string | null>("export_default_dir");
-export const exportPickDir = () => invoke<string | null>("export_pick_dir");
+  invoke<ExportOut | null>("session_export", { sessionId, format, content, uiLang, dir });
 export const highlightToggle = (sessionId: string, captionLineId: number, note: string | null = null) =>
   invoke<boolean>("highlight_toggle", { sessionId, captionLineId, note });
 export const glossaryList = () => invoke<TermRow[]>("glossary_list");

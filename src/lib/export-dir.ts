@@ -1,4 +1,4 @@
-// Logic thu muc xuat (tach khoi giao dien de test don vi): luu/nho lua chon va dung chi tiet loi.
+// Logic thu muc xuat (tach khoi giao dien de test don vi): luu/nho lua chon (dinh dang, noi dung, thu muc luu lan truoc).
 import type { ExportFormat, ExportContent } from "./api.ts";
 export interface ExportPrefs { format: ExportFormat; content: ExportContent; dir: string | null }
 export const EXPORT_PREFS_KEY = "rlt.export.prefs";
@@ -23,14 +23,9 @@ export function saveExportPrefs(store: Store, p: ExportPrefs): boolean {
   try { store.setItem(EXPORT_PREFS_KEY, JSON.stringify(p)); return true; } catch { return false; }
 }
 
-/** Ket qua hop chon thu muc: null (huy) hoac chuoi rong thi giu thu muc cu; con lai thi thu muc moi. */
-export function applyPickedDir(current: string | null, picked: string | null | undefined): string | null {
-  return typeof picked === "string" && picked ? picked : current;
-}
-
-/** Chi tiet loi de hien cho nguoi dung: ma ngan cua Rust, hoac thong diep Tauri (vd ACL) cat con 160 ky tu. */
-export function pickErrorDetail(e: unknown): string {
-  const raw = typeof e === "string" ? e : (e as { message?: string })?.message ?? "unknown";
-  const one = raw.replace(/\s+/g, " ").trim();
-  return one.length > 160 ? one.slice(0, 157) + "..." : one || "unknown";
+/** Thu muc chua file vua luu (dau tach / hoac \\); khong tach duoc thi giu thu muc cu. Hop thoai luu lan sau mo o day. */
+export function rememberDir(current: string | null, savedPath: string | null | undefined): string | null {
+  if (typeof savedPath !== "string") return current;
+  const i = Math.max(savedPath.lastIndexOf("/"), savedPath.lastIndexOf("\\"));
+  return i > 0 ? savedPath.slice(0, i) : i === 0 && savedPath.length > 1 ? savedPath.slice(0, 1) : current;
 }

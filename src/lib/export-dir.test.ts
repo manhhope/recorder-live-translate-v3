@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loadExportPrefs, saveExportPrefs, applyPickedDir, pickErrorDetail, EXPORT_PREFS_KEY } from "./export-dir.ts";
+import { loadExportPrefs, saveExportPrefs, rememberDir, EXPORT_PREFS_KEY } from "./export-dir.ts";
 
 const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), m }; };
 
@@ -22,16 +22,12 @@ test("kho day hoac bi cam: saveExportPrefs tra false, khong nem", () => {
   const bad = { getItem: () => null, setItem: () => { throw new Error("quota"); } };
   assert.equal(saveExportPrefs(bad, { format: "md", content: "both", dir: null }), false);
 });
-test("huy hop chon (null/rong) giu thu muc cu; chon moi thi doi", () => {
-  assert.equal(applyPickedDir("/old", null), "/old");
-  assert.equal(applyPickedDir("/old", ""), "/old");
-  assert.equal(applyPickedDir(null, null), null);
-  assert.equal(applyPickedDir("/old", "/new"), "/new");
-});
-test("pickErrorDetail: ma ngan giu nguyen, thong diep dai bi cat, rong thi unknown", () => {
-  assert.equal(pickErrorDetail("export_pick_failed"), "export_pick_failed");
-  assert.equal(pickErrorDetail(new Error("x\n y")), "x y");
-  assert.equal(pickErrorDetail("a".repeat(500)).length, 160);
-  assert.equal(pickErrorDetail(""), "unknown");
-  assert.equal(pickErrorDetail(undefined), "unknown");
+test("rememberDir: thu muc cua file vua luu; khong tach duoc hoac huy (null) thi giu thu muc cu", () => {
+  assert.equal(rememberDir("/old", "/Users/a/Exports/Bao cao.md"), "/Users/a/Exports");
+  assert.equal(rememberDir(null, "/Users/a/Bao cao (2).docx"), "/Users/a");
+  assert.equal(rememberDir("/old", "C:\\Users\\a\\x.md"), "C:\\Users\\a");
+  assert.equal(rememberDir(null, "/x.md"), "/");
+  assert.equal(rememberDir("/old", "x.md"), "/old");
+  assert.equal(rememberDir("/old", null), "/old");
+  assert.equal(rememberDir(null, undefined), null);
 });

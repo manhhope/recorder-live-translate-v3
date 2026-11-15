@@ -38,7 +38,7 @@ export function mergeNotes(entries: ChangelogEntry[], seen: string | null, curre
     .sort((a, b) => compareVersions(b.version, a.version) ?? 0);
   const out: Notes = [];
   for (const g of GROUP_ORDER) {
-    const items = picked.flatMap(e => e.groups[g]?.[lang] ?? []);
+    const items = [...new Set(picked.flatMap(e => e.groups[g]?.[lang] ?? []))]; // cung cau o nhieu ban chi hien mot lan
     if (items.length) out.push({ group: g, items });
   }
   return out;
@@ -50,7 +50,10 @@ export type Decision = { show: boolean; remember: string | null; notes: Notes };
 export function decide(entries: ChangelogEntry[], seen: string | null, current: string, lang: Lang): Decision {
   const none: Decision = { show: false, remember: null, notes: [] };
   if (!parseVersion(current)) return none;
-  if (seen === null || !parseVersion(seen)) return { ...none, remember: current }; // cai moi: chi ghi nho
+  if (seen === null || !parseVersion(seen)) { // lan mo dau tien (chua co ban da xem): hien ghi chu cua ban hien tai; Got it moi ghi nho
+    const notes = manualNotes(entries, current, lang);
+    return notes.length ? { show: true, remember: null, notes } : { ...none, remember: current };
+  }
   const c = compareVersions(current, seen);
   if (c === null || c <= 0) return none; // bang (da xem) hoac ha cap: giu nguyen, khong hien
   const notes = mergeNotes(entries, seen, current, lang);
@@ -72,4 +75,11 @@ export function loadSeen(s: Store): string | null {
 }
 export function saveSeen(s: Store, v: string): void {
   try { s.setItem(SEEN_KEY, v); } catch { /* bo qua: lan sau hien lai */ }
+}
+
+/** Xep hang sau cac hop thoai khac: goi `run` khi `busy()` het (kiem tra moi `everyMs`, toi da `maxTries` lan, het luot thi van chay). */
+export function runWhenIdle(run: () => void, busy: () => boolean, schedule: (f: () => void, ms: number) => unknown, everyMs = 400, maxTries = 25): void {
+  let n = 0;
+  const tick = () => { if (busy() && ++n < maxTries) schedule(tick, everyMs); else run(); };
+  tick();
 }

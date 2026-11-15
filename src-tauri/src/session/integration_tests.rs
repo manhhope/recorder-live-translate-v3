@@ -769,20 +769,27 @@ async fn quota_exhausted_keeps_recording_locally_and_says_there_is_no_translatio
 }
 
 #[test]
-fn export_part_file_of_user_survives_and_names_never_collide() {
+fn export_writes_via_unique_temp_and_never_leaves_part_files() {
     let dir = std::env::temp_dir().join(format!("rlt-wexp-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("Bao cao.part"), b"cua nguoi dung").unwrap();
-    let p = super::write_export(&dir, "Bao cao.docx", b"PKdocx").unwrap();
-    assert_eq!(p, dir.join("Bao cao.docx"));
+    let target = dir.join("Bao cao.docx");
+    super::write_export_to(&target, b"PKdocx").unwrap();
+    assert_eq!(std::fs::read(&target).unwrap(), b"PKdocx");
+    // Nguoi dung da xac nhan ghi de trong hop thoai luu: ghi lai thay noi dung, file khac cua nguoi dung nguyen ven.
+    super::write_export_to(&target, b"PK2").unwrap();
+    assert_eq!(std::fs::read(&target).unwrap(), b"PK2");
     assert_eq!(std::fs::read(dir.join("Bao cao.part")).unwrap(), b"cua nguoi dung");
-    // Xuat lan hai cung ten: " (2)", file dau nguyen; khong con file tam
-    let p2 = super::write_export(&dir, "Bao cao.docx", b"PK2").unwrap();
-    assert_eq!(p2, dir.join("Bao cao (2).docx"));
-    assert_eq!(std::fs::read(&p).unwrap(), b"PKdocx");
-    assert_eq!(std::fs::read(&p2).unwrap(), b"PK2");
     let left: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
     assert!(!left.iter().any(|n| n.starts_with('.') && n.ends_with(".part")), "{left:?}");
+    // Ten qua dai (> 255 byte) hoac thu muc khong ton tai: loi ro rang, khong de lai file tam.
+    assert_eq!(super::write_export_to(&dir.join(format!("{}.md", "a".repeat(260))), b"x"), Err("export_failed".to_string()));
+    assert_eq!(super::write_export_to(&dir.join("khong-co").join("a.md"), b"x"), Err("export_dir_missing".to_string()));
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
+    // Ten tam co do dai co dinh: ten dich dai 250 byte van ghi duoc.
+    let long = dir.join(format!("{}.md", "b".repeat(240)));
+    super::write_export_to(&long, b"ok").unwrap();
+    assert_eq!(std::fs::read(&long).unwrap(), b"ok");
     let _ = std::fs::remove_dir_all(&dir);
 }

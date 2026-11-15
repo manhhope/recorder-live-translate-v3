@@ -1,6 +1,46 @@
 {
   "entries": [
     {
+      "version": "3.0.0",
+      "date": "2026-11-15",
+      "groups": {
+        "new": {
+          "en": [
+            "Connect Google Drive with one button in Settings, then sync your transcripts.",
+            "Export opens the macOS save panel: pick the file name and folder, and the app remembers the folder.",
+            "This What's New window, shown on first launch and after each update."
+          ],
+          "pt-PT": [
+            "Ligue o Google Drive com um botão nas Definições e sincronize as suas transcrições.",
+            "Exportar abre o painel de guardar do macOS: escolha o nome e a pasta; a aplicação memoriza a pasta.",
+            "Esta janela Novidades, mostrada no primeiro arranque e após cada atualização."
+          ]
+        },
+        "improved": {
+          "en": [
+            "Usage Logs show the last known Soniox numbers instantly and refresh in the background.",
+            "The Export dialog is compact: format, content and the Export button on one line.",
+            "More display options for the transcript: text size, colors, show or hide the source."
+          ],
+          "pt-PT": [
+            "O Usage Logs mostra de imediato os últimos valores conhecidos da Soniox e atualiza em segundo plano.",
+            "A janela Exportar é compacta: formato, conteúdo e o botão Exportar numa só linha.",
+            "Mais opções de apresentação da transcrição: tamanho do texto, cores, mostrar ou ocultar o original."
+          ]
+        },
+        "fixed": {
+          "en": [
+            "Long file names and existing files are handled safely when exporting.",
+            "A warning appears when a Word export could not include some screenshots."
+          ],
+          "pt-PT": [
+            "Nomes de ficheiro longos e ficheiros existentes são tratados em segurança ao exportar.",
+            "Aparece um aviso quando uma exportação Word não conseguiu incluir algumas capturas de ecrã."
+          ]
+        }
+      }
+    },
+    {
       "version": "0.1.0",
       "date": "2026-11-15",
       "groups": {

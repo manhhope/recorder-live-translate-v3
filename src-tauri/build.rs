@@ -82,8 +82,6 @@ pub const APP_COMMANDS: &[&str] = &[
     "session_delete",
     "records_search",
     "session_export",
-    "export_default_dir",
-    "export_pick_dir",
     "session_capture_attach",
     "highlight_toggle",
     "glossary_list",

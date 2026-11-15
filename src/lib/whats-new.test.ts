@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { compareVersions, parseVersion, mergeNotes, decide, manualNotes, loadSeen, saveSeen, SEEN_KEY, type ChangelogEntry } from "./whats-new.ts";
+import { compareVersions, parseVersion, mergeNotes, decide, manualNotes, runWhenIdle, loadSeen, saveSeen, SEEN_KEY, type ChangelogEntry } from "./whats-new.ts";
 
 const e = (version: string, n: string[], f: string[] = []): ChangelogEntry => ({
   version, date: "2026-11-15",
@@ -28,14 +28,34 @@ test("mergeNotes gop cac muc moi hon ban da xem, toi ban hien tai, ban moi truoc
   assert.deepEqual(n, [{ group: "new", items: ["c", "b"] }, { group: "fixed", items: ["fx2"] }]);
 });
 
+test("mergeNotes: cung mot cau o nhieu ban chi hien mot lan", () => {
+  assert.deepEqual(mergeNotes([e("0.1.0", ["x", "y"]), e("0.2.0", ["y", "z"])], null, "0.2.0", "en"), [{ group: "new", items: ["y", "z", "x"] }]);
+});
+
 test("mergeNotes bo ban chua ra (> hien tai) va ban da xem; chon ngon ngu", () => {
   assert.deepEqual(mergeNotes(LOG, "0.2.0", "0.3.0", "pt-PT"), [{ group: "new", items: ["c pt"] }]);
   assert.deepEqual(mergeNotes(LOG, "0.3.0", "0.3.0", "en"), []);
 });
 
-test("decide: cai moi (chua co ban da xem) khong hien, chi ghi nho ban hien tai", () => {
-  assert.deepEqual(decide(LOG, null, "0.3.0", "en"), { show: false, remember: "0.3.0", notes: [] });
-  assert.deepEqual(decide(LOG, "rac", "0.3.0", "en").remember, "0.3.0");
+test("decide: lan mo dau tien (chua co ban da xem) hien ghi chu cua CHI ban hien tai, chua ghi nho (Got it moi ghi)", () => {
+  assert.deepEqual(decide(LOG, null, "0.3.0", "en"), { show: true, remember: null, notes: [{ group: "new", items: ["c"] }] });
+  assert.equal(decide(LOG, "rac", "0.3.0", "en").show, true); // gia tri da xem hong = nhu chua co
+});
+
+test("decide: lan mo dau nhung changelog khong co muc cho ban hien tai thi khong hien, chi ghi nho", () => {
+  assert.deepEqual(decide(LOG, null, "0.2.5", "en"), { show: true, remember: null, notes: [{ group: "new", items: ["b"] }, { group: "fixed", items: ["fx2"] }] });
+  assert.deepEqual(decide(LOG, null, "0.0.1", "en"), { show: false, remember: "0.0.1", notes: [] });
+});
+
+test("runWhenIdle: cho hop thoai khac dong roi moi chay; qua so lan thi van chay", () => {
+  let busy = true, ran = 0; const q: (() => void)[] = [];
+  runWhenIdle(() => ran++, () => busy, f => q.push(f));
+  assert.equal(ran, 0); q.shift()!(); assert.equal(ran, 0);
+  busy = false; q.shift()!(); assert.equal(ran, 1); assert.equal(q.length, 0);
+  let n = 0; const q2: (() => void)[] = [];
+  runWhenIdle(() => n++, () => true, f => q2.push(f), 1, 3);
+  while (q2.length) q2.shift()!();
+  assert.equal(n, 1);
 });
 
 test("decide: doi phien ban thi hien, nhay nhieu ban thi gop", () => {

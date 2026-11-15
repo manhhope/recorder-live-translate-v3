@@ -2,7 +2,7 @@
 // luu cai dat giao dien (localStorage "rlt.ui.*").
 import changelog from "../changelog.json";
 import { currentLocale } from "../i18n/index.ts";
-import { decide, loadSeen, manualNotes, saveSeen, type ChangelogEntry, type Lang, type Notes } from "./whats-new.ts";
+import { decide, loadSeen, manualNotes, runWhenIdle, saveSeen, type ChangelogEntry, type Lang, type Notes } from "./whats-new.ts";
 
 declare const __APP_VERSION__: string;
 export const APP_VERSION: string = __APP_VERSION__;
@@ -11,11 +11,16 @@ const ENTRIES = changelog.entries as ChangelogEntry[];
 export const whatsNew = $state({ open: false, notes: [] as Notes, version: APP_VERSION });
 const lang = (): Lang => (currentLocale() === "pt-PT" ? "pt-PT" : "en");
 
-/** Goi mot lan khi giao dien da san sang. Cai moi chi ghi nho phien ban; doi phien ban thi hien modal mot lan. */
-export function evaluateWhatsNew(): void {
+function evaluateNow(): void {
   const d = decide(ENTRIES, loadSeen(localStorage), APP_VERSION, lang());
   if (d.remember) saveSeen(localStorage, d.remember);
   if (d.show) { whatsNew.notes = d.notes; whatsNew.version = APP_VERSION; whatsNew.open = true; }
+}
+
+/** Goi mot lan khi giao dien da san sang. Lan mo dau tien hoac khi doi phien ban thi hien modal; xep hang sau hop thoai khac dang mo (dong y, xin quyen). */
+export function evaluateWhatsNew(): void {
+  const otherDialog = () => !!document.querySelector('[role="dialog"][aria-modal="true"]');
+  runWhenIdle(evaluateNow, otherDialog, (f, ms) => setTimeout(f, ms));
 }
 
 /** Mo lai thu cong tu Cai dat > About. */

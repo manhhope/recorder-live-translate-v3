@@ -1,4 +1,4 @@
-// What's New: hien mot lan sau khi doi phien ban, dong bang Got it/X/Esc, cai moi khong hien, mo lai tu Cai dat > About, en va pt-PT, cua so nho.
+// What's New: hien mot lan sau khi doi phien ban va o lan mo dau tien, dong bang Got it/X/Esc, mo lai tu Cai dat > About, en va pt-PT, cua so nho.
 import { test, expect } from "./fixtures.ts";
 import type { Page } from "@playwright/test";
 import { readFileSync, mkdirSync } from "node:fs";
@@ -58,10 +58,41 @@ test("bam ra ngoai khong dong; Tab xoay vong trong hop thoai", async ({ page, rl
   await expect(rlt.btn("wn.gotit", dlg(page))).toBeFocused();
 });
 
-test("cai moi (chua co phien ban da xem): khong hien, chi ghi nho phien ban", async ({ page, rlt }) => {
-  await rlt.open();
+for (const loc of ["en", "pt-PT"] as const) {
+  test(`lan mo dau tien (chua co phien ban da xem): hien What's New cua ban hien tai, Got it ghi nho, mo lai khong hien ${loc}`, async ({ page, rlt }) => {
+    await rlt.open({ locale: loc, whatsNewSeen: null });
+    expect(await seen(page)).toBeNull();
+    const d = dlg(page);
+    await expect(d).toBeVisible();
+    await expect(d).toContainText("v" + VERSION);
+    await expect(d.locator("li").first()).toBeVisible();
+    await rlt.btn("wn.gotit", d).click();
+    await expect(d).toHaveCount(0);
+    expect(await seen(page)).toBe(VERSION);
+    await page.reload();
+    await expect(rlt.nav("nav.record")).toBeVisible();
+    await page.waitForTimeout(1200);
+    await expect(dlg(page)).toHaveCount(0);
+  });
+}
+
+test("lan mo dau tien: dong bang Esc cung ghi nho; dong y/xin quyen dang mo thi doi xong moi hien", async ({ page, rlt }) => {
+  await rlt.open({ whatsNewSeen: "0.0.1" });
+  await page.keyboard.press("Escape");
   await expect(dlg(page)).toHaveCount(0);
-  await expect.poll(() => seen(page)).toBe(VERSION);
+  await page.evaluate(() => localStorage.removeItem("rlt.ui.whatsNewSeen"));
+  // Gia lap hop thoai khac dang mo luc khoi dong: What's New phai doi.
+  await page.addInitScript(() => {
+    const d = document.createElement("div"); d.id = "other"; d.setAttribute("role", "dialog"); d.setAttribute("aria-modal", "true");
+    document.addEventListener("DOMContentLoaded", () => document.body.appendChild(d));
+    (window as any).__closeOther = () => d.remove();
+  });
+  await page.reload();
+  await expect(rlt.nav("nav.record")).toBeVisible();
+  await page.waitForTimeout(900);
+  await expect(page.locator(".wn")).toHaveCount(0);
+  await page.evaluate(() => (window as any).__closeOther());
+  await expect(page.locator(".wn")).toBeVisible();
 });
 
 test("cung phien ban da xem: khong hien", async ({ page, rlt }) => {
