@@ -12,6 +12,7 @@
   let mic = $state<string | null>(null);
   let screen = $state<string | null>(null);
   let ax = $state<boolean | null>(null);
+  let onlyMic = $state(false); // Windows: khong co Ghi man hinh / Accessibility
   let err = $state(false);
   let busy = $state(false);
   let errKeyShown = $state<string | null>(null);
@@ -25,8 +26,8 @@
 
   async function load() {
     err = false; errKeyShown = null;
-    try { const p = await api.permissionsStatus(); mic = p.mic; screen = p.screen; } catch { err = true; }
-    try { ax = await api.axStatus(); } catch { err = true; }
+    try { const p = await api.permissionsStatus(); mic = p.mic; screen = p.screen; onlyMic = p.platform === "windows"; } catch { err = true; }
+    if (!onlyMic) try { ax = await api.axStatus(); } catch { err = true; }
   }
   // Check again: doc nhanh, neu ghi man hinh van "denied" thi do that (SCShareableContent) de phan biet cho khoi dong lai.
   async function recheck() {
@@ -78,6 +79,7 @@
       {/if}
     </div>
   </div>
+  {#if !onlyMic}
   <div class="rw">
     <b>{$_("set.perm.screen")}</b>
     <div class="rr">
@@ -99,6 +101,7 @@
       {/if}
     </div>
   </div>
+  {/if}
   {#if needsRestart}<div class="hint" style="margin:4px 0 0"><Icon name="info" /> {$_("set.perm.screenhelp")}</div>{/if}
   {#if ax === false}<div class="hint" style="margin:4px 0 0"><Icon name="info" /> {$_("set.perm.axhelp")}</div>{/if}
   <div class="tl2" style="margin-top:8px">

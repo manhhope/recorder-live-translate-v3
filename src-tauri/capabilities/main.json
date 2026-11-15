@@ -1,6 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-window",
+  "platforms": ["macOS", "windows"],
   "description": "Cua so chinh (ADR-10): lenh vo ung dung va cai dat. Autostart va deep-link chi di qua lenh Rust nay, khong cap plugin JS.",
   "windows": [
     "main"

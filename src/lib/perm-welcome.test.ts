@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { micState, screenState, boolState, missingRequired, shouldAutoShow, takeReminders, permOfStartError, remindOnStart, loadOff, saveOff, OFF_KEY, type PermStates, type PermKey } from "./perm-welcome.ts";
+import { keysFor, micState, screenState, boolState, missingRequired, shouldAutoShow, takeReminders, permOfStartError, remindOnStart, loadOff, saveOff, OFF_KEY, type PermStates, type PermKey } from "./perm-welcome.ts";
 
 const S = (mic: PermStates["mic"], screen: PermStates["screen"], ax: PermStates["ax"] = "allowed"): PermStates => ({ mic, screen, ax });
 const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) }; };
@@ -73,4 +73,10 @@ test("loadOff/saveOff: nho lua chon Dung hien lai, bo chon thi xoa; luu tru hong
   const bad = { getItem: () => { throw new Error("x"); }, setItem: () => { throw new Error("x"); }, removeItem: () => { throw new Error("x"); } };
   assert.equal(loadOff(bad), false);
   assert.doesNotThrow(() => saveOff(bad, true));
+});
+
+test("keysFor: Windows chi co micro; macOS va nen tang khac giu du ba quyen", () => {
+  assert.deepEqual(keysFor("windows"), ["mic"]);
+  assert.deepEqual(keysFor("macos"), ["mic", "screen", "ax"]);
+  assert.deepEqual(keysFor(undefined), ["mic", "screen", "ax"]);
 });

@@ -775,6 +775,7 @@
   "pw.mic.name": "Microfone",
   "pw.mic.why": "Ouve a sua voz para a traduzir em direto.",
   "pw.mic.allow": "Permitir",
+  "pw.mic.denied.win": "Ative-o em Definições > Privacidade e segurança > Microfone e ative \"Permitir que as aplicações de ambiente de trabalho acedam ao microfone\".",
   "pw.mic.denied": "Ative-o em Definições do Sistema > Privacidade e Segurança > Microfone.",
   "pw.screen.name": "Gravação do Ecrã e Áudio do Sistema",
   "pw.screen.why": "Capta o som das reuniões e dos vídeos neste Mac. Nenhuma imagem do ecrã é gravada.",

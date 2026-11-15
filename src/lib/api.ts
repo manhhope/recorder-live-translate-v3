@@ -22,7 +22,7 @@ export type UiEvent =
 export interface StartParams { targetLang: string; listenLangs: string[]; mode: RecordMode; title?: string | null }
 export interface RecordPrefs { targetLang: string; listenLangs: string[]; mode: RecordMode; uiLanguage: string }
 /** `mic`: notDetermined | denied | restricted | authorized. */
-export interface PermissionsOut { mic: string; screen: string }
+export interface PermissionsOut { mic: string; screen: string; platform?: string }
 export type DriveConnState = "not_configured" | "disconnected" | "connected";
 export interface DriveConnOut { state: DriveConnState; email: string | null; builtin: boolean }
 export interface DriveSyncAllOut { total: number; synced: number; failed: number; waiting: number; oauthConnected: boolean }

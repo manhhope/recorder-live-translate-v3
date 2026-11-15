@@ -1,6 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "ask-ai-window",
+  "platforms": ["macOS", "windows"],
   "description": "Cua so ask-ai (ADR-10): chat Hoi AI. Khong co lenh dat hay doc khoa API; khoa chi dat duoc tu cua so main.",
   "windows": [
     "ask-ai"

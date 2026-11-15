@@ -1,6 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "overlay-window",
+  "platforms": ["macOS", "windows"],
   "description": "Cua so phu de (ADR-10, label 'subtitle'): hien chu nhan dang tu am thanh bat ky nen khong dung duoc phien, bien ban, khoa hay mang.",
   "windows": ["subtitle"],
   "permissions": [

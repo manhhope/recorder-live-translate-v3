@@ -136,11 +136,12 @@ fn run_keeper<B: PowerBackend>(mut backend: B, rx: Receiver<Cmd>) {
     }
 }
 
-/// Backend của nền tảng hiện tại: IOKit trên macOS, không làm gì ở nơi khác (Windows có
-/// `SetThreadExecutionState` ở giai đoạn Windows, không thuộc M1 macOS).
+/// Backend của nền tảng hiện tại: IOKit trên macOS, `SetThreadExecutionState` trên Windows, không làm gì ở nơi khác.
 #[cfg(target_os = "macos")]
 pub type SystemBackend = iokit::IoKitBackend;
-#[cfg(not(target_os = "macos"))]
+#[cfg(windows)]
+pub type SystemBackend = winpower::ExecutionStateBackend;
+#[cfg(not(any(target_os = "macos", windows)))]
 pub type SystemBackend = NoopBackend;
 
 /// Backend rỗng cho nền tảng chưa cài.
@@ -391,5 +392,54 @@ mod tests {
         assert!(k.is_held());
         k.release().unwrap();
         assert!(!k.is_held());
+    }
+
+    /// Goi API that (khong can GUI); CHUA chay tren Windows that.
+    #[cfg(windows)]
+    #[test]
+    fn windows_execution_state_backend_creates_and_releases() {
+        let k = PowerKeeper::spawn(winpower::ExecutionStateBackend::default);
+        k.acquire("rlt test: giu may thuc").unwrap();
+        assert!(k.is_held());
+        k.release().unwrap();
+        assert!(!k.is_held());
+    }
+}
+
+#[cfg(windows)]
+pub mod winpower {
+    //! `SetThreadExecutionState` gắn với LUỒNG gọi, nên backend chỉ đúng khi `create` và `release` chạy cùng một luồng:
+    //! `PowerKeeper` đã đảm bảo (một luồng giữ riêng, `run_keeper`). `ES_CONTINUOUS | ES_SYSTEM_REQUIRED` giữ HỆ THỐNG
+    //! không ngủ nhưng KHÔNG chặn tắt màn hình (giống `PreventUserIdleSystemSleep` trên macOS).
+    use super::{PowerBackend, PowerError};
+
+    const ES_CONTINUOUS: u32 = 0x8000_0000;
+    const ES_SYSTEM_REQUIRED: u32 = 0x0000_0001;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn SetThreadExecutionState(flags: u32) -> u32;
+    }
+
+    #[derive(Default)]
+    pub struct ExecutionStateBackend;
+
+    impl PowerBackend for ExecutionStateBackend {
+        type Handle = ();
+        fn create(&mut self, _reason: &str) -> Result<(), PowerError> {
+            // SAFETY: ham Win32 khong con tro; tra 0 la loi.
+            if unsafe { SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED) } == 0 {
+                return Err(PowerError::Create("SetThreadExecutionState that bai".into()));
+            }
+            Ok(())
+        }
+        fn release(&mut self, _handle: ()) -> Result<(), PowerError> {
+            // ES_CONTINUOUS rieng le = xoa yeu cau da dat.
+            // SAFETY: nhu tren.
+            if unsafe { SetThreadExecutionState(ES_CONTINUOUS) } == 0 {
+                return Err(PowerError::Release("SetThreadExecutionState (nha) that bai".into()));
+            }
+            Ok(())
+        }
     }
 }

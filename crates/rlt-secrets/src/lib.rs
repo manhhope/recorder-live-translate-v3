@@ -239,11 +239,11 @@ impl SecretStore for InMemorySecretStore {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 mod keychain {
     use super::*;
 
-    /// Ban Keychain macOS dung crate `keyring`.
+    /// Ban Keychain (macOS) / Credential Manager (Windows) dung crate `keyring`, cung ten service.
     #[derive(Debug, Clone)]
     pub struct KeychainSecretStore {
         service: String,
@@ -286,6 +286,7 @@ mod keychain {
                 Err(e) => Err(SecretError::Backend(e.to_string())),
             }
         }
+        #[cfg(target_os = "macos")]
         fn exists(&self, kind: SecretKind) -> Result<bool, SecretError> {
             use security_framework::item::{ItemClass, ItemSearchOptions};
             // Chi hoi thuoc tinh (khong load du lieu) => khong cham ACL cua muc => khong co hop thoai.
@@ -310,7 +311,7 @@ mod keychain {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 pub use keychain::KeychainSecretStore;
 
 #[cfg(test)]
@@ -495,7 +496,7 @@ mod tests {
         assert_eq!(b.gets(), 1);
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     #[test]
     fn real_keychain_roundtrip_fake_key_cleaned_up() {
         // Service rieng cho test + khoa gia; luon xoa sau khi chay.

@@ -233,15 +233,7 @@ pub fn scrub_log(s: &str) -> String {
 }
 
 fn log_dir() -> Option<std::path::PathBuf> {
-    let home = std::path::PathBuf::from(std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?);
-    const ID: &str = "com.mmola.recorderlivetranslate";
-    if cfg!(target_os = "macos") {
-        Some(home.join("Library/Application Support").join(ID))
-    } else if cfg!(windows) {
-        std::env::var_os("APPDATA").map(|a| std::path::PathBuf::from(a).join(ID))
-    } else {
-        Some(home.join(".local/share").join(ID))
-    }
+    rlt_platform::paths::data_dir("com.mmola.recorderlivetranslate")
 }
 
 /// Mot dong log co cau truc `ts=.. event=.. k=v ...` ra stderr va `session-errors.log` (cat khi > 256 KB).

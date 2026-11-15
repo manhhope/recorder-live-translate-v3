@@ -170,6 +170,8 @@ pub struct PermissionsOut {
     pub mic: &'static str,
     /// `granted` | `denied` | `unknown` (ngoai macOS).
     pub screen: &'static str,
+    /// `macos` | `windows` | `other`. Windows khong co quyen Ghi man hinh / Accessibility: giao dien chi hien micro.
+    pub platform: &'static str,
 }
 
 #[tauri::command]
@@ -178,7 +180,14 @@ pub fn permissions_status() -> PermissionsOut {
     let screen = if crate::capture::sck::has_permission() { "granted" } else { "denied" };
     #[cfg(not(target_os = "macos"))]
     let screen = "unknown";
-    PermissionsOut { mic: rlt_platform::mic_permission().as_str(), screen }
+    let platform = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(windows) {
+        "windows"
+    } else {
+        "other"
+    };
+    PermissionsOut { mic: rlt_platform::mic_permission().as_str(), screen, platform }
 }
 
 /// Kiem quyen Ghi man hinh bang CGPreflight + do that SCShareableContent (chi khi nguoi dung bam Check again).

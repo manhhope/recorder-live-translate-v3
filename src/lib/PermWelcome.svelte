@@ -5,7 +5,7 @@
   import { _ } from "../i18n/index.ts";
   import Icon from "./Icon.svelte";
   import * as api from "./api.ts";
-  import { isAllowed, PERM_ORDER, type PermKey } from "./perm-welcome.ts";
+  import { isAllowed, type PermKey } from "./perm-welcome.ts";
   import { permWelcome, closePermWelcome, refreshPerms, allowMic, openPane, restartNow } from "./perm-welcome.svelte.ts";
 
   let root = $state<HTMLElement>();
@@ -49,14 +49,14 @@
     </header>
     <div class="wn-b" tabindex="0">
       <p class="hint pw-intro">{$_("pw.intro")}</p>
-      {#each PERM_ORDER as k (k)}
+      {#each permWelcome.keys as k (k)}
         {@const st = permWelcome.states[k]}
         <div class="pw-row {permWelcome.focus === k ? 'hot' : ''}" data-testid={"pw-" + k} data-state={st}>
           <div class="pw-main">
             <b>{$_(NAME[k])}{#if k === "ax"} <span class="bd">{$_("pw.optional")}</span>{/if}</b>
             <span class="hint">{$_(WHY[k])}</span>
             {#if permWelcome.focus === k && !isAllowed(st)}<span class="hint pw-miss" role="status"><Icon name="warn" /> {$_("pw.missing")}</span>{/if}
-            {#if k === "mic" && st === "denied"}<span class="hint">{$_("pw.mic.denied")}</span>{/if}
+            {#if k === "mic" && st === "denied"}<span class="hint">{$_(permWelcome.keys.length === 1 ? "pw.mic.denied.win" : "pw.mic.denied")}</span>{/if}
             {#if k === "screen" && st === "needsrestart"}<span class="hint">{$_("pw.screen.restart")}</span>{/if}
             {#if k === "screen" && st !== "allowed" && st !== "needsrestart"}<span class="hint">{$_("pw.screen.settings")}</span>{/if}
           </div>

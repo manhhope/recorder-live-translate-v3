@@ -775,6 +775,7 @@
   "pw.mic.name": "Microphone",
   "pw.mic.why": "Hears your voice so it can be translated live.",
   "pw.mic.allow": "Allow",
+  "pw.mic.denied.win": "Switch it on in Settings > Privacy & security > Microphone, and turn on \"Let desktop apps access your microphone\".",
   "pw.mic.denied": "Switch it on in System Settings > Privacy & Security > Microphone.",
   "pw.screen.name": "Screen & System Audio Recording",
   "pw.screen.why": "Captures the sound of meetings and videos on this Mac. No screen image is recorded.",
