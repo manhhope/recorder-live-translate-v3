@@ -67,7 +67,8 @@ pub fn start(app: AppHandle) {
             };
             let _ = ready_tx.send(GetCurrentThreadId());
             let mut msg = MSG::default();
-            while GetMessageW(&mut msg, None, 0, 0).as_bool() {}
+            // GetMessageW: >0 tin nhan, 0 = WM_QUIT, -1 = loi. Chi tiep tuc khi > 0 (as_bool coi -1 la true => vong lap vo han).
+            while GetMessageW(&mut msg, None, 0, 0).0 > 0 {}
             let _ = UnhookWindowsHookEx(hook);
         }
     });

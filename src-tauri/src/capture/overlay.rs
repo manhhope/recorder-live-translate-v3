@@ -13,10 +13,12 @@ pub const ESC_ACCELERATOR: &str = "Escape";
 /// Lỗi chụp, độc lập nền tảng (macOS `sck::capture` trả đúng kiểu này).
 #[derive(Debug, PartialEq, Eq)]
 pub enum CaptureError {
+    #[cfg_attr(windows, allow(dead_code))]
     NoPermission,
     NoDisplay,
     Sck(String),
-    /// Lỗi GDI trên Windows (tên hàm hỏng).
+    /// Lỗi GDI trên Windows (tên hàm hỏng). Chỉ được tạo ở nhánh Windows.
+    #[cfg_attr(not(windows), allow(dead_code))]
     Gdi(String),
 }
 

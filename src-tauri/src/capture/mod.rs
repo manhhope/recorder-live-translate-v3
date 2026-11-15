@@ -147,7 +147,7 @@ pub fn capture_begin(app: AppHandle) -> Result<(), String> {
             #[cfg(windows)]
             if let Ok(w) = &built {
                 if let Ok(h) = w.hwnd() {
-                    let ptr = h.0 as *mut std::ffi::c_void;
+                    let ptr = h.0;
                     let kind = rlt_platform::panel::PanelKind::CaptureOverlay;
                     // SAFETY: HWND vừa tạo, còn sống; luồng chính.
                     let _ = unsafe { rlt_platform::panel::apply(ptr, kind) };

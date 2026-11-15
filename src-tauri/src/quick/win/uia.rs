@@ -71,11 +71,13 @@ fn read() -> AxRead {
 }
 
 /// `true` nếu phần tử đang có tiêu điểm là ô mật khẩu.
+#[allow(dead_code)]
 pub fn focused_is_secure() -> bool {
     matches!(read(), AxRead::SecureField)
 }
 
 /// Số ký tự đang chọn (cho toolbar), không giữ nội dung.
+#[allow(dead_code)]
 pub fn selected_chars() -> usize {
     match read() {
         AxRead::Text(t) => t.chars().count(),

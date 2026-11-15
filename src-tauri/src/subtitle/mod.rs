@@ -173,7 +173,7 @@ pub(crate) fn apply_panel(w: &tauri::WebviewWindow, hidden: bool) {
     use rlt_platform::panel::{apply, set_hidden_from_capture, PanelKind};
     match w.hwnd() {
         Ok(h) => {
-            let ptr = h.0 as *mut std::ffi::c_void;
+            let ptr = h.0;
             // SAFETY: HWND do Tauri cấp, còn sống suốt vòng đời cửa sổ; các API user32 kiểm `IsWindow` trước.
             if let Err(e) = unsafe { apply(ptr, PanelKind::Subtitle) } {
                 eprintln!("subtitle: khong dat duoc co cua so noi: {e}");
@@ -192,7 +192,7 @@ pub(crate) fn apply_panel(w: &tauri::WebviewWindow, hidden: bool) {
 pub(crate) fn reassert_panel(w: &tauri::WebviewWindow) {
     if let Ok(h) = w.hwnd() {
         // SAFETY: như `apply_panel`.
-        let _ = unsafe { rlt_platform::panel::reassert(h.0 as *mut std::ffi::c_void, rlt_platform::panel::PanelKind::Subtitle) };
+        let _ = unsafe { rlt_platform::panel::reassert(h.0, rlt_platform::panel::PanelKind::Subtitle) };
     }
 }
 

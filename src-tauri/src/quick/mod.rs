@@ -573,7 +573,7 @@ fn show_toolbar(app: &AppHandle) {
                 #[cfg(windows)]
                 if let Ok(h) = w.hwnd() {
                     // SAFETY: HWND vua tao, luong chinh.
-                    let _ = unsafe { rlt_platform::panel::apply(h.0 as *mut std::ffi::c_void, rlt_platform::panel::PanelKind::Subtitle) };
+                    let _ = unsafe { rlt_platform::panel::apply(h.0, rlt_platform::panel::PanelKind::Subtitle) };
                 }
                 w
             }
@@ -586,7 +586,7 @@ fn show_toolbar(app: &AppHandle) {
         #[cfg(windows)]
         if let Ok(h) = w.hwnd() {
             // Hien KHONG kich hoat (SWP_SHOWWINDOW | SWP_NOACTIVATE) de khong cuop tieu diem cua app dang boi chon.
-            let _ = unsafe { rlt_platform::panel::show_key(h.0 as *mut std::ffi::c_void, rlt_platform::panel::PanelKind::Subtitle) };
+            let _ = unsafe { rlt_platform::panel::show_key(h.0, rlt_platform::panel::PanelKind::Subtitle) };
         }
         #[cfg(not(windows))]
         let _ = w.show();

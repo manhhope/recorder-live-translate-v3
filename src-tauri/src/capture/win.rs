@@ -16,6 +16,8 @@
 //! Phần đổi toạ độ và đổi BGRA sang RGBA là hàm thuần, test được trên mọi nền tảng. Phần gọi GDI CHƯA CHẠY trên
 //! máy Windows thật (xem docs/win-w2-bao-cao.md).
 
+#![cfg_attr(not(windows), allow(dead_code, unused_imports))]
+
 use super::image::Rgba;
 use rlt_platform::panel_geometry::{MonitorInfo, PixelRect};
 
@@ -41,7 +43,8 @@ pub fn to_virtual(monitor: &MonitorInfo, px: PixelRect) -> VirtualRect {
 
 /// GDI trả BGRA (alpha không đáng tin, thường 0); đổi sang RGBA và ép alpha 255.
 pub fn bgra_to_rgba(buf: &mut [u8]) {
-    for p in buf.chunks_exact_mut(4) {
+    let (px, _) = buf.as_chunks_mut::<4>();
+    for p in px {
         p.swap(0, 2);
         p[3] = 255;
     }
@@ -264,5 +267,18 @@ mod tests {
         let mut b = vec![0u8; 2 * 2 * 4];
         bgra_to_rgba(&mut b);
         assert!(Rgba::new(2, 2, b).is_ok());
+    }
+
+    // ---- W3 (qa-tester) ----
+    #[test]
+    fn fractional_scale_rounds_origin_and_empty_buffer_is_noop() {
+        let r = to_virtual(&mon(-1280.5, -100.25, 1000.0, 1000.0, 1.25), PixelRect { x: 0, y: 0, w: 1, h: 1 });
+        assert_eq!((r.x, r.y), (-1601, -125));
+        let mut e: Vec<u8> = vec![];
+        bgra_to_rgba(&mut e);
+        assert!(e.is_empty());
+        let mut odd = vec![1u8, 2, 3, 4, 9, 9];
+        bgra_to_rgba(&mut odd);
+        assert_eq!(odd, vec![3, 2, 1, 255, 9, 9], "phan le khong dung toi");
     }
 }

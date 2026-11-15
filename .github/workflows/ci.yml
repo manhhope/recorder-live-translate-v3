@@ -39,3 +39,34 @@ jobs:
       - run: npm run build
       - run: cargo test --workspace
       - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  # ---------------------------------------------------------------------------------------------
+  # Windows 11 (nhanh win-port, W3). TRANG THAI THAT: job nay CHUA TUNG CHAY, vi repo khong co remote nen khong co
+  # GitHub Actions. Noi dung bam theo nhung gi da chay duoc o host macOS qua cargo-xwin (check, clippy) va cac
+  # test `#[cfg(windows)]` CHUA tung thuc thi tren Windows. `continue-on-error: true` cho den khi chay xanh lan dau
+  # tren runner that; khi do bo dong nay de job chan merge. Installer NSIS build cheo tren macOS bang cargo-xwin
+  # (xem docs/win-w3-review-bao-cao.md), job nay chi kiem tra, khong dong goi.
+  # ---------------------------------------------------------------------------------------------
+  windows:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check:caps
+      - run: npm run test:i18n
+      - run: npm run test:unit
+      - run: npm run build
+      - run: cargo test --workspace
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      # Playwright: project `chromium-win` (test/e2e/windows.spec.ts) la phan dac thu Windows; project `chromium`
+      # ghim UA Mac nen chay duoc o moi host.
+      - run: npx playwright install chromium
+      - run: npx playwright test

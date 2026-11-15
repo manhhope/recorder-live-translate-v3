@@ -4,8 +4,9 @@
 /// Chỉ nhận lược đồ `http`, `https` (trình duyệt) và `ms-settings` (Windows Settings). Chặn `file:`, `javascript:`...
 pub fn is_allowed_uri(uri: &str) -> bool {
     let lower = uri.to_ascii_lowercase();
-    ["http://", "https://", "ms-settings:", "x-apple.systempreferences:"].iter().any(|p| lower.starts_with(p))
-        && !uri.chars().any(|c| c.is_control())
+    // Chi cho scheme cua chinh nen tang nay: Windows khong nhan `x-apple...`, macOS khong nhan `ms-settings`.
+    let os_scheme = if cfg!(windows) { "ms-settings:" } else { "x-apple.systempreferences:" };
+    ["http://", "https://", os_scheme].iter().any(|p| lower.starts_with(p)) && !uri.chars().any(|c| c.is_control())
 }
 
 /// Mở `uri`. `false` nếu lược đồ không được phép hoặc hệ thống từ chối.
@@ -47,12 +48,18 @@ mod tests {
 
     #[test]
     fn allows_only_web_and_settings_schemes() {
-        for ok in ["https://example.com/a?b=1&c=2", "http://localhost:1234/x", "HTTPS://X.COM", "ms-settings:privacy-microphone"] {
+        for ok in ["https://example.com/a?b=1&c=2", "http://localhost:1234/x", "HTTPS://X.COM"] {
             assert!(is_allowed_uri(ok), "{ok}");
         }
         for bad in ["", "file:///C:/Windows/System32/calc.exe", "javascript:alert(1)", "calc.exe", "cmd /c start", "https://a\nb", "C:\\x.exe"] {
             assert!(!is_allowed_uri(bad), "{bad:?}");
         }
+    }
+
+    #[test]
+    fn only_own_platform_settings_scheme_is_allowed() {
+        assert_eq!(is_allowed_uri("ms-settings:privacy-microphone"), cfg!(windows));
+        assert_eq!(is_allowed_uri("x-apple.systempreferences:com.apple.preference.security"), !cfg!(windows));
     }
 
     #[test]

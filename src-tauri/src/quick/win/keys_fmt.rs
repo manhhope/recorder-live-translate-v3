@@ -93,4 +93,31 @@ mod tests {
     fn excluded_list_is_matched_case_insensitively() {
         assert_eq!(normalize_excluded(&["Notepad.EXE".into(), "".into(), r"C:\a\Code.exe".into()]), vec!["notepad.exe", "code.exe"]);
     }
+
+    // ---- W3 (qa-tester) ----
+    #[test]
+    fn modifier_wait_polls_at_most_cap_times_and_sleeps_between() {
+        let (mut polls, mut sleeps) = (0u32, 0u32);
+        let ok = wait_modifiers_released(|| { polls += 1; true }, || sleeps += 1);
+        assert!(!ok);
+        assert_eq!((polls, sleeps), (WAIT_STEPS, WAIT_STEPS));
+        assert_eq!(WAIT_STEPS as u64 * WAIT_STEP_MS, 800);
+    }
+
+    #[test]
+    fn modifier_wait_returns_immediately_when_nothing_held() {
+        let mut sleeps = 0;
+        assert!(wait_modifiers_released(|| false, || sleeps += 1));
+        assert_eq!(sleeps, 0);
+    }
+
+    #[test]
+    fn exe_name_edge_cases() {
+        assert_eq!(exe_name("C:\\Program Files\\App\\NOTEPAD.EXE").as_deref(), Some("notepad.exe"));
+        assert_eq!(exe_name("C:\\dir\\").as_deref(), None);
+        assert_eq!(exe_name("").as_deref(), None);
+        assert_eq!(exe_name("   ").as_deref(), None);
+        assert_eq!(exe_name("C:\\Việt\\Ứng Dụng.exe").as_deref(), Some("ứng dụng.exe"));
+        assert!(normalize_excluded(&["".to_string(), "Zoom.exe".to_string()]) == vec!["zoom.exe".to_string()]);
+    }
 }

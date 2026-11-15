@@ -60,7 +60,8 @@ pub fn unicode_text_bytes(s: &str) -> Vec<u8> {
 
 /// Giải CF_UNICODETEXT (cắt tại ký tự 0 đầu tiên).
 pub fn text_from_unicode_bytes(b: &[u8]) -> String {
-    let u: Vec<u16> = b.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).take_while(|&c| c != 0).collect();
+    let (pairs, _) = b.as_chunks::<2>();
+    let u: Vec<u16> = pairs.iter().map(|c| u16::from_le_bytes(*c)).take_while(|&c| c != 0).collect();
     String::from_utf16_lossy(&u)
 }
 
@@ -112,5 +113,37 @@ mod tests {
         assert!(PRIVACY_FORMATS.contains(&"ExcludeClipboardContentFromMonitorProcessing"));
         assert!(PRIVACY_FORMATS.contains(&"CanIncludeInClipboardHistory"));
         assert!(PRIVACY_FORMATS.contains(&"CanUploadToCloudClipboard"));
+    }
+
+    // ---- W3 (qa-tester) ----
+    #[test]
+    fn parse_uti_rejects_handle_formats_garbage_and_empty_names() {
+        for bad in ["", "cf:", "cf:abc", "cf:2", "cf:9", "cf:512", "reg:", "zzz:1", "cf:-1", "cf:99999999999"] {
+            assert!(parse_uti(bad).is_none(), "{bad:?}");
+        }
+        assert!(matches!(parse_uti("cf:13"), Some(ParsedUti::Cf(13))));
+        assert!(matches!(parse_uti("reg:HTML Format"), Some(ParsedUti::Reg(n)) if n == "HTML Format"));
+    }
+
+    #[test]
+    fn registered_format_without_name_is_skipped_and_boundaries_hold() {
+        assert!(uti_for(0xC001, None).is_none());
+        assert_eq!(uti_for(0xC001, Some("Rich Text Format")).as_deref(), Some("reg:Rich Text Format"));
+        assert!(is_handle_format(0x80) && is_handle_format(0x8E) && is_handle_format(0x200) && is_handle_format(0x3FF));
+        assert!(!is_handle_format(0x8F) && !is_handle_format(0x400) && !is_handle_format(15) && !is_handle_format(13));
+    }
+
+    #[test]
+    fn unicode_text_cuts_at_first_nul_and_survives_odd_length_and_astral() {
+        assert_eq!(text_from_unicode_bytes(&unicode_text_bytes("a\u{1F600}b")), "a\u{1F600}b");
+        assert_eq!(text_from_unicode_bytes(&[b'h', 0, b'i', 0, 0, 0, b'x', 0]), "hi");
+        assert_eq!(text_from_unicode_bytes(&[b'h', 0, 7]), "h");
+        assert_eq!(text_from_unicode_bytes(&[]), "");
+    }
+
+    #[test]
+    fn synthesized_text_kept_when_no_unicode_present() {
+        assert_eq!(drop_synthesized_text(&[CF_TEXT, CF_OEMTEXT]), vec![CF_TEXT, CF_OEMTEXT]);
+        assert_eq!(drop_synthesized_text(&[]), Vec::<u32>::new());
     }
 }

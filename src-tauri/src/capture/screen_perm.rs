@@ -4,6 +4,8 @@
 //! của tiến trình đang chạy). Nguồn 2: dò thật `SCShareableContent` (lỗi -3801 = chưa cấp).
 //! Không có mã lỗi số trong crate `screencapturekit` (chỉ có `localizedDescription`), nên phân loại theo chuỗi.
 
+#![cfg_attr(windows, allow(dead_code))]
+
 /// Kết quả một lần dò thật `SCShareableContent`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Probe {

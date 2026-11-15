@@ -108,7 +108,7 @@ where
 {
     args.into_iter()
         .map(|a| a.as_ref().trim_matches('"').to_string())
-        .filter(|a| a.as_bytes().len() >= 6 && a.as_bytes()[..6].eq_ignore_ascii_case(b"rlt://"))
+        .filter(|a| a.len() >= 6 && a.as_bytes()[..6].eq_ignore_ascii_case(b"rlt://"))
         .collect()
 }
 

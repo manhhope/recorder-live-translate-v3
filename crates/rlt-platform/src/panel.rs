@@ -258,6 +258,9 @@ mod macos {
     ///
     /// # Safety
     /// `ns_window` phải là con trỏ `NSWindow` còn sống.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn restore_class(ns_window: *mut c_void) -> bool {
         if ns_window.is_null() || MainThreadMarker::new().is_none() {
             return false;
@@ -293,6 +296,9 @@ mod macos {
     ///
     /// # Safety
     /// `ns_window` phải là con trỏ `NSWindow` còn sống (từ `WebviewWindow::ns_window()`).
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn apply(ns_window: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
         let win = window_ref(ns_window)?;
         let cls = target_class(kind);
@@ -315,6 +321,9 @@ mod macos {
     ///
     /// # Safety
     /// Như `apply`.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn reassert(ns_window: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
         configure(window_ref(ns_window)?, kind);
         Ok(())
@@ -337,6 +346,9 @@ mod macos {
     ///
     /// # Safety
     /// Như `apply`.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn show_key(ns_window: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
         let win = window_ref(ns_window)?;
         configure(win, kind);
@@ -350,6 +362,9 @@ mod macos {
     ///
     /// # Safety
     /// Như `apply`.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn set_hidden_from_capture(ns_window: *mut c_void, hidden: bool) -> Result<(), PanelError> {
         let win = window_ref(ns_window)?;
         win.setSharingType(if hidden { NSWindowSharingType::None } else { NSWindowSharingType::ReadOnly });
@@ -360,6 +375,9 @@ mod macos {
     ///
     /// # Safety
     /// Như `apply`.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn window_number(ns_window: *mut c_void) -> Result<i64, PanelError> {
         Ok(window_ref(ns_window)?.windowNumber() as i64)
     }
@@ -425,6 +443,9 @@ mod win {
 
     /// Đặt ex-style (NOACTIVATE, TOOLWINDOW, TOPMOST) và affinity. Gọi được nhiều lần, từ luồng bất kỳ
     /// (các API user32 này an toàn khi gọi ngoài luồng sở hữu cửa sổ; SetWindowPos gửi tin sang luồng đó).
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn apply(hwnd: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
         check(hwnd)?;
         let p = win_plan(kind);
@@ -448,21 +469,33 @@ mod win {
     }
 
     /// Lớp chọn vùng nhận chuột mà không kích hoạt app (WS_EX_NOACTIVATE): chỉ cần gọi lại cờ và hiện lên.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn show_key(hwnd: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
         apply(hwnd, kind)?;
         set_topmost(hwnd, true, true)
     }
 
     /// Gọi lại sau `show()` hoặc khi đổi màn hình: Windows có thể tước TOPMOST khi cửa sổ khác chiếm toàn màn hình.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn reassert(hwnd: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
         apply(hwnd, kind)
     }
 
     /// Không có lớp gốc để trả lại như macOS.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn restore_class(_hwnd: *mut c_void) -> bool {
         false
     }
 
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn set_hidden_from_capture(hwnd: *mut c_void, hidden: bool) -> Result<(), PanelError> {
         check(hwnd)?;
         let p = win_plan(PanelKind::Subtitle);
@@ -472,6 +505,9 @@ mod win {
         Ok(())
     }
 
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn window_number(hwnd: *mut c_void) -> Result<i64, PanelError> {
         check(hwnd)?;
         Ok(hwnd as isize as i64)
