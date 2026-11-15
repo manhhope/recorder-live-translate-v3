@@ -8,6 +8,7 @@ pub mod persist;
 pub mod screen_perm;
 #[cfg(target_os = "macos")]
 pub mod sck;
+pub mod win;
 
 use rlt_platform::panel_geometry::{monitor_key, region_to_pixels, MonitorInfo, Point, Rect};
 use serde::Serialize;
@@ -102,6 +103,7 @@ fn close_overlays(app: &AppHandle) {
 /// Mở lớp phủ chọn vùng trên MỌI màn. Trả mã lỗi dạng chuỗi (giao diện dịch): `no_permission`, `no_monitor`.
 #[tauri::command]
 pub fn capture_begin(app: AppHandle) -> Result<(), String> {
+    // Windows không có quyền ghi màn hình riêng cho app desktop: GDI luôn chụp được (trừ nội dung DRM).
     #[cfg(target_os = "macos")]
     let allowed = sck::has_permission();
     #[cfg(not(target_os = "macos"))]
@@ -139,6 +141,16 @@ pub fn capture_begin(app: AppHandle) -> Result<(), String> {
                     let kind = rlt_platform::panel::PanelKind::CaptureOverlay;
                     let _ = unsafe { rlt_platform::panel::apply(ptr, kind) };
                     // Thành key window ngay (không kích hoạt app) để lần kéo thả ĐẦU TIÊN nhận chuột.
+                    let _ = unsafe { rlt_platform::panel::show_key(ptr, kind) };
+                }
+            }
+            #[cfg(windows)]
+            if let Ok(w) = &built {
+                if let Ok(h) = w.hwnd() {
+                    let ptr = h.0 as *mut std::ffi::c_void;
+                    let kind = rlt_platform::panel::PanelKind::CaptureOverlay;
+                    // SAFETY: HWND vừa tạo, còn sống; luồng chính.
+                    let _ = unsafe { rlt_platform::panel::apply(ptr, kind) };
                     let _ = unsafe { rlt_platform::panel::show_key(ptr, kind) };
                 }
             }
@@ -206,12 +218,16 @@ fn commit_blocking(app: &AppHandle, session_id: &str, offset_ms: i64, start: (f6
     // Số cửa sổ của app (để loại khỏi ảnh) phải lấy TRƯỚC khi đóng lớp phủ.
     #[cfg(target_os = "macos")]
     let own = own_window_numbers(app);
+    #[cfg(windows)]
+    let own_hwnds = own_hwnds(app);
     close_overlays(app);
     let mons = monitors(app);
     let (idx, px) = region_to_pixels(&mons, Point { x: start.0, y: start.1 }, Point { x: end.0, y: end.1 }).map_err(overlay::region_code)?;
     #[cfg(target_os = "macos")]
     let img = overlay::guarded(|| sck::capture(&mons[idx], px, &own)).map_err(overlay::capture_code)?;
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    let img = overlay::guarded(|| win::capture(&mons[idx], px, &own_hwnds)).map_err(overlay::capture_code)?;
+    #[cfg(not(any(target_os = "macos", windows)))]
     let img: image::Rgba = {
         let _ = (idx, px);
         return Err("unsupported".into());
@@ -232,6 +248,12 @@ fn commit_blocking(app: &AppHandle, session_id: &str, offset_ms: i64, start: (f6
             persist::SaveError::LimitReached => "limit_reached".into(),
             other => format!("save_failed:{other:?}"),
         })
+}
+
+/// HWND của mọi cửa sổ trong app (để tạm loại khỏi ảnh chụp). HWND chỉ là số nguyên, đọc được từ luồng bất kỳ.
+#[cfg(windows)]
+fn own_hwnds(app: &AppHandle) -> Vec<isize> {
+    app.webview_windows().values().filter_map(|w| w.hwnd().ok()).map(|h| h.0 as isize).collect()
 }
 
 /// Số cửa sổ (`NSWindow.windowNumber`) của mọi cửa sổ trong app, gồm phụ đề và lớp phủ.

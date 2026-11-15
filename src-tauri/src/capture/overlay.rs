@@ -16,6 +16,8 @@ pub enum CaptureError {
     NoPermission,
     NoDisplay,
     Sck(String),
+    /// Lỗi GDI trên Windows (tên hàm hỏng).
+    Gdi(String),
 }
 
 pub trait EscHook {
@@ -76,7 +78,7 @@ pub fn capture_code(e: CaptureError) -> String {
     match e {
         CaptureError::NoPermission => "no_permission".into(),
         CaptureError::NoDisplay => "no_monitor".into(),
-        CaptureError::Sck(m) => format!("capture_failed:{m}"),
+        CaptureError::Sck(m) | CaptureError::Gdi(m) => format!("capture_failed:{m}"),
     }
 }
 
@@ -172,6 +174,7 @@ mod tests {
         assert_eq!(capture_code(CaptureError::NoPermission), "no_permission");
         assert_eq!(capture_code(CaptureError::NoDisplay), "no_monitor");
         assert_eq!(capture_code(CaptureError::Sck("x".into())), "capture_failed:x");
+        assert_eq!(capture_code(CaptureError::Gdi("BitBlt".into())), "capture_failed:BitBlt");
     }
 
     #[test]

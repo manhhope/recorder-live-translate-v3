@@ -115,6 +115,8 @@ fn current_rect(w: &tauri::WebviewWindow) -> Option<Rect> {
 pub fn open(app: &AppHandle) -> Result<(), String> {
     if let Some(w) = app.get_webview_window(LABEL) {
         let _ = w.show();
+        #[cfg(windows)]
+        reassert_panel(&w);
         return Ok(());
     }
     let st = app.state::<SubtitleState>();
@@ -164,7 +166,37 @@ fn apply_panel(w: &tauri::WebviewWindow, hidden: bool) {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+/// Windows: cờ ex-style (NOACTIVATE, TOOLWINDOW, TOPMOST) và `WDA_EXCLUDEFROMCAPTURE` đặt tường minh, gọi lại được
+/// (`reassert`) thay vì chỉ trông cậy vào cờ mặc định của tao (W2).
+#[cfg(windows)]
+pub(crate) fn apply_panel(w: &tauri::WebviewWindow, hidden: bool) {
+    use rlt_platform::panel::{apply, set_hidden_from_capture, PanelKind};
+    match w.hwnd() {
+        Ok(h) => {
+            let ptr = h.0 as *mut std::ffi::c_void;
+            // SAFETY: HWND do Tauri cấp, còn sống suốt vòng đời cửa sổ; các API user32 kiểm `IsWindow` trước.
+            if let Err(e) = unsafe { apply(ptr, PanelKind::Subtitle) } {
+                eprintln!("subtitle: khong dat duoc co cua so noi: {e}");
+            }
+            // SAFETY: như trên.
+            if let Err(e) = unsafe { set_hidden_from_capture(ptr, hidden) } {
+                eprintln!("subtitle: SetWindowDisplayAffinity loi: {e}");
+            }
+        }
+        Err(e) => eprintln!("subtitle: khong lay duoc HWND: {e}"),
+    }
+}
+
+/// Gọi lại cờ sau `show()` hoặc khi đổi màn hình (Windows có thể tước TOPMOST).
+#[cfg(windows)]
+pub(crate) fn reassert_panel(w: &tauri::WebviewWindow) {
+    if let Ok(h) = w.hwnd() {
+        // SAFETY: như `apply_panel`.
+        let _ = unsafe { rlt_platform::panel::reassert(h.0 as *mut std::ffi::c_void, rlt_platform::panel::PanelKind::Subtitle) };
+    }
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 fn apply_panel(_w: &tauri::WebviewWindow, _hidden: bool) {}
 
 fn remember_position(app: &AppHandle) {
@@ -264,6 +296,11 @@ pub fn subtitle_set_hidden(app: AppHandle, hidden: bool) -> SubtitleSettings {
                 }
             });
         }
+        #[cfg(windows)]
+        {
+            let w2 = w.clone();
+            let _ = app.run_on_main_thread(move || apply_panel(&w2, hidden));
+        }
     }
     out
 }
@@ -276,6 +313,8 @@ pub fn subtitle_reset_position(app: AppHandle) {
         if let Some((i, r)) = PositionBook::default().resolve(&mons) {
             let sc = mons[i].scale;
             let _ = w.set_position(PhysicalPosition::new((r.x * sc) as i32, (r.y * sc) as i32));
+            #[cfg(windows)]
+            reassert_panel(&w);
         }
     }
 }
