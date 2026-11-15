@@ -141,6 +141,9 @@ export function installTauriMock(seed: MockSeed): void {
       }
       return { lines, notes: [], terms: [] };
     },
+    // Hop dong: Rust `session_captures(session_id) -> Result<Vec<CaptureRow>, String>` (src-tauri/src/capture/mod.rs),
+    // api.ts `sessionCaptures(sessionId) -> CaptureRow[]`. Phien test khong co anh chup nen tra mang rong (hop le), khong bia dong anh.
+    session_captures: () => [],
     session_export: (a) => `/tmp/${a.sessionId}.${a.format}`,
     highlight_toggle: (a) => {
       const l = state.details[a.sessionId].lines.find((x: any) => x.captionLineId === a.captionLineId);
