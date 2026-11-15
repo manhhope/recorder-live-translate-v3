@@ -6,6 +6,7 @@
   import Icon from "../lib/Icon.svelte";
   import * as api from "../lib/api.ts";
   import { openWhatsNew } from "../lib/whats-new.svelte.ts";
+  import { openPermWelcome } from "../lib/perm-welcome.svelte.ts";
 
   let version = $state("");
   let mic = $state<string | null>(null);
@@ -102,6 +103,7 @@
   {#if ax === false}<div class="hint" style="margin:4px 0 0"><Icon name="info" /> {$_("set.perm.axhelp")}</div>{/if}
   <div class="tl2" style="margin-top:8px">
     <button type="button" class="btn sm" onclick={recheck}><Icon name="refresh" />{$_("set.perm.recheck")}</button>
+    <button type="button" class="btn sm" data-testid="perm-welcome-open" onclick={() => openPermWelcome()}><Icon name="shield" />{$_("pw.review")}</button>
     {#if opened}<span class="hint" style="margin:0"><Icon name="info" /> {$_("set.perm.openedhint")}</span>{/if}
     {#if errKeyShown}<span class="bd rec" role="alert"><Icon name="warn" />{$_(errKeyShown)}</span>{/if}
     {#if err}<span class="bd rec" role="alert"><Icon name="warn" />{$_("set.perm.err")}</span>{/if}

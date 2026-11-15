@@ -10,6 +10,7 @@
   import { app, fmtClock, openAsk, type Level } from "../lib/app.svelte.ts";
   import { AUTO } from "../lib/langs.ts";
   import * as api from "../lib/api.ts";
+  import { openPermWelcome, remindMissingOnStart } from "../lib/perm-welcome.svelte.ts";
   import type { LineDto, SessionStateName, StatusCode } from "../lib/api.ts";
   import { Follow } from "../lib/follow.svelte.ts";
   import { afterFinal, fromPartial, type LiveText } from "../lib/live.ts";
@@ -114,7 +115,7 @@
       const c = api.errCode(e);
       if (c === "key_missing") { hasKey = false; askKey = true; }
       else if (c === "consent_required") { consent = false; askConsent = true; }
-      else errCode = c;
+      else { errCode = c; void remindMissingOnStart(c); } // thieu quyen: nhac dung quyen thieu (toi da mot lan moi lan mo app), thong bao loi van o lai
     } finally { busy = false; }
   }
 
@@ -208,7 +209,8 @@
 </div>
 
 {#if errCode}
-  <div class="card" role="alert" style="margin:8px 18px"><span class="bd rec"><Icon name="warn" />{$_(errKey(errCode))}</span></div>
+  <div class="card" role="alert" style="margin:8px 18px"><span class="bd rec"><Icon name="warn" />{$_(errKey(errCode))}</span>
+    {#if errCode.startsWith("permission")}<button type="button" class="btn sm" data-testid="perm-review" style="margin-left:8px" onclick={() => openPermWelcome(errCode === "permission_mic" ? "mic" : "screen")}><Icon name="shield" />{$_("pw.review")}</button>{/if}</div>
 {/if}
 
 {#if askConsent}

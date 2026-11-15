@@ -199,3 +199,15 @@ button{font:inherit;color:inherit;cursor:default}
 .skel i:nth-child(2){width:70%}.skel i:nth-child(3){width:45%}
 @keyframes rlt-shim{to{background-position:-200% 0}}
 @media (prefers-reduced-motion:reduce){.spin .i,.skel i{animation:none}}
+/* Welcome: cap quyen (dung khung .wn cua What's New) */
+.pw .pw-intro{margin:8px 0 6px}
+.pw-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 14px;padding:10px 10px;margin:6px 0;border:1px solid var(--rlt-line);border-radius:8px}
+.pw-row.hot{border-color:var(--rlt-warn);box-shadow:0 0 0 2px color-mix(in srgb,var(--rlt-warn) 25%,transparent)}
+.pw-main{display:flex;flex-direction:column;gap:3px;flex:1 1 240px;min-width:0}
+.pw-main .hint{margin:0;overflow-wrap:anywhere}.pw-main .hint .i{width:12px;height:12px;vertical-align:-2px}
+.pw-miss{color:var(--rlt-warn)}
+.pw-act{display:flex;flex-wrap:wrap;align-items:center;gap:6px;flex:0 1 auto}
+.pw-f{justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px 12px}
+.pw-off{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--rlt-text2)}
+.pw-btns{display:inline-flex;gap:8px;flex-wrap:wrap}
+.pw-main b .bd{margin-left:6px}

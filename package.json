@@ -1,7 +1,7 @@
 {
   "name": "recorder-live-translate-v3",
   "private": true,
-  "version": "3.0.1",
+  "version": "3.0.2",
   "type": "module",
   "scripts": {
     "dev": "vite --port 1420 --strictPort",
@@ -9,7 +9,7 @@
     "test:i18n": "node --test src/i18n/i18n.test.ts",
     "scan:i18n": "node scripts/scan-hardcoded.mjs src",
     "test:api": "node --test src/lib/api.test.ts",
-    "test:unit": "node --test src/lib/transcript-prefs.test.ts src/lib/live.test.ts src/lib/export-dir.test.ts src/lib/ci-config.test.ts src/lib/usage-swr.test.ts src/lib/whats-new.test.ts src/lib/session-meta.test.ts",
+    "test:unit": "node --test src/lib/transcript-prefs.test.ts src/lib/live.test.ts src/lib/export-dir.test.ts src/lib/ci-config.test.ts src/lib/usage-swr.test.ts src/lib/whats-new.test.ts src/lib/perm-welcome.test.ts src/lib/session-meta.test.ts",
     "check:caps": "node scripts/check-capabilities.mjs"
   },
   "devDependencies": {

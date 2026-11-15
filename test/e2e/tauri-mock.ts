@@ -30,6 +30,12 @@ export interface MockSeed {
   usage?: { cached?: { costUsdMicros: number; fetchedAt: number }; live?: { costUsdMicros: number; fetchedAt: number }; liveFail?: string; hold?: boolean };
   // Google Drive: trang thai ban dau cua drive_connection_status va ket qua cua drive_sync_now.
   drive?: { state?: string; email?: string | null; builtin?: boolean };
+  // Quyen macOS (Welcome cap quyen). Mac dinh: da cap het (modal khong hien). mic: authorized|notDetermined|denied|restricted;
+  // screen: granted|denied (doc nhanh); screenProbe = ket qua do that khi screen khong phai granted (denied|needsrestart|granted); ax: true|false.
+  // Doi trong luc chay bang __rlt.setPerm({...}) (mo phong nguoi dung bat cong tac trong Cai dat He thong). micAnswer = ket qua hop thoai xin mic.
+  perms?: { mic?: string; screen?: string; screenProbe?: string; ax?: boolean; micAnswer?: string };
+  // Co dat thi ghi khoa "Dung hien lai" (rlt.ui.permWelcomeOff) truoc khi app chay.
+  permWelcomeOff?: boolean;
   driveSyncAll?: { total: number; synced: number; failed: number; waiting: number; oauthConnected: boolean };
 }
 
@@ -39,6 +45,7 @@ export function installTauriMock(seed: MockSeed): void {
   try {
     if (!localStorage.getItem("rlt.ui.locale")) localStorage.setItem("rlt.ui.locale", seed.locale);
   } catch { /* bo qua */ }
+  try { if (seed.permWelcomeOff && localStorage.getItem("rlt.ui.permWelcomeOff") === null) localStorage.setItem("rlt.ui.permWelcomeOff", "1"); } catch { /* bo qua */ }
   try {
     const wn = seed.whatsNewSeen === undefined ? "999.0.0" : seed.whatsNewSeen;
     if (wn && localStorage.getItem("rlt.ui.whatsNewSeen") === null) localStorage.setItem("rlt.ui.whatsNewSeen", wn);
@@ -71,10 +78,12 @@ export function installTauriMock(seed: MockSeed): void {
     nextConv: 1,
     nextMsg: 1,
     exportMissing: seed.exportMissing ?? 0,
+    perms: { mic: "authorized", screen: "granted", screenProbe: "denied", ax: true, micAnswer: "authorized", ...(seed.perms ?? {}) } as any,
     drive: { state: "disconnected", email: null, builtin: false, ...(seed.drive ?? {}) } as any,
   };
   const rlt: any = { calls: [] as { cmd: string; args: any }[], unhandled: [] as string[], state, fail: { ...seed.fail } };
   w.__rlt = rlt;
+  rlt.setPerm = (p: any) => { Object.assign(state.perms, p); };
   rlt.subtitleLines = clone(seed.subtitleLines ?? []);
 
   rlt.usage = clone(seed.usage ?? {});
@@ -132,7 +141,11 @@ export function installTauriMock(seed: MockSeed): void {
     soniox_save_api_key: () => { state.hasKey = true; },
     soniox_clear_api_key: () => { state.hasKey = false; },
     soniox_test_connection: () => undefined,
-    permissions_status: () => ({ mic: "granted", screen: "granted" }),
+    permissions_status: () => ({ mic: state.perms.mic, screen: state.perms.screen }),
+    mic_permission_request: () => { state.perms.mic = state.perms.micAnswer; return state.perms.mic; },
+    screen_permission_check: () => (state.perms.screen === "granted" ? "granted" : state.perms.screenProbe),
+    open_system_settings: () => undefined,
+    restart_app: () => undefined,
     record_prefs_get: () => ({ targetLang: "pt-PT", listenLangs: ["en"], mode: "mixed", uiLanguage: "pt-PT" }),
     record_prefs_set: () => undefined,
     session_state: () => [state.run, state.run === "idle" ? null : "sess-live"],
@@ -220,7 +233,7 @@ export function installTauriMock(seed: MockSeed): void {
     shell_set_keep_awake: () => undefined,
     autostart_get: () => false,
     core_version: () => "0.1.0",
-    quick_ax_status: () => true,
+    quick_ax_status: () => state.perms.ax,
     shortcuts_status: () => ["quick_translate", "inline_translate", "ask_ai", "region_capture"].map((action, i) => ({ action, accelerator: ["CmdOrCtrl+Shift+T", "CmdOrCtrl+Shift+I", "CmdOrCtrl+Shift+A", "CmdOrCtrl+Shift+R"][i], enabled: true, registered: true, error_key: null, error_detail: null })),
     subtitle_font_step: () => undefined,
     subtitle_set_opacity: () => undefined,

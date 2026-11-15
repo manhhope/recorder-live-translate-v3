@@ -1,6 +1,28 @@
 {
   "entries": [
     {
+      "version": "3.0.2",
+      "date": "2026-11-15",
+      "groups": {
+        "new": {
+          "en": [
+            "A welcome screen on first launch walks you through the permissions: Microphone, Screen & System Audio Recording and the optional Accessibility. You can reopen it from Settings."
+          ],
+          "pt-PT": [
+            "Um ecrã de boas-vindas no primeiro arranque guia-o pelas permissões: Microfone, Gravação do Ecrã e Áudio do Sistema e a Acessibilidade opcional. Pode voltar a abri-lo nas Definições."
+          ]
+        },
+        "improved": {
+          "en": [
+            "If Start fails because a permission is missing, the app now points to exactly that permission."
+          ],
+          "pt-PT": [
+            "Se o botão Iniciar falhar por falta de uma permissão, a aplicação passa a indicar exatamente essa permissão."
+          ]
+        }
+      }
+    },
+    {
       "version": "3.0.1",
       "date": "2026-11-15",
       "groups": {
