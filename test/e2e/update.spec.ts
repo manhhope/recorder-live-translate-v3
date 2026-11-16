@@ -112,6 +112,9 @@ test("tat tu dong kiem: luu lai sau khi tai lai, khong goi update_check neu khon
   await expect(page.getByTestId("update-auto")).not.toBeChecked();
   await page.waitForTimeout(500);
   expect(await calls(page, "update_check")).toBe(0);
+  // nguon su that la cot DB: da goi update_auto_set(false) va doc lai bang update_auto_get sau khi tai lai
+  expect(await calls(page, "update_auto_set")).toBe(0); // trang moi sau reload (nhat ky goi bi xoa)
+  expect(await calls(page, "update_auto_get")).toBeGreaterThan(0);
 });
 
 test("banner nhac khi ban tai xong va dang o man khac; Mai sau an banner", async ({ page, rlt }) => {

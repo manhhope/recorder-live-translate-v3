@@ -59,6 +59,7 @@
   "common.paste": "Paste",
   "common.refresh": "Refresh",
   "common.restore": "Restore defaults",
+  "common.elapsed": "({n} ms)",
   "common.retry": "Try again",
   "common.send": "Send",
   "common.translate": "Translate",

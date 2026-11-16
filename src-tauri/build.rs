@@ -53,6 +53,8 @@ pub const APP_COMMANDS: &[&str] = &[
     "update_check",
     "update_download",
     "update_install",
+    "update_auto_get",
+    "update_auto_set",
     "subtitle_open",
     "subtitle_close",
     "subtitle_get",

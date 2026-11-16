@@ -29,6 +29,19 @@ pub struct UpdateState {
     busy: AtomicBool,
 }
 
+/// Ket noi toi `settings.auto_update_enabled` (nguon su that cua cong tac tu dong, AC-33.1).
+pub struct UpdateSettings(pub Mutex<rlt_store::Store>);
+
+#[tauri::command]
+pub fn update_auto_get(s: State<'_, UpdateSettings>) -> Result<bool, String> {
+    s.0.lock().map_err(|_| "update_install".to_string())?.auto_update_enabled().map_err(|_| "update_install".to_string())
+}
+
+#[tauri::command]
+pub fn update_auto_set(on: bool, s: State<'_, UpdateSettings>) -> Result<(), String> {
+    s.0.lock().map_err(|_| "update_install".to_string())?.set_auto_update_enabled(on).map_err(|_| "update_install".to_string())
+}
+
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateInfo {

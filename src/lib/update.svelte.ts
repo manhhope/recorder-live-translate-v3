@@ -22,11 +22,19 @@ export const upd = $state({
   dismissed: false,
 });
 
-export const initUpdate = () => { upd.auto = readAutoUpdate(globalThis.localStorage); };
+/** Nguon su that la cot DB `settings.auto_update_enabled`; localStorage chi la ban sao dung khi DB khong doc duoc (vd trinh duyet thuan). */
+export const initUpdate = async (): Promise<void> => {
+  upd.auto = readAutoUpdate(globalThis.localStorage);
+  try {
+    upd.auto = await api.updateAutoGet();
+    try { globalThis.localStorage?.setItem(AUTO_UPDATE_KEY, upd.auto ? "1" : "0"); } catch { /* bo qua */ }
+  } catch { /* giu ban sao localStorage */ }
+};
 export const installBlocked = () => installGate(app.recording) !== "ok";
 
 export function setAutoUpdate(on: boolean): void {
   upd.auto = on;
+  void api.updateAutoSet(on).catch(() => { /* ban sao localStorage van giu */ });
   try { globalThis.localStorage?.setItem(AUTO_UPDATE_KEY, on ? "1" : "0"); } catch { /* bo qua */ }
 }
 

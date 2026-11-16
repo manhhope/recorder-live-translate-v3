@@ -40,6 +40,7 @@ fn main() {
             diag::mark("setup_begin");
             let dir_for_shell = dir.clone();
             app.manage(update::UpdateState::default());
+            app.manage(update::UpdateSettings(std::sync::Mutex::new(rlt_store::Store::open(dir.join("rlt.db"))?)));
             app.manage(subtitle::SubtitleState::load(dir.clone()));
             std::fs::create_dir_all(&dir)?;
             let store = rlt_store::Store::open(dir.join("rlt.db"))?;
@@ -117,6 +118,8 @@ fn main() {
             update::update_check,
             update::update_download,
             update::update_install,
+            update::update_auto_get,
+            update::update_auto_set,
             subtitle::subtitle_open,
             subtitle::subtitle_close,
             subtitle::subtitle_get,

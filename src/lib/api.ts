@@ -87,6 +87,8 @@ export const updateDownload = (onProgress: (e: UpdateEvent) => void) => {
   return invoke<void>("update_download", { onEvent: ch });
 };
 export const updateInstall = () => invoke<void>("update_install");
+export const updateAutoGet = () => invoke<boolean>("update_auto_get");
+export const updateAutoSet = (on: boolean) => invoke<void>("update_auto_set", { on });
 export const prefsGet = () => invoke<RecordPrefs>("record_prefs_get");
 export const prefsSet = (prefs: RecordPrefs) => invoke<void>("record_prefs_set", { prefs });
 

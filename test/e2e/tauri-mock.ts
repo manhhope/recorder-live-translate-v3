@@ -168,6 +168,9 @@ export function installTauriMock(seed: MockSeed): void {
       callbacks.get(ch)?.({ kind: "finished" });
     },
     update_install: () => { rlt.installed = (rlt.installed ?? 0) + 1; },
+    // settings.auto_update_enabled (cot DB that); mac dinh 1.
+    update_auto_get: () => localStorage.getItem("__mock.autoUpdateDb") !== "0", // song qua reload nhu mot cot DB
+    update_auto_set: (a) => { localStorage.setItem("__mock.autoUpdateDb", a.on ? "1" : "0"); },
     record_prefs_get: () => ({ targetLang: "pt-PT", listenLangs: ["en"], mode: "mixed", uiLanguage: "pt-PT" }),
     record_prefs_set: () => undefined,
     session_state: () => [state.run, state.run === "idle" ? null : "sess-live"],

@@ -59,6 +59,7 @@
   "common.paste": "Colar",
   "common.refresh": "Atualizar",
   "common.restore": "Repor predefinições",
+  "common.elapsed": "({n} ms)",
   "common.retry": "Tentar novamente",
   "common.send": "Enviar",
   "common.translate": "Traduzir",

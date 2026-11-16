@@ -30,7 +30,7 @@ Ranh giới bảo mật: repo chỉ chứa khóa công khai. `scripts/check-capa
 - **Endpoint**: `https://github.com/manhhope/recorder-live-translate-v3/releases/latest/download/latest.json` (static manifest; `releases/latest` trả bản phát hành mới nhất). Bản debug đọc thêm biến `RLT_UPDATE_ENDPOINT` để trỏ vào máy chủ giả khi thử (release build bỏ qua biến này; plugin chỉ cho endpoint http ở bản debug, bản release cần `dangerousInsecureTransportProtocol` nên không bật trong cấu hình thật).
 - **Chữ ký**: `Update::download` xác minh minisign trước khi giao byte; `install` xác minh lại. Chữ ký sai trả `update_signature`, không có bước cài. `requireSignedVersion: true`. Bản không mới hơn bản đang chạy bị bỏ ở cả Rust (plugin) lẫn giao diện (`isNewer`), nên không hạ cấp.
 - **Không cài khi đang ghi** (AC-33.1): tải được khi đang ghi (byte giữ trong RAM), nhưng `update_install` trả `update_recording` nếu phiên đang ghi, và giao diện khóa nút "Install and restart" kèm giải thích; thấy phiên Stop thì cài được. Banner nhắc khi bản đã tải xong mà người dùng ở màn khác.
-- **Công tắc tự động** (`auto_update_enabled`, mặc định bật theo data-dictionary): lưu `localStorage` khóa `rlt.ui.autoUpdate` (cùng cách với giữ máy thức, chưa có cột DB, xem mục 5). Tắt thì app không bao giờ tự gọi mạng; chỉ nút Check mới gọi. Bật: kiểm sau ~10 giây khi mở app rồi mỗi 6 giờ, tự tải ngầm nếu có bản mới; cài vẫn cần người dùng bấm.
+- **Công tắc tự động** (`auto_update_enabled`, mặc định bật theo data-dictionary): lưu ở cột DB `settings.auto_update_enabled` qua lệnh `update_auto_get/set`; `localStorage` khóa `rlt.ui.autoUpdate` chỉ là bản sao dự phòng. Tắt thì app không bao giờ tự gọi mạng; chỉ nút Check mới gọi. Bật: kiểm sau ~10 giây khi mở app rồi mỗi 6 giờ, tự tải ngầm nếu có bản mới; cài vẫn cần người dùng bấm.
 - **Lỗi**: mã `update_network`, `update_signature`, `update_manifest`, `update_notconfigured`, `update_install`, `update_busy`, `update_recording`, `update_none`, `update_nodownload` đều có khóa `err.*` ở en và pt-PT. Kiểm nền (tự động) im lặng khi lỗi mạng, chỉ báo lỗi chữ ký.
 - **i18n**: toàn bộ chuỗi mới ở `en.json` và `pt-PT.json` (`set.upd.*`, `err.update*`); `scan:i18n` không thêm chuỗi cứng.
 
@@ -49,7 +49,7 @@ Ranh giới bảo mật: repo chỉ chứa khóa công khai. `scripts/check-capa
 
 ## 5. Quyết định và ghi chú
 
-- `settings.auto_update_enabled` trong data-dictionary là cột DB; bước 1 lưu ở `localStorage` (giống `keepAwake`). Chuyển sang cột DB là việc riêng, cần migration V9; bản này không đụng schema.
+- `settings.auto_update_enabled` trong data-dictionary là cột DB; đã nối thật (lệnh `update_auto_get/set`), cột có sẵn trong schema nên không cần migration.
 - Cờ "đang ghi" phía Rust (`shell::is_recording`) chỉ đúng khi `recording`, không tính `paused`; phía giao diện dùng `app.recording` (có cả paused). Rust là lớp chặn cuối nên phiên tạm dừng vẫn có thể bị Rust cho cài nếu giao diện bị bỏ qua. Đề xuất: Rust tính cả paused (việc riêng).
 - Gói tải giữ trong RAM đến khi cài. Tắt app trước khi cài thì phải tải lại (chấp nhận được; tránh ghi tệp ra đĩa chưa kiểm).
 
