@@ -75,3 +75,6 @@ OK: 76 lenh goi tu api.ts, 76 nam trong manifest va deu duoc cap quyen
 
 - Bong bóng trả lời rất ngắn vẫn chừa dải đệm 34 px phía dưới cho icon (thấy ở ảnh sau); đây là chủ ý để không che chữ ở bong bóng dài.
 - Chưa kiểm trực tiếp trên Windows/WebView2 thật; dùng chromium qua lớp Tauri giả như các test e2e khác.
+
+## Commit sửa scan:i18n
+`e1cfe92` (sau 36fe369 và aa46556). Chỉ cherry-pick nếu win-final chưa có sửa tương đương.
