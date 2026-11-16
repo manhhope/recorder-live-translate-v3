@@ -132,7 +132,10 @@ fn rejects_responses_that_break_the_schema() {
     assert_eq!(parse_logs_page("not json"), Err(UsageApiError::BadResponse));
     assert_eq!(parse_logs_page(r#"{"usage_logs":[{"uuid":"x"}]}"#), Err(UsageApiError::BadResponse));
     // mang theo ngay khong cung do dai
-    let bad = SUM.replacen("\"num_requests\": [\n      0,", "\"num_requests\": [\n      ", 1);
+    // chuan hoa CRLF (checkout Windows) de chuoi nhieu dong khop; neu khong khop thi replacen im lang va test sai
+    let sum = SUM.replace("\r\n", "\n");
+    let bad = sum.replacen("\"num_requests\": [\n      0,", "\"num_requests\": [\n      ", 1);
+    assert_ne!(bad, sum, "replacen khong khop: fixture doi dinh dang");
     assert_eq!(parse_summary(&bad), Err(UsageApiError::BadResponse));
 }
 
