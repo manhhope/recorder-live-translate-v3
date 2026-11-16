@@ -10,7 +10,7 @@ fn main() {
     let mut us: Vec<u128> = Vec::new();
     for _ in 0..20_000 {
         let t = Instant::now();
-        let data: Vec<f32> = pkt.iter().copied().collect();
+        let data: Vec<f32> = pkt.to_vec();
         for f in p.push(&data) {
             let _ = tx.send(f.samples);
         }
