@@ -1,11 +1,12 @@
 <script lang="ts">
-  // Tab "Gioi thieu va quyen": phien ban, trang thai tung quyen (micro, ghi man hinh, Accessibility), muc Cap nhat "sap co".
+  // Tab "Gioi thieu va quyen": phien ban, trang thai tung quyen (micro, ghi man hinh, Accessibility), the Cap nhat (UpdateCard).
   // Nut "Mo Cai dat He thong" goi lenh backend open_system_settings (whitelist pane). Accessibility khong co hop thoai xin quyen.
   import { onMount } from "svelte";
   import { _ } from "../i18n/index.ts";
   import Icon from "../lib/Icon.svelte";
   import * as api from "../lib/api.ts";
   import { openWhatsNew } from "../lib/whats-new.svelte.ts";
+  import UpdateCard from "./UpdateCard.svelte";
   import { openPermWelcome } from "../lib/perm-welcome.svelte.ts";
 
   let version = $state("");
@@ -113,7 +114,4 @@
   </div>
 </div>
 
-<div class="card">
-  <h4>{$_("set.upd.title")}</h4>
-  <div class="hint" style="margin:0"><Icon name="info" /> {$_("set.upd.soon")}</div>
-</div>
+<UpdateCard />

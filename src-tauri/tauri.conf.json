@@ -56,7 +56,8 @@
         "displayLanguageSelector": false,
         "compression": "lzma"
       }
-    }
+    },
+    "createUpdaterArtifacts": true
   },
   "plugins": {
     "deep-link": {
@@ -64,6 +65,16 @@
         "schemes": [
           "rlt"
         ]
+      }
+    },
+    "updater": {
+      "pubkey": "REPLACE_WITH_MINISIGN_PUBLIC_KEY_BASE64",
+      "endpoints": [
+        "https://github.com/manhhope/recorder-live-translate-v3/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

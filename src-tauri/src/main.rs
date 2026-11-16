@@ -11,6 +11,7 @@ mod quick;
 mod session;
 mod shell;
 mod subtitle;
+mod update;
 
 #[tauri::command]
 fn core_version() -> String {
@@ -38,6 +39,7 @@ fn main() {
             diag::init(&dir);
             diag::mark("setup_begin");
             let dir_for_shell = dir.clone();
+            app.manage(update::UpdateState::default());
             app.manage(subtitle::SubtitleState::load(dir.clone()));
             std::fs::create_dir_all(&dir)?;
             let store = rlt_store::Store::open(dir.join("rlt.db"))?;
@@ -112,6 +114,9 @@ fn main() {
             shell::autostart_set,
             shell::quit_app,
             shell::restart_app,
+            update::update_check,
+            update::update_download,
+            update::update_install,
             subtitle::subtitle_open,
             subtitle::subtitle_close,
             subtitle::subtitle_get,

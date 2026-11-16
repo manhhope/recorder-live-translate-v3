@@ -1,0 +1,152 @@
+name: release
+
+# US-33: dung ban phat hanh, ky goi cap nhat (minisign) va dang len GitHub Releases cung latest.json.
+# TRANG THAI THAT: workflow nay CHUA TUNG CHAY (chua co secret, chua co tag). Chi duoc viet va kiem cu phap YAML.
+# Kich hoat: day tag `v<semver>` (vd v3.1.0). Tag phai khop version trong src-tauri/tauri.conf.json (buoc dau kiem).
+# Secret (Settings > Secrets and variables > Actions), chu repo tu tao, KHONG de trong repo:
+#   TAURI_SIGNING_PRIVATE_KEY            noi dung khoa rieng minisign (tao bang `cargo tauri signer generate -w <duong dan NGOAI repo>`)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD   mat khau cua khoa (de trong neu tao khong dat mat khau)
+#   MAC_CERT_P12_BASE64, MAC_CERT_P12_PASSWORD   (tuy chon) chung chi 'RLT Local Signing' dang .p12 base64; khong co thi ky ad-hoc, xem ghi chu ben duoi
+# Khoa CONG KHAI nam trong tauri.conf.json (plugins.updater.pubkey).
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          set -euo pipefail
+          conf="$(python3 -c "import json;print(json.load(open('src-tauri/tauri.conf.json'))['version'])")"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "$tag" != "$conf" ]; then echo "Tag $tag khac version $conf trong tauri.conf.json" >&2; exit 1; fi
+          if grep -q 'REPLACE_WITH_' src-tauri/tauri.conf.json; then echo "tauri.conf.json con khoa cong khai gia (REPLACE_WITH_...): chu repo chua dat khoa that" >&2; exit 1; fi
+          echo "version=$conf" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, name: mac-arm64, target: aarch64-apple-darwin, key: darwin-aarch64 }
+          - { os: macos-13, name: mac-x64, target: x86_64-apple-darwin, key: darwin-x86_64 }
+          - { os: windows-latest, name: win-x64, target: x86_64-pc-windows-msvc, key: windows-x86_64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: cargo install tauri-cli --version "^2" --locked
+
+      # ---- macOS: build .app KHONG qua bundler ky, ky lai bang chung chi noi bo, roi dong goi goi cap nhat tu .app da ky ----
+      - name: Import chung chi ky macOS (tuy chon)
+        if: runner.os == 'macOS'
+        id: cert
+        env:
+          MAC_CERT_P12_BASE64: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          MAC_CERT_P12_PASSWORD: ${{ secrets.MAC_CERT_P12_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${MAC_CERT_P12_BASE64:-}" ]; then
+            echo "Khong co MAC_CERT_P12_BASE64: ky ad-hoc ('-'). Sau cap nhat macOS se hoi lai quyen (TCC/Keychain) vi chu ky doi." >&2
+            echo "identity=-" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          kc="$RUNNER_TEMP/rlt.keychain-db"; pw="$(uuidgen)"
+          echo "$MAC_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$pw" "$kc"
+          security set-keychain-settings -lut 3600 "$kc"
+          security unlock-keychain -p "$pw" "$kc"
+          security import "$RUNNER_TEMP/cert.p12" -k "$kc" -P "$MAC_CERT_P12_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$pw" "$kc" >/dev/null
+          security list-keychains -d user -s "$kc" login.keychain-db
+          rm -f "$RUNNER_TEMP/cert.p12"
+          echo "identity=RLT Local Signing" >> "$GITHUB_OUTPUT"
+      - name: Build, ky lai va dong goi (macOS)
+        if: runner.os == 'macOS'
+        env:
+          RLT_SIGN_IDENTITY: ${{ steps.cert.outputs.identity }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cargo tauri build --target "${{ matrix.target }}" --bundles app
+          APP="$(ls -d target/${{ matrix.target }}/release/bundle/macos/*.app | head -n1)"
+          scripts/sign-local.sh "$APP"
+          scripts/pack-updater-mac.sh "$APP" dist-release
+          # Ten tep on dinh theo nen tang de latest.json tro dung.
+          mv dist-release/*.app.tar.gz "dist-release/RLT-${{ matrix.key }}.app.tar.gz"
+          mv dist-release/*.app.tar.gz.sig "dist-release/RLT-${{ matrix.key }}.app.tar.gz.sig"
+          hdiutil create -volname "Recorder Live Translate" -srcfolder "$APP" -ov -format UDZO "dist-release/RLT-${{ matrix.key }}.dmg"
+
+      # ---- Windows: NSIS (installMode currentUser, khong can quyen admin); bundler tu ky goi cap nhat bang bien moi truong ----
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cargo tauri build --target "${{ matrix.target }}" --bundles nsis
+          mkdir -p dist-release
+          EXE="$(ls target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe | head -n1)"
+          cp "$EXE" "dist-release/RLT-${{ matrix.key }}-setup.exe"
+          cp "$EXE.sig" "dist-release/RLT-${{ matrix.key }}-setup.exe.sig"
+          # Chua co Authenticode: Windows SmartScreen se canh bao ban cai moi tai ve (ghi trong docs/us33-updater-thiet-ke.md).
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.name }}
+          path: dist-release/*
+          if-no-files-found: error
+
+  publish:
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          pattern: release-*
+          merge-multiple: true
+      - name: Sinh latest.json
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          BASE: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ls -l assets
+          args=()
+          for k in darwin-aarch64 darwin-x86_64; do
+            [ -f "assets/RLT-$k.app.tar.gz.sig" ] && args+=(--platform "$k=assets/RLT-$k.app.tar.gz.sig=$BASE/RLT-$k.app.tar.gz")
+          done
+          [ -f "assets/RLT-windows-x86_64-setup.exe.sig" ] && args+=(--platform "windows-x86_64=assets/RLT-windows-x86_64-setup.exe.sig=$BASE/RLT-windows-x86_64-setup.exe")
+          node scripts/make-latest-json.mjs --version "$VERSION" --notes "Recorder Live Translate $VERSION" --out assets/latest.json "${args[@]}"
+          cat assets/latest.json
+      - name: Tao Release va tai tep len
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --generate-notes assets/* || gh release upload "${GITHUB_REF_NAME}" assets/* --clobber

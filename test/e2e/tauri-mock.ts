@@ -36,6 +36,8 @@ export interface MockSeed {
   perms?: { mic?: string; screen?: string; screenProbe?: string; ax?: boolean; micAnswer?: string };
   // Co dat thi ghi khoa "Dung hien lai" (rlt.ui.permWelcomeOff) truoc khi app chay.
   permWelcomeOff?: boolean;
+  // Ban cap nhat ma update_check bao (US-33). Khong dat = khong co ban moi.
+  update?: { version: string; notes?: string } | null;
   driveSyncAll?: { total: number; synced: number; failed: number; waiting: number; oauthConnected: boolean };
 }
 
@@ -85,6 +87,8 @@ export function installTauriMock(seed: MockSeed): void {
   };
   const rlt: any = { calls: [] as { cmd: string; args: any }[], unhandled: [] as string[], state, fail: { ...seed.fail }, delay: {} as Record<string, number> };
   w.__rlt = rlt;
+  rlt.update = seed.update ?? null;
+  rlt.setUpdate = (u: any) => { rlt.update = u; };
   rlt.setPerm = (p: any) => { Object.assign(state.perms, p); };
   rlt.subtitleLines = clone(seed.subtitleLines ?? []);
 
@@ -156,6 +160,14 @@ export function installTauriMock(seed: MockSeed): void {
     screen_permission_check: () => (state.perms.screen === "granted" ? "granted" : state.perms.screenProbe),
     open_system_settings: () => undefined,
     restart_app: () => undefined,
+    // US-33: ban moi dat bang __rlt.setUpdate({version, notes}) hoac seed.update; khong co = "da moi nhat". Loi dat qua __rlt.fail (update_signature...).
+    update_check: () => (rlt.update ? { version: rlt.update.version, currentVersion: "0.1.0", notes: rlt.update.notes ?? null, pubDate: null } : null),
+    update_download: (a) => {
+      const ch = Number(String(a.onEvent?.id ?? a.onEvent));
+      for (const downloaded of [250_000, 500_000, 1_000_000]) callbacks.get(ch)?.({ kind: "progress", downloaded, total: 1_000_000 });
+      callbacks.get(ch)?.({ kind: "finished" });
+    },
+    update_install: () => { rlt.installed = (rlt.installed ?? 0) + 1; },
     record_prefs_get: () => ({ targetLang: "pt-PT", listenLangs: ["en"], mode: "mixed", uiLanguage: "pt-PT" }),
     record_prefs_set: () => undefined,
     session_state: () => [state.run, state.run === "idle" ? null : "sess-live"],

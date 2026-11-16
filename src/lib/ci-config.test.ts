@@ -21,3 +21,20 @@ for (const key of ["csp", "devCsp"]) {
     assert.ok(!connect.includes("*"), `connect-src co ky tu *: ${connect}`);
   });
 }
+
+// US-33: khoa ky cap nhat chi di qua GitHub Secrets; tauri.conf.json chi giu khoa CONG KHAI.
+const release = readFileSync(new URL("../../.github/workflows/release.yml", import.meta.url), "utf8");
+test("release.yml: bien khoa ky chi lay tu secrets, khong giu gia tri that", () => {
+  for (const m of release.matchAll(/^\s+(TAURI_SIGNING_PRIVATE_KEY(?:_PASSWORD)?):\s*(.+)$/gm)) {
+    assert.match(m[2].trim(), /^\$\{\{ secrets\.TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)? \}\}$/, `${m[1]} khong lay tu secrets`);
+  }
+  assert.ok(!/untrusted comment|BEGIN [A-Z ]*PRIVATE KEY|RWRT/.test(release), "release.yml chua noi dung giong khoa");
+});
+test("tauri.conf.json: updater chi co khoa cong khai, endpoint https, ky bat buoc", () => {
+  const u = conf.plugins.updater;
+  assert.ok(typeof u.pubkey === "string" && u.pubkey.length > 0);
+  assert.ok(!/PRIVATE|secret key/i.test(u.pubkey));
+  assert.ok(u.endpoints.every((e: string) => e.startsWith("https://")));
+  assert.equal(u.requireSignedVersion, true);
+  assert.equal(conf.bundle.createUpdaterArtifacts, true);
+});
