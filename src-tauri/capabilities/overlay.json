@@ -17,6 +17,7 @@
     "allow-subtitle-set-color",
     "allow-subtitle-set-hidden",
     "allow-subtitle-reset-position",
-    "allow-subtitle-close"
+    "allow-subtitle-close",
+    "allow-diag-js"
   ]
 }

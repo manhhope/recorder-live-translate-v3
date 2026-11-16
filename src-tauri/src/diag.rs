@@ -28,6 +28,7 @@ pub const SLOW_CMD_MS: u128 = 500;
 pub const STALL_MS: u64 = 5_000;
 const BEAT_EVERY: Duration = Duration::from_secs(1);
 const RECENT: usize = 20;
+const SUSPEND_SLACK_MS: u64 = 2_000;
 
 struct Inflight {
     name: String,
@@ -179,6 +180,26 @@ pub fn is_stalled(now_ms: u64, last_beat_ms: u64) -> bool {
     now_ms.saturating_sub(last_beat_ms) > STALL_MS
 }
 
+
+/// Một nhịp của watchdog là bình thường hay cả tiến trình vừa bị treo/ngủ.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tick {
+    Normal,
+    Suspended,
+}
+
+/// Luồng watchdog tự ngủ 1 s mỗi nhịp. Nếu giữa hai nhịp đồng hồ tường trôi quá `1 s + SUSPEND_SLACK_MS`, hoặc hai
+/// đồng hồ lệch nhau quá `SUSPEND_SLACK_MS` (đồng hồ đơn điệu của Windows không đếm lúc ngủ), thì máy đã ngủ hoặc tiến
+/// trình bị hệ điều hành giảm tốc: im của luồng UI lúc đó là giả. UI treo thật thì watchdog vẫn nhịp đều 1 s.
+pub fn classify_tick(wall_gap_ms: u64, mono_gap_ms: u64) -> Tick {
+    let beat = BEAT_EVERY.as_millis() as u64;
+    if wall_gap_ms > beat + SUSPEND_SLACK_MS || wall_gap_ms.abs_diff(mono_gap_ms) > SUSPEND_SLACK_MS {
+        Tick::Suspended
+    } else {
+        Tick::Normal
+    }
+}
+
 fn dump(d: &Diag, silent_ms: u64) {
     let now = Instant::now();
     let running: Vec<String> = d
@@ -249,8 +270,22 @@ pub fn start_watchdog(app: tauri::AppHandle) {
         let now_ms = |d: &Diag| d.t0.elapsed().as_millis() as u64;
         d.beat_ms.store(now_ms(d), Ordering::SeqCst);
         let (mut stalled_since, mut last_dump): (Option<u64>, u64) = (None, 0);
+        let (mut last_wall, mut last_mono) = (std::time::SystemTime::now(), Instant::now());
         loop {
             std::thread::sleep(BEAT_EVERY);
+            // Khoảng cách giữa hai nhịp của CHÍNH luồng watchdog, đo bằng đồng hồ tường (kể cả lúc máy ngủ) và đồng hồ
+            // đơn điệu (Windows không tính thời gian ngủ ngay). Lệch nhau hoặc quá dài = cả tiến trình bị treo/ngủ.
+            let (wall_now, mono_now) = (std::time::SystemTime::now(), Instant::now());
+            let wall_gap = wall_now.duration_since(last_wall).map(|g| g.as_millis() as u64).unwrap_or(0);
+            let mono_gap = mono_now.duration_since(last_mono).as_millis() as u64;
+            (last_wall, last_mono) = (wall_now, mono_now);
+            if classify_tick(wall_gap, mono_gap) == Tick::Suspended {
+                // Không phải luồng UI treo: xếp lại mốc, không dump, không ui_recovered.
+                d.beat_ms.store(now_ms(d), Ordering::SeqCst);
+                stalled_since = None;
+                log("suspend_detected", &format!("wall_gap_ms={wall_gap} mono_gap_ms={mono_gap} (may ngu/giam toc, khong tinh la UI treo)"));
+                continue;
+            }
             // Closure chỉ chạy được khi luồng UI rảnh; khi luồng UI kẹt nó nằm trong hàng đợi và nhịp không tiến.
             if app.run_on_main_thread(|| {
                 if let Some(d) = DIAG.get() {
@@ -432,5 +467,38 @@ mod tests {
         assert!(DIAG.get().unwrap().inflight.lock().unwrap().is_empty());
         assert!(logs_dir().unwrap().ends_with(DIR_NAME));
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn sleep_or_throttle_is_not_a_ui_stall_but_a_real_hang_still_is() {
+        // Nhip binh thuong: ~1 s ca hai dong ho.
+        assert_eq!(classify_tick(1_000, 1_000), Tick::Normal);
+        assert_eq!(classify_tick(1_400, 1_390), Tick::Normal);
+        // diag_1.log 16:06:50: may ngu ~4h50 (17.380.241 ms) trong khi dong ho don dieu chi tien vai giay.
+        assert_eq!(classify_tick(17_380_241, 6_592), Tick::Suspended);
+        // Ngay sau do dong ho don dieu "bat kip" mot cu nhay lon trong khi dong ho tuong chi 1 s.
+        assert_eq!(classify_tick(1_000, 17_380_241), Tick::Suspended);
+        // Tien trinh bi giam toc/ngu ngan: watchdog tre > 3 s.
+        assert_eq!(classify_tick(3_001, 3_001), Tick::Suspended);
+        // UI treo that: watchdog van nhip deu 1 s, chi nhip UI dung -> khong bi coi la suspend, van bao ui_stall.
+        assert_eq!(classify_tick(1_000, 1_001), Tick::Normal);
+        assert!(is_stalled(6_000, 0), "nhip UI dung 6 s van la stall");
+    }
+
+    #[test]
+    fn diag_js_is_in_the_manifest_and_granted_to_every_instrumented_window() {
+        // Tauri 2.12.5 (webview/mod.rs ~2080): da co app manifest thi lenh app KHONG nam trong capability nao bi
+        // chan ("Command diag_js not allowed by ACL"), nen JS cua cua so phu khong bao gio toi Rust -> js_silent gia.
+        assert!(include_str!("../build.rs").contains("\"diag_js\","), "build.rs APP_COMMANDS thieu diag_js");
+        let caps = [
+            ("subtitle", include_str!("../capabilities/overlay.json")),
+            ("quick-translate", include_str!("../capabilities/quick-translate.json")),
+            ("quick-toolbar", include_str!("../capabilities/quick-toolbar.json")),
+            ("capture-overlay-*", include_str!("../capabilities/capture-overlay.json")),
+        ];
+        for (label, json) in caps {
+            assert!(json.contains("\"allow-diag-js\""), "capability cua so {label} thieu allow-diag-js");
+        }
+        assert!(include_str!("../permissions/autogenerated/diag_js.toml").contains("allow-diag-js"));
     }
 }

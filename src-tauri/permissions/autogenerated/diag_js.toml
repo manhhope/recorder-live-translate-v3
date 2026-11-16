@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-diag-js"
+description = "Enables the diag_js command without any pre-configured scope."
+commands.allow = ["diag_js"]
+
+[[permission]]
+identifier = "deny-diag-js"
+description = "Denies the diag_js command without any pre-configured scope."
+commands.deny = ["diag_js"]

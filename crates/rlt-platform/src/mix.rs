@@ -277,4 +277,42 @@ mod tests {
         });
         assert_eq!(frames, vec![300, 7]);
     }
+
+    #[test]
+    fn late_mic_makes_system_go_solo_then_pairs_again_when_mic_catches_up() {
+        // Tai hien diag_1.log: mic ra khung dau roi cham >300 ms (xrun lam mat du lieu). System di mot minh, mic van
+        // khong bi bo: khi no ra khung tro lai thi khung duoc cong voi system.
+        let (fa, fb) = (Fake::default(), Fake::default());
+        let mut m = MixedSource::new(Box::new(fa.clone()), Box::new(fb.clone()));
+        let (tx, mut rx) = unbounded_channel();
+        m.start(tx).unwrap();
+        for _ in 0..5 {
+            fa.push(100); // system lien tuc, mic im
+        }
+        let mut out: Vec<i16> = Vec::new();
+        let wait = |rx: &mut UnboundedReceiver<AudioMessage>, out: &mut Vec<i16>, n: usize| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(3);
+            while out.len() < n && std::time::Instant::now() < deadline {
+                drain(rx, |m| {
+                    if let AudioMessage::Frame(f) = m {
+                        out.push(f.samples[0]);
+                    }
+                });
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        };
+        wait(&mut rx, &mut out, 2);
+        assert_eq!(out, vec![100, 100], "system di mot minh khi mic tre qua 300 ms");
+        for _ in 0..3 {
+            fb.push(200); // mic bat kip
+        }
+        wait(&mut rx, &mut out, 5);
+        m.stop();
+        drain(&mut rx, |m| {
+            if let AudioMessage::Frame(f) = m {
+                out.push(f.samples[0]);
+            }
+        });
+        assert_eq!(out[2..], [300, 300, 300], "mic tro lai thi duoc cong voi system, khong bi mat");
+    }
 }
