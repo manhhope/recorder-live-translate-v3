@@ -70,7 +70,7 @@ pub struct DeeplUsage {
 
 /// Chi nhan khoa vao Keychain. Khong co lenh doc lai.
 #[tauri::command]
-pub fn deepl_save_key(state: State<'_, super::QuickState>, value: String) -> Result<(), String> {
+pub async fn deepl_save_key(state: State<'_, super::QuickState>, value: String) -> Result<(), String> {
     state.deepl.save(&value)
 }
 
@@ -80,7 +80,7 @@ pub fn deepl_has_key(state: State<'_, super::QuickState>) -> bool {
 }
 
 #[tauri::command]
-pub fn deepl_clear_key(state: State<'_, super::QuickState>) -> Result<(), String> {
+pub async fn deepl_clear_key(state: State<'_, super::QuickState>) -> Result<(), String> {
     state.deepl.clear()
 }
 

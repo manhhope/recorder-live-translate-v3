@@ -38,12 +38,13 @@ pub struct Endpoints {
     pub gemini: Option<String>,
     pub openai: Option<String>,
     pub ollama: Option<String>,
+    pub compat: Option<String>,
     pub timeout: Duration,
 }
 
 impl Default for Endpoints {
     fn default() -> Self {
-        Self { gemini: None, openai: None, ollama: None, timeout: Duration::from_secs(60) }
+        Self { gemini: None, openai: None, ollama: None, compat: None, timeout: Duration::from_secs(60) }
     }
 }
 
@@ -89,6 +90,7 @@ fn secret_kind(k: ProviderKind) -> Option<SecretKind> {
         ProviderKind::Gemini => Some(SecretKind::Gemini),
         ProviderKind::OpenAi => Some(SecretKind::OpenAi),
         ProviderKind::Ollama => None,
+        ProviderKind::Compat => Some(SecretKind::CompatAi),
     }
 }
 
@@ -203,9 +205,14 @@ impl AiService {
             None => None,
             Some(sk) => {
                 let v = self.secrets.get(sk).map_err(|_| AiError::Store("secret_backend".into()))?;
-                Some(v.filter(|v| !v.is_empty()).ok_or(AiError::NoKey)?)
+                let v = v.filter(|v| !v.is_empty());
+                // Endpoint tuong thich: khoa tuy chon (LM Studio chay cuc bo khong can khoa).
+                if kind.needs_key() { Some(v.ok_or(AiError::NoKey)?) } else { v }
             }
         };
+        if kind == ProviderKind::Compat && ps.model_name.trim().is_empty() {
+            return Err(AiError::InvalidInput("model_required".into()));
+        }
         let base = self.base_url_for(kind, ps.base_url.clone());
         let cfg = ProviderConfig::new(base, key).with_timeout(self.endpoints.timeout);
         Ok((make_provider(kind, cfg)?, ps.model_name))
@@ -216,6 +223,7 @@ impl AiService {
             ProviderKind::Gemini => self.endpoints.gemini.clone(),
             ProviderKind::OpenAi => self.endpoints.openai.clone(),
             ProviderKind::Ollama => self.endpoints.ollama.clone().or(ollama_url),
+            ProviderKind::Compat => self.endpoints.compat.clone().or(ollama_url),
         }
         .unwrap_or_else(|| kind.default_base_url().to_string())
     }
@@ -226,6 +234,10 @@ impl AiService {
     pub fn ocr_target(&self) -> Result<OcrTarget> {
         let s = self.get_settings()?;
         let kind = s.default_provider.ok_or(AiError::NotConfigured)?;
+        // US-57: endpoint tuong thich chi phuc vu Hoi AI, khong dung cho OCR.
+        if kind == ProviderKind::Compat {
+            return Err(AiError::NotConfigured);
+        }
         let ps = s.providers.iter().find(|p| p.provider == kind).ok_or(AiError::NotConfigured)?;
         let api_key = match secret_kind(kind) {
             None => None,
@@ -240,6 +252,22 @@ impl AiService {
         let req = ChatRequest { model, system: None, messages: vec![ChatMessage::user("Reply with the single word: OK")], max_output_tokens: Some(1024) };
         let mut sink = |_: &str| {};
         p.stream_chat(&req, &CancelFlag::new(), &mut sink).await.map(|_| ())
+    }
+
+    /// Liet ke model cua endpoint tuong thich (AC-57.4): `GET {base}/models`.
+    pub async fn list_models(&self, kind: ProviderKind) -> Result<Vec<String>> {
+        if kind != ProviderKind::Compat {
+            return Err(AiError::InvalidInput("provider_has_no_model_list".into()));
+        }
+        let s = self.get_settings()?;
+        let ps = s.providers.iter().find(|p| p.provider == kind).cloned().ok_or(AiError::NotConfigured)?;
+        let key = match secret_kind(kind) {
+            Some(sk) => self.secrets.get(sk).map_err(|_| AiError::Store("secret_backend".into()))?.filter(|v| !v.is_empty()),
+            None => None,
+        };
+        let cfg = ProviderConfig::new(self.base_url_for(kind, ps.base_url), key).with_timeout(self.endpoints.timeout);
+        let http = crate::http::build_client(cfg.timeout)?;
+        crate::compat::list_models(&http, &cfg, &CancelFlag::new()).await
     }
 
     // ---------- chat ----------
@@ -264,7 +292,7 @@ impl AiService {
         let s = self.get_settings()?;
         let kind = requested.or(s.default_provider).ok_or(AiError::NotConfigured)?;
         let ps = s.providers.iter().find(|p| p.provider == kind).ok_or(AiError::NotConfigured)?;
-        if !ps.has_key {
+        if kind.needs_key() && !ps.has_key {
             return Err(AiError::NoKey);
         }
         if !ps.consented {

@@ -2,13 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { errKeyOf, driveKeyOf, mondayOf, usd, errCode } from "./api.ts";
+import { errKeyOf, driveKeyOf, mondayOf, usd, errCode, errDetail } from "./api.ts";
 
 const en: Record<string, string> = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, "..", "locales", "en.json"), "utf8"));
 const known = (k: string) => k in en;
 
 test("ma loi cua Rust deu co khoa i18n, ma la thi roi ve err.generic", () => {
-  for (const c of ["key_missing", "consent_required", "already_recording", "auth", "quota", "network", "timeout", "permission", "permission_screen", "permission_mic", "no_mic", "audio_unsupported", "audio_device", "store_error", "session_active", "import_failed", "pane_not_allowed", "open_failed", "mic_usage_description_missing"]) {
+  for (const c of ["key_missing", "consent_required", "already_recording", "auth", "rejected", "quota", "network", "timeout", "permission", "permission_screen", "permission_mic", "no_mic", "audio_unsupported", "audio_device", "store_error", "storage", "internal", "session_active", "import_failed", "pane_not_allowed", "open_failed", "mic_usage_description_missing"]) {
     assert.notEqual(errKeyOf(c, known), "err.generic", c);
   }
   assert.equal(errKeyOf("khong_biet", known), "err.generic");
@@ -21,6 +21,10 @@ test("trang thai Drive co khoa i18n", () => {
 test("errCode lay chuoi ma tu loi Tauri", () => {
   assert.equal(errCode("key_missing"), "key_missing");
   assert.equal(errCode(new Error("x")), "x");
+  assert.equal(errCode("storage|loi luu tru: database is locked"), "storage");
+  assert.equal(errDetail("storage|loi luu tru: database is locked"), "loi luu tru: database is locked");
+  assert.equal(errDetail("network"), null);
+  assert.equal(errDetail("storage|" + "x".repeat(500))?.length, 200);
 });
 
 test("mondayOf lui theo tuan (UTC) va usd doi micro", () => {

@@ -20,6 +20,7 @@ pub const AI_COMMANDS: &[&str] = &[
     "ai_clear_api_key",
     "ai_accept_consent",
     "ai_test_connection",
+    "ai_list_models",
     "ai_list_conversations",
     "ai_list_messages",
     "ai_ask",
@@ -29,15 +30,15 @@ pub const AI_COMMANDS: &[&str] = &[
     "ai_delete_conversation",
 ];
 
-/// Kho khoa dung chung toan app: MOT cache duy nhat boc Keychain (macOS) nen moi khoa chi hoi Keychain toi da
+/// Kho khoa dung chung toan app: MOT cache duy nhat boc Keychain (macOS) / Credential Manager (Windows) nen moi khoa chi hoi Keychain toi da
 /// mot lan moi lan chay app, du nhieu module cung goi. Noi khac chua co ban that nen dung ban trong bo nho.
 pub fn secret_store() -> Arc<dyn rlt_secrets::SecretStore> {
     static STORE: std::sync::OnceLock<Arc<dyn rlt_secrets::SecretStore>> = std::sync::OnceLock::new();
     STORE
         .get_or_init(|| {
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", windows))]
             let inner: Arc<dyn rlt_secrets::SecretStore> = Arc::new(rlt_secrets::KeychainSecretStore::new());
-            #[cfg(not(target_os = "macos"))]
+            #[cfg(not(any(target_os = "macos", windows)))]
             let inner: Arc<dyn rlt_secrets::SecretStore> = Arc::new(rlt_secrets::InMemorySecretStore::new());
             Arc::new(rlt_secrets::CachedSecretStore::new(inner))
         })
@@ -67,28 +68,28 @@ fn code<T>(r: rlt_ai::Result<T>) -> Result<T, String> {
 }
 
 #[tauri::command]
-pub fn ai_get_settings(s: State<'_, AiState>) -> Result<AiSettings, String> {
+pub async fn ai_get_settings(s: State<'_, AiState>) -> Result<AiSettings, String> {
     code(s.svc.get_settings())
 }
 
 #[tauri::command]
-pub fn ai_save_settings(s: State<'_, AiState>, input: AiSettingsInput) -> Result<(), String> {
+pub async fn ai_save_settings(s: State<'_, AiState>, input: AiSettingsInput) -> Result<(), String> {
     code(s.svc.save_settings(&input))
 }
 
 /// Chi nhan khoa vao Keychain. Khong co lenh doc lai.
 #[tauri::command]
-pub fn ai_set_api_key(s: State<'_, AiState>, provider: ProviderKind, value: String) -> Result<(), String> {
+pub async fn ai_set_api_key(s: State<'_, AiState>, provider: ProviderKind, value: String) -> Result<(), String> {
     code(s.svc.set_api_key(provider, &value))
 }
 
 #[tauri::command]
-pub fn ai_clear_api_key(s: State<'_, AiState>, provider: ProviderKind) -> Result<(), String> {
+pub async fn ai_clear_api_key(s: State<'_, AiState>, provider: ProviderKind) -> Result<(), String> {
     code(s.svc.clear_api_key(provider))
 }
 
 #[tauri::command]
-pub fn ai_accept_consent(s: State<'_, AiState>, provider: ProviderKind) -> Result<(), String> {
+pub async fn ai_accept_consent(s: State<'_, AiState>, provider: ProviderKind) -> Result<(), String> {
     code(s.svc.accept_consent(provider))
 }
 
@@ -98,13 +99,20 @@ pub async fn ai_test_connection(s: State<'_, AiState>, provider: ProviderKind) -
     code(svc.test_connection(provider).await)
 }
 
+/// Danh sach model cua endpoint tuong thich OpenAI (US-57). Chi tra ten model, khong tra khoa.
 #[tauri::command]
-pub fn ai_list_conversations(s: State<'_, AiState>, session_id: String) -> Result<Vec<Conversation>, String> {
+pub async fn ai_list_models(s: State<'_, AiState>, provider: ProviderKind) -> Result<Vec<String>, String> {
+    let svc = s.svc.clone();
+    code(svc.list_models(provider).await)
+}
+
+#[tauri::command]
+pub async fn ai_list_conversations(s: State<'_, AiState>, session_id: String) -> Result<Vec<Conversation>, String> {
     code(s.svc.list_conversations(&session_id))
 }
 
 #[tauri::command]
-pub fn ai_list_messages(s: State<'_, AiState>, conversation_id: i64) -> Result<Vec<Message>, String> {
+pub async fn ai_list_messages(s: State<'_, AiState>, conversation_id: i64) -> Result<Vec<Message>, String> {
     code(s.svc.list_messages(conversation_id))
 }
 
@@ -141,12 +149,12 @@ pub fn ai_cancel(s: State<'_, AiState>) {
 }
 
 #[tauri::command]
-pub fn ai_clear_history(s: State<'_, AiState>, conversation_id: i64) -> Result<usize, String> {
+pub async fn ai_clear_history(s: State<'_, AiState>, conversation_id: i64) -> Result<usize, String> {
     code(s.svc.clear_history(conversation_id))
 }
 
 #[tauri::command]
-pub fn ai_delete_conversation(s: State<'_, AiState>, conversation_id: i64) -> Result<bool, String> {
+pub async fn ai_delete_conversation(s: State<'_, AiState>, conversation_id: i64) -> Result<bool, String> {
     code(s.svc.delete_conversation(conversation_id))
 }
 

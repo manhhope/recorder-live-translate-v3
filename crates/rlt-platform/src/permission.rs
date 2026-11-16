@@ -1,4 +1,4 @@
-//! Quyền micro (macOS): truy vấn thật bằng `AVCaptureDevice.authorizationStatusForMediaType:` qua objc2 và xin quyền
+//! Quyền micro (macOS; Windows đọc công tắc registry): truy vấn thật bằng `AVCaptureDevice.authorizationStatusForMediaType:` qua objc2 và xin quyền
 //! bằng `requestAccessForMediaType:completionHandler:`.
 //!
 //! TRẠNG THÁI ĐO: phần ánh xạ mã trạng thái -> `MicPermission` có test. Phần gọi hệ thống thật CHƯA đo (worker
@@ -106,6 +106,66 @@ mod mac {
     }
 }
 
+/// Windows: công tắc Quyền riêng tư > Micrô nằm ở registry `CapabilityAccessManager\\ConsentStore\\microphone`, giá trị
+/// chuỗi `Value` = `Allow` | `Deny`. Hàm thuần để test trên mọi máy. Thiếu giá trị = chưa ai tắt = cho phép.
+/// Giá trị lạ không bao giờ coi là cho phép.
+pub fn mic_permission_from_consent(value: Option<&str>) -> MicPermission {
+    match value {
+        None => MicPermission::Authorized,
+        Some(v) if v.eq_ignore_ascii_case("allow") => MicPermission::Authorized,
+        Some(_) => MicPermission::Denied,
+    }
+}
+
+#[cfg(windows)]
+mod win {
+    use super::{mic_permission_from_consent, MicPermission};
+
+    #[link(name = "advapi32")]
+    extern "system" {
+        fn RegGetValueW(hkey: isize, sub_key: *const u16, value: *const u16, flags: u32, ty: *mut u32, data: *mut u16, len: *mut u32) -> i32;
+    }
+    const HKEY_CURRENT_USER: isize = 0x8000_0001u32 as i32 as isize;
+    const HKEY_LOCAL_MACHINE: isize = 0x8000_0002u32 as i32 as isize;
+    const RRF_RT_REG_SZ: u32 = 0x0000_0002;
+    const SUBKEY: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone";
+
+    fn wide(s: &str) -> Vec<u16> {
+        s.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    /// Cong tac "Cho phep ung dung desktop truy cap micro": app khong dong goi (exe NSIS) bi chan boi khoa nay,
+    /// khong phai khoa goc o tren. Truoc day khong doc -> bao Authorized trong khi WASAPI/cpal im lang.
+    const SUBKEY_DESKTOP: &str = r"SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone\NonPackaged";
+
+    fn read(root: isize) -> Option<String> {
+        read_at(root, SUBKEY)
+    }
+
+    fn read_at(root: isize, subkey: &str) -> Option<String> {
+        let (sub, val) = (wide(subkey), wide("Value"));
+        let mut buf = [0u16; 32];
+        let mut len = (buf.len() * 2) as u32;
+        // SAFETY: con tro tro toi bo dem cuc bo; `len` la so byte cua bo dem; chuoi ket thuc bang 0.
+        let rc = unsafe { RegGetValueW(root, sub.as_ptr(), val.as_ptr(), RRF_RT_REG_SZ, std::ptr::null_mut(), buf.as_mut_ptr(), &mut len) };
+        if rc != 0 {
+            return None;
+        }
+        let n = (len as usize / 2).min(buf.len());
+        let s = String::from_utf16_lossy(&buf[..n]);
+        Some(s.trim_end_matches('\0').to_string())
+    }
+
+    /// Chinh sach may (HKLM) thang nguoi dung (HKCU): ai Deny thi la Deny.
+    pub fn status() -> MicPermission {
+        let (m, u) = (read(HKEY_LOCAL_MACHINE), read(HKEY_CURRENT_USER));
+        let (dm, du) = (read_at(HKEY_LOCAL_MACHINE, SUBKEY_DESKTOP), read_at(HKEY_CURRENT_USER, SUBKEY_DESKTOP));
+        crate::diag_hook::emit("permission", &format!("mic_consent hklm={m:?} hkcu={u:?} desktop_hklm={dm:?} desktop_hkcu={du:?}"));
+        let denied = [m, u, dm, du].into_iter().flatten().any(|v| mic_permission_from_consent(Some(&v)) != MicPermission::Authorized);
+        if denied { MicPermission::Denied } else { MicPermission::Authorized }
+    }
+}
+
 /// Trạng thái quyền micro hiện tại. Ngoài macOS: chưa có truy vấn, báo `Authorized` vì hệ điều hành không chặn ở
 /// mức ứng dụng; lỗi thật (nếu có) hiện ở `start()` của nguồn micro.
 pub fn mic_permission() -> MicPermission {
@@ -113,7 +173,11 @@ pub fn mic_permission() -> MicPermission {
     {
         mac::status()
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    {
+        win::status()
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
     {
         MicPermission::Authorized
     }
@@ -138,7 +202,13 @@ pub fn request_mic_permission(wait: std::time::Duration) -> Result<MicPermission
     {
         mac::request(wait)
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    {
+        // Windows khong co hop thoai xin quyen cho ung dung desktop: chi doc lai cong tac.
+        let _ = wait;
+        Ok(win::status())
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
     {
         let _ = wait;
         Ok(MicPermission::Authorized)
@@ -155,6 +225,23 @@ mod tests {
         assert_eq!(MicPermission::from_av_status(1), MicPermission::Restricted);
         assert_eq!(MicPermission::from_av_status(2), MicPermission::Denied);
         assert_eq!(MicPermission::from_av_status(3), MicPermission::Authorized);
+    }
+
+    #[test]
+    fn windows_consent_value_maps_to_permission() {
+        assert_eq!(mic_permission_from_consent(None), MicPermission::Authorized);
+        assert_eq!(mic_permission_from_consent(Some("Allow")), MicPermission::Authorized);
+        assert_eq!(mic_permission_from_consent(Some("allow")), MicPermission::Authorized);
+        assert_eq!(mic_permission_from_consent(Some("Deny")), MicPermission::Denied);
+        assert_eq!(mic_permission_from_consent(Some("")), MicPermission::Denied);
+        assert_eq!(mic_permission_from_consent(Some("???")), MicPermission::Denied);
+    }
+
+    /// Doc registry that (chi doc). Gia tri phu thuoc may nen chi kiem hop le; CHUA chay tren Windows that.
+    #[cfg(windows)]
+    #[test]
+    fn windows_real_status_query_is_authorized_or_denied() {
+        assert!(matches!(mic_permission(), MicPermission::Authorized | MicPermission::Denied));
     }
 
     #[test]

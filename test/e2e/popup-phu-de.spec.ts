@@ -88,6 +88,31 @@ for (const loc of ["en", "pt-PT"] as const) {
       await expect.poll(() => opacity(page)).toBe(0);
     });
 
+    test(`thanh nut: chon mau, doi co chu bang chuot roi con tro roi di thi thanh van tu an ${loc}`, async ({ page, rlt }) => {
+      await openPopup(page, rlt, loc);
+      await page.mouse.move(300, 80);
+      await expect.poll(() => opacity(page)).toBe(1);
+      // Mo menu "them", chon mau chu goc (chuot), doi co chu, roi con tro roi cua so.
+      await page.getByRole("button", { name: rlt.t("sub.more") }).click();
+      const sw = page.locator(`.tools [title="${rlt.t("sub.color.source")}"]`);
+      await sw.click();
+      await sw.evaluate((e: HTMLInputElement) => { e.value = "#ff0000"; e.dispatchEvent(new Event("change", { bubbles: true })); });
+      await page.getByRole("button", { name: rlt.t("sub.font.increase") }).click();
+      await page.mouse.move(300, 400);
+      await emitHover(page, false);
+      await expect.poll(() => opacity(page)).toBe(0);
+    });
+
+    test(`thanh nut: bam phim Tab vao nut thi thanh van hien du con tro o ngoai ${loc}`, async ({ page, rlt }) => {
+      await openPopup(page, rlt, loc);
+      await page.mouse.move(300, 400);
+      await page.keyboard.press("Tab");
+      await expect(page.locator(".tools :focus")).toHaveCount(1);
+      await expect.poll(() => opacity(page)).toBe(1);
+      await page.keyboard.press("Enter");
+      await expect.poll(() => opacity(page)).toBe(1);
+    });
+
     test(`thanh nut: moi nut co tooltip theo ${loc}`, async ({ page, rlt }) => {
       await openPopup(page, rlt, loc);
       const keys = ["sub.font.decrease", "sub.font.increase", "sub.mode.label", "sub.color.source", "sub.color.translation", "sub.opacity", "sub.more", "sub.close"];

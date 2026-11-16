@@ -59,6 +59,34 @@ test.describe("Bat dau that bai: thong bao loi ro rang, khong mat du lieu", () =
     await expect(page.getByRole("alert")).toContainText(rlt.t("err.generic"));
   });
 
+  test("session_start tra storage kem dong ky thuat: KHONG hien 'Khong ket noi Soniox'", async ({ page, rlt }) => {
+    await rlt.open({ fail: { session_start: "storage|loi luu tru: database is locked" } });
+    await rlt.btn("tool.start").click();
+    await expect(page.getByRole("alert")).toContainText(rlt.t("err.storage"));
+    await expect(page.getByRole("alert")).not.toContainText(rlt.t("err.network"));
+    await expect(page.getByTestId("err-tech")).toContainText("database is locked");
+    await expect(page.getByTestId("err-tech")).toContainText(rlt.t("err.tech"));
+    await expect(rlt.btn("tool.start")).toBeEnabled();
+  });
+
+  test("session_start tra internal kem dong ky thuat", async ({ page, rlt }) => {
+    await rlt.open({ fail: { session_start: "internal|phien da ket thuc" } });
+    await rlt.btn("tool.start").click();
+    await expect(page.getByRole("alert")).toContainText(rlt.t("err.internal"));
+    await expect(page.getByRole("alert")).not.toContainText(rlt.t("err.network"));
+    await expect(page.getByTestId("err-tech")).toContainText("phien da ket thuc");
+  });
+
+  test("storage va internal co nhan trang thai rieng tren thanh trang thai (khong phai Offline)", async ({ page, rlt }) => {
+    await rlt.open();
+    await rlt.startRecording();
+    for (const [code, key] of [["storage", "status.storage"], ["internal", "status.internal"]] as const) {
+      await rlt.emit({ kind: "status", code });
+      await expect(page.locator(".foot .sb")).toContainText(rlt.t(key));
+      await expect(page.locator(".foot .sb")).not.toContainText(rlt.t("status.offline"));
+    }
+  });
+
   test("sau khi loi, bo loi roi bat dau lai thanh cong va xoa thong bao", async ({ page, rlt }) => {
     await rlt.open({ fail: { session_start: "network" } });
     await rlt.btn("tool.start").click();
@@ -90,11 +118,11 @@ test.describe("Trang thai loi o Phien va Muc dung", () => {
     await expect(page.getByRole("heading", { name: rlt.t("set.tab.usagelogs") })).toBeVisible();
   });
 
-  test("Thu ket noi Soniox: khoa sai, het quota, mat mang", async ({ page, rlt }) => {
+  test("Thu ket noi Soniox: khoa sai, bi tu choi (khong phai khoa), het quota, mat mang", async ({ page, rlt }) => {
     await rlt.open();
     await rlt.nav("nav.settings").click();
     await page.getByRole("button", { name: rlt.t("set.tab.sonioxusage") }).click();
-    for (const [code, key] of [["auth", "err.auth"], ["quota", "err.quota"], ["network", "err.network"]] as const) {
+    for (const [code, key] of [["auth", "err.auth"], ["rejected", "err.rejected"], ["quota", "err.quota"], ["network", "err.network"]] as const) {
       await rlt.setFail("soniox_test_connection", code);
       await page.getByRole("button", { name: rlt.t("set.test") }).click();
       await expect(page.locator(".bd.rec:not([data-testid])")).toContainText(rlt.t(key));
@@ -102,5 +130,17 @@ test.describe("Trang thai loi o Phien va Muc dung", () => {
     await rlt.setFail("soniox_test_connection", null);
     await page.getByRole("button", { name: rlt.t("set.test") }).click();
     await expect(page.locator(".bd.ok:not([data-testid])")).toContainText(rlt.t("set.soniox.ok"));
+  });
+
+  test("rejected (400): hien thong diep rieng kem ly do Soniox, KHONG phai 'khoa sai'", async ({ page, rlt }) => {
+    await rlt.open();
+    await rlt.startRecording();
+    await rlt.emit({ kind: "status", code: "rejected", detail: "Invalid language hint. (400)" });
+    await expect(page.locator(".foot .sb")).toContainText(rlt.t("status.rejected"));
+    await expect(page.locator(".foot .sb")).not.toContainText(rlt.t("status.badkey"));
+    await expect(page.getByTestId("rejected-banner")).toContainText(rlt.t("err.rejected"));
+    await expect(page.getByTestId("rejected-detail")).toHaveText("Invalid language hint. (400)");
+    await rlt.emit({ kind: "status", code: null });
+    await expect(page.getByTestId("rejected-banner")).toHaveCount(0);
   });
 });

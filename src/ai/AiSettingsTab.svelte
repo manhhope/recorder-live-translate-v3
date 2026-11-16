@@ -4,6 +4,8 @@
   import { onMount } from "svelte";
   import { _, locale } from "svelte-i18n";
   import Icon from "../lib/Icon.svelte";
+  import LoadError from "../lib/LoadError.svelte";
+  import { withTimeout } from "../lib/ipc.ts";
   import * as api from "./api.ts";
   import type { AiSettings, ChipKind, Provider } from "./api.ts";
 
@@ -19,26 +21,45 @@
   let defaultProvider = $state<Provider | null>(null);
   let models = $state<Record<string, string>>({});
   let ollamaUrl = $state("");
+  let compatUrl = $state("");
+  let compatModels = $state<string[]>([]);
+  let compatList = $state<"idle" | "running" | "ok" | "manual">("idle");
   let chars = $state(60000);
   let turns = $state(10);
   let prompts = $state<Record<string, string>>({});
-  let keyInput = $state<Record<string, string>>({ gemini: "", openai: "" });
+  let keyInput = $state<Record<string, string>>({ gemini: "", openai: "", compat: "" });
   let show = $state<Record<string, boolean>>({});
   let test = $state<Record<string, "idle" | "running" | "ok" | string>>({});
   let saved = $state(false);
   let error = $state<string | null>(null);
+  let loading = $state(true);
+  let loadErr = $state<string | null>(null);
 
   const hasKey = (p: Provider) => s?.providers.find(x => x.provider === p)?.has_key ?? false;
-  const defModel = (p: Provider) => ({ gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b" })[p];
+  // Endpoint tuong thich khong co model mac dinh gia (AC-57.5): ten model do nguoi dung nhap hoac chon.
+  const defModel = (p: Provider) => ({ gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "" })[p];
+  const compatUrlOk = $derived(api.validCompatUrl(compatUrl));
+  const compatModelOk = $derived(!!models.compat?.trim());
+  const compatHint = $derived(
+    compatList === "ok" ? $_("set.compat.models.count", { values: { count: compatModels.length } })
+    : compatList === "manual" ? $_("set.compat.models.manual")
+    : !compatModelOk ? $_("set.compat.model.required")
+    : $_("set.compat.model.hint"));
   const defPrompt = (k: ChipKind) => $_(CHIPS.find(c => c.kind === k)!.def);
 
   function load(v: AiSettings) {
     s = v; defaultProvider = v.default_provider; chars = v.context_max_chars; turns = v.context_max_turns;
     for (const p of v.providers) models[p.provider] = p.model_name;
     ollamaUrl = v.providers.find(p => p.provider === "ollama")?.base_url ?? "";
+    compatUrl = v.providers.find(p => p.provider === "compat")?.base_url ?? api.COMPAT_DEFAULT_URL;
     for (const c of v.chip_prompts) prompts[c.chip] = c.prompt ?? defPrompt(c.chip);
   }
-  async function refresh() { load(await api.getSettings()); }
+  async function refresh() { load(await withTimeout(api.getSettings())); }
+  async function firstLoad() {
+    loading = true; loadErr = null;
+    try { await refresh(); } catch (e) { loadErr = e === "ipc_timeout" ? "set.load.timeout" : "set.load.err"; }
+    loading = false;
+  }
 
   async function saveKey(p: Provider) {
     const v = keyInput[p].trim();
@@ -62,11 +83,11 @@
       providers: api.PROVIDERS.map(p => ({
         provider: p,
         model_name: models[p]?.trim() && models[p].trim() !== defModel(p) ? models[p].trim() : null,
-        base_url: p === "ollama" ? (ollamaUrl.trim() || null) : null,
+        base_url: p === "ollama" ? (ollamaUrl.trim() || null) : p === "compat" ? (compatUrl.trim() || null) : null,
       })),
       chip_prompts: CHIPS.map(c => ({ chip: c.kind, prompt: prompts[c.kind]?.trim() && prompts[c.kind].trim() !== defPrompt(c.kind) ? prompts[c.kind].trim() : null })),
     };
-    await api.saveSettings(input);
+    await withTimeout(api.saveSettings(input));
   }
   async function save() {
     error = null; saved = false;
@@ -76,6 +97,7 @@
     defaultProvider = null; chars = 60000; turns = 10;
     for (const p of api.PROVIDERS) models[p] = defModel(p);
     ollamaUrl = "http://localhost:11434";
+    compatUrl = api.COMPAT_DEFAULT_URL; compatModels = []; compatList = "idle";
     for (const c of CHIPS) prompts[c.kind] = defPrompt(c.kind);
   }
   const testText = (p: Provider) => {
@@ -83,13 +105,18 @@
     if (!t || t === "idle") return "";
     if (t === "running") return $_("ai.test.running");
     if (t === "ok") return $_("ai.test.ok");
-    return $_(api.errKey(t));
+    return $_(api.errKey(t, p));
   };
-
+  // Lay danh sach model tu `GET {base}/models` (AC-57.4). Loi thi KHONG bao do: chi chuyen sang nhap tay.
+  async function loadModels() {
+    compatList = "running"; compatModels = [];
+    try { await persist(); compatModels = await api.listModels("compat"); compatList = compatModels.length ? "ok" : "manual"; }
+    catch { compatList = "manual"; }
+  }
   // Doi ngon ngu thi prompt mac dinh (chua sua) doi theo.
   $effect(() => { void $locale; if (s) for (const c of s.chip_prompts) if (c.prompt === null) prompts[c.chip] = defPrompt(c.chip); });
 
-  onMount(() => { refresh().catch(e => (error = String(e))); });
+  onMount(() => { void firstLoad(); });
 </script>
 
 {#if s}
@@ -135,6 +162,39 @@
     {/each}
   </div>
 
+  <div class="card" style="margin-top:14px" data-testid="compat-card">
+    <h4>{$_("set.compat.title")}</h4>
+    <div class="rw"><b>{$_("set.compat.url")}</b>
+      <div class="rr"><label class="fld {compatUrlOk ? '' : 'err'}"><input aria-label={$_("set.compat.url")} aria-invalid={!compatUrlOk} autocomplete="off" spellcheck="false" bind:value={compatUrl} /></label>
+        <button type="button" class="btn sm ghost" onclick={() => (compatUrl = api.COMPAT_DEFAULT_URL)}><Icon name="refresh" />{$_("common.default")}</button></div></div>
+    <p class="hint" role={compatUrlOk ? undefined : "alert"}>{compatUrlOk ? $_("set.compat.url.hint") : $_("set.compat.url.bad")}</p>
+    <div class="rw"><b>{$_("set.model.name")}</b>
+      <div class="rr"><label class="fld"><input list="compat-models" aria-label={$_("set.model.name")} autocomplete="off" spellcheck="false" bind:value={models.compat} /></label>
+        <datalist id="compat-models">{#each compatModels as m (m)}<option value={m}></option>{/each}</datalist>
+        <button type="button" class="btn sm" disabled={!compatUrlOk || compatList === "running"} onclick={loadModels}>{$_("set.compat.models.load")}</button></div></div>
+    <p class="hint" role="status">{compatHint}</p>
+    <div class="rw"><b>{$_("set.compat.key")}</b>
+      <div class="rr">
+        <label class="fld"><Icon name="key" />
+          <input type={show.compat ? "text" : "password"} autocomplete="off" spellcheck="false" aria-label={$_("set.compat.key")}
+            placeholder={hasKey("compat") ? $_("ai.key.saved") : $_("set.compat.key.none")} bind:value={keyInput.compat} />
+          <button type="button" class="btn icon sm ghost" aria-label={$_("set.key.show")} onclick={() => (show.compat = !show.compat)}><Icon name="eye" /></button>
+        </label>
+        {#if hasKey("compat")}<span class="bd ok">{$_("ai.key.saved")}</span>{/if}
+      </div>
+    </div>
+    <div class="rr" style="padding:6px 0">
+      <button type="button" class="btn sm primary" disabled={!keyInput.compat.trim()} onclick={() => saveKey("compat")}>{$_("ai.key.save")}</button>
+      {#if hasKey("compat")}<button type="button" class="btn sm danger" onclick={() => removeKey("compat")}>{$_("ai.key.remove")}</button>{/if}
+    </div>
+    <div class="rr" style="padding-top:6px">
+      <button type="button" class="btn sm" disabled={!compatUrlOk || !compatModelOk || test.compat === "running"} onclick={() => runTest("compat")}>{$_("set.test")}</button>
+      <span class="hint" role="status">{testText("compat")}</span>
+    </div>
+    <p class="hint">{$_("set.compat.need")}</p>
+    <p class="hint">{$_("set.compat.privacy")}</p>
+  </div>
+
   <div class="card" style="margin-top:14px">
     <h4>{$_("set.ollama.local")}</h4>
     <div class="rw"><b>{"URL"}</b><div class="rr"><label class="fld"><input aria-label={"URL"} bind:value={ollamaUrl} /></label></div></div>
@@ -165,10 +225,14 @@
 </div>
 
 <div class="tl2">
-  <button type="button" class="btn primary" onclick={save}>{$_("ai.settings.save")}</button>
+  <button type="button" class="btn primary" disabled={!compatUrlOk} onclick={save}>{$_("ai.settings.save")}</button>
   <button type="button" class="btn" onclick={resetTab}><Icon name="refresh" />{$_("set.reset.tab")}</button>
   <span class="hint">{$_("set.reset.nokey")}</span>
   {#if saved}<span class="bd ok" role="status">{$_("ai.settings.saved")}</span>{/if}
-  {#if error}<span class="bd rec" role="alert">{$_(api.errKey(error))}</span>{/if}
+  {#if error}<span class="bd rec" role="alert">{$_(error === "ipc_timeout" ? "set.load.timeout" : api.errKey(error))}</span>{/if}
 </div>
+{:else if loadErr}
+  <LoadError message={$_(loadErr)} busy={loading} onretry={firstLoad} />
+{:else}
+  <p class="hint" role="status">{$_("common.loading")}</p>
 {/if}

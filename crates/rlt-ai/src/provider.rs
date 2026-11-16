@@ -16,16 +16,19 @@ pub enum ProviderKind {
     #[serde(rename = "openai")]
     OpenAi,
     Ollama,
+    /// Endpoint tuong thich OpenAI do nguoi dung chon (LM Studio, llama.cpp, vLLM...). Chi cho Hoi AI (US-57).
+    Compat,
 }
 
 impl ProviderKind {
-    pub const ALL: [ProviderKind; 3] = [ProviderKind::Gemini, ProviderKind::OpenAi, ProviderKind::Ollama];
+    pub const ALL: [ProviderKind; 4] = [ProviderKind::Gemini, ProviderKind::OpenAi, ProviderKind::Ollama, ProviderKind::Compat];
 
     pub fn as_str(self) -> &'static str {
         match self {
             ProviderKind::Gemini => "gemini",
             ProviderKind::OpenAi => "openai",
             ProviderKind::Ollama => "ollama",
+            ProviderKind::Compat => "compat",
         }
     }
 
@@ -34,6 +37,7 @@ impl ProviderKind {
             "gemini" => Some(ProviderKind::Gemini),
             "openai" => Some(ProviderKind::OpenAi),
             "ollama" => Some(ProviderKind::Ollama),
+            "compat" => Some(ProviderKind::Compat),
             _ => None,
         }
     }
@@ -43,6 +47,8 @@ impl ProviderKind {
             ProviderKind::Gemini => "gemini-2.5-flash",
             ProviderKind::OpenAi => "gpt-4.1-mini",
             ProviderKind::Ollama => "qwen2.5:1.5b",
+            // Khong co model mac dinh: ten model phu thuoc may chu cua nguoi dung (AC-57.5).
+            ProviderKind::Compat => "",
         }
     }
 
@@ -51,12 +57,18 @@ impl ProviderKind {
             ProviderKind::Gemini => "https://generativelanguage.googleapis.com",
             ProviderKind::OpenAi => "https://api.openai.com",
             ProviderKind::Ollama => "http://localhost:11434",
+            ProviderKind::Compat => "http://localhost:1234/v1",
         }
     }
 
-    /// Ollama chay tren may nguoi dung, khong can khoa.
+    /// Ollama chay tren may nguoi dung, endpoint tuong thich co the khong can khoa (AC-57.3).
     pub fn needs_key(self) -> bool {
-        !matches!(self, ProviderKind::Ollama)
+        !matches!(self, ProviderKind::Ollama | ProviderKind::Compat)
+    }
+
+    /// Loai co URL do nguoi dung dat (luu o `ai_provider_settings.base_url`).
+    pub fn has_custom_url(self) -> bool {
+        matches!(self, ProviderKind::Ollama | ProviderKind::Compat)
     }
 }
 
@@ -198,6 +210,7 @@ pub fn make_provider(kind: ProviderKind, cfg: ProviderConfig) -> Result<Box<dyn 
         ProviderKind::Gemini => Box::new(crate::gemini::Gemini::new(http, cfg)),
         ProviderKind::OpenAi => Box::new(crate::openai::OpenAi::new(http, cfg)),
         ProviderKind::Ollama => Box::new(crate::ollama::Ollama::new(http, cfg)),
+        ProviderKind::Compat => Box::new(crate::openai::OpenAi::compat(http, cfg)),
     })
 }
 

@@ -4,7 +4,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 
 export type RecordMode = "system" | "mic" | "mixed";
 export type SessionStateName = "idle" | "recording" | "paused" | "stopping";
-export type StatusCode = "permission" | "auth" | "quota" | "network" | "timeout";
+export type StatusCode = "permission" | "audio_device" | "auth" | "rejected" | "quota" | "network" | "timeout" | "storage" | "internal";
 
 export interface LineDto { captionLineId: number; seq: number; offsetMs: number; sourceLang: string; sourceText: string; translatedText: string | null }
 export type { PartialDto } from "./live.ts";
@@ -14,7 +14,8 @@ export type UiEvent =
   | { kind: "line"; line: LineDto }
   | { kind: "partial"; partial: PartialDto | null }
   | { kind: "level"; level: number }
-  | { kind: "status"; code: StatusCode | null }
+  /** `detail`: ly do ky thuat, chi khi `code` = `rejected` (Soniox gui kem) hoac `network` (giai doan/loai/nguyen nhan). */
+  | { kind: "status"; code: StatusCode | null; detail?: string }
   | { kind: "stopped"; sessionId: string; lines: number; durationMs: number; drained: boolean }
   /** Thong bao ma phien van chay: che do tron ha xuong chi he thong (khong co micro), hoac het quota (ghi cuc bo, khong dich). */
   | { kind: "notice"; code: "mixed_no_mic" | "translation_quota" };
@@ -22,7 +23,7 @@ export type UiEvent =
 export interface StartParams { targetLang: string; listenLangs: string[]; mode: RecordMode; title?: string | null }
 export interface RecordPrefs { targetLang: string; listenLangs: string[]; mode: RecordMode; uiLanguage: string }
 /** `mic`: notDetermined | denied | restricted | authorized. */
-export interface PermissionsOut { mic: string; screen: string }
+export interface PermissionsOut { mic: string; screen: string; platform?: string }
 export type DriveConnState = "not_configured" | "disconnected" | "connected";
 export interface DriveConnOut { state: DriveConnState; email: string | null; builtin: boolean }
 export interface DriveSyncAllOut { total: number; synced: number; failed: number; waiting: number; oauthConnected: boolean }
@@ -58,12 +59,19 @@ export const sessionResume = () => invoke<void>("session_resume");
 export const sessionStop = () => invoke<void>("session_stop");
 export const sessionNew = () => invoke<boolean>("session_new");
 export const sessionState = () => invoke<[string, string | null]>("session_state");
+/** Cac dong da chot cua phien dang chay (rong khi idle): man Ghi nap lai sau khi chuyen man giua phien. */
+export const sessionLines = () => invoke<LineDto[]>("session_lines");
 export const consentGet = () => invoke<boolean>("consent_get");
 export const consentAccept = () => invoke<void>("consent_accept");
 export const saveApiKey = (value: string) => invoke<void>("soniox_save_api_key", { value });
 export const hasApiKey = () => invoke<boolean>("soniox_has_api_key");
 export const clearApiKey = () => invoke<void>("soniox_clear_api_key");
+/** Mo thu muc nhat ky chan doan (Explorer/Finder); tra duong dan. */
+export const diagOpenLogs = () => invoke<string>("diag_open_logs");
 export const testConnection = () => invoke<void>("soniox_test_connection");
+export interface RealtimeDiag { ok: boolean; code: string; detail?: string; elapsedMs: number }
+/** "Test realtime connection": thu rieng WebSocket Soniox, khong ghi am. `detail` la ly do ky thuat, khong chua khoa. */
+export const diagRealtime = () => invoke<RealtimeDiag>("soniox_diag_realtime");
 export const permissionsStatus = () => invoke<PermissionsOut>("permissions_status");
 /** `granted` | `denied` | `needsrestart` | `unknown`. Do that SCShareableContent: chi goi khi nguoi dung bam Check again. */
 export const screenPermissionCheck = (settingsOpened: boolean) => invoke<string>("screen_permission_check", { settingsOpened });
@@ -116,7 +124,16 @@ export const driveSyncNow = () => invoke<DriveSyncAllOut>("drive_sync_now");
 
 /** Ma loi tra ve la chuoi ngan (vd `key_missing`); dua ve mot khoa i18n `err.*`, khong ro thi `err.generic`. */
 export function errCode(e: unknown): string {
-  return typeof e === "string" ? e : (e as { message?: string })?.message ?? "unknown";
+  const raw = typeof e === "string" ? e : (e as { message?: string })?.message ?? "unknown";
+  const i = raw.indexOf("|");
+  return i < 0 ? raw : raw.slice(0, i);
+}
+/** Dong ky thuat ngan sau dau `|` (chi `storage` va `internal` mang theo), Rust da scrub va cat 200 ky tu; khong co thi `null`. */
+export function errDetail(e: unknown): string | null {
+  const raw = typeof e === "string" ? e : (e as { message?: string })?.message ?? "";
+  const i = raw.indexOf("|");
+  const d = i < 0 ? "" : raw.slice(i + 1).trim();
+  return d ? d.slice(0, 200) : null;
 }
 export function usd(micros: number): number { return micros / 1_000_000; }
 export function mondayOf(offsetWeeks: number, now = new Date()): string {

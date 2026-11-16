@@ -26,12 +26,14 @@ pub const SESSION_COMMANDS: &[&str] = &[
     "session_stop",
     "session_new",
     "session_state",
+    "session_lines",
     "consent_get",
     "consent_accept",
     "soniox_save_api_key",
     "soniox_has_api_key",
     "soniox_clear_api_key",
     "soniox_test_connection",
+    "soniox_diag_realtime",
     "permissions_status",
     "screen_permission_check",
     "record_prefs_get",
@@ -130,6 +132,12 @@ pub fn session_state(s: State<'_, SessionState>) -> (String, Option<String>) {
     (service::state_name(s.svc.state()).to_string(), s.svc.active_session_id())
 }
 
+/// Cac dong da chot cua phien dang chay (xem `SessionService::active_lines`).
+#[tauri::command]
+pub fn session_lines(s: State<'_, SessionState>) -> Vec<service::LineDto> {
+    s.svc.active_lines()
+}
+
 // ---------------------------------------------------------------- dong y, khoa, quyen
 
 #[tauri::command]
@@ -163,6 +171,13 @@ pub async fn soniox_test_connection(s: State<'_, SessionState>) -> Res<()> {
     svc.test_connection().await
 }
 
+/// "Test realtime connection": thu rieng WebSocket Soniox, khong can ghi am. Tra ma + ly do ky thuat (khong chua khoa).
+#[tauri::command]
+pub async fn soniox_diag_realtime(s: State<'_, SessionState>) -> Res<service::RealtimeDiag> {
+    let svc = s.svc.clone();
+    Ok(svc.diag_realtime().await)
+}
+
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PermissionsOut {
@@ -170,6 +185,8 @@ pub struct PermissionsOut {
     pub mic: &'static str,
     /// `granted` | `denied` | `unknown` (ngoai macOS).
     pub screen: &'static str,
+    /// `macos` | `windows` | `other`. Windows khong co quyen Ghi man hinh / Accessibility: giao dien chi hien micro.
+    pub platform: &'static str,
 }
 
 #[tauri::command]
@@ -178,7 +195,14 @@ pub fn permissions_status() -> PermissionsOut {
     let screen = if crate::capture::sck::has_permission() { "granted" } else { "denied" };
     #[cfg(not(target_os = "macos"))]
     let screen = "unknown";
-    PermissionsOut { mic: rlt_platform::mic_permission().as_str(), screen }
+    let platform = if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(windows) {
+        "windows"
+    } else {
+        "other"
+    };
+    PermissionsOut { mic: rlt_platform::mic_permission().as_str(), screen, platform }
 }
 
 /// Kiem quyen Ghi man hinh bang CGPreflight + do that SCShareableContent (chi khi nguoi dung bam Check again).

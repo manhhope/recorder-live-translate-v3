@@ -1,4 +1,6 @@
 //! OpenAI Chat Completions co stream (SSE), khoa o header `Authorization: Bearer`.
+//! Cung mot cai dat phuc vu endpoint tuong thich OpenAI (US-57): chi khac duong dan (`base_url` da co `/v1`),
+//! khoa tuy chon va khong gui `stream_options`.
 
 use crate::error::{AiError, Result};
 use crate::gemini::JsonBody;
@@ -10,11 +12,20 @@ use serde_json::{json, Value};
 pub struct OpenAi {
     http: reqwest::Client,
     cfg: ProviderConfig,
+    kind: ProviderKind,
+    /// Phan duong dan noi sau `base_url`.
+    chat_path: &'static str,
 }
 
 impl OpenAi {
     pub fn new(http: reqwest::Client, cfg: ProviderConfig) -> Self {
-        Self { http, cfg }
+        Self { http, cfg, kind: ProviderKind::OpenAi, chat_path: "/v1/chat/completions" }
+    }
+
+    /// Endpoint tuong thich do nguoi dung chon: `base_url` la dia chi goc da gom `/v1` (them neu thieu).
+    pub fn compat(http: reqwest::Client, mut cfg: ProviderConfig) -> Self {
+        cfg.base_url = crate::compat::normalize_base(&cfg.base_url);
+        Self { http, cfg, kind: ProviderKind::Compat, chat_path: "/chat/completions" }
     }
 }
 
@@ -42,7 +53,7 @@ pub(crate) fn chat_messages(req: &ChatRequest) -> Vec<Value> {
 #[async_trait]
 impl LlmProvider for OpenAi {
     fn kind(&self) -> ProviderKind {
-        ProviderKind::OpenAi
+        self.kind
     }
 
     async fn stream_chat(
@@ -51,18 +62,25 @@ impl LlmProvider for OpenAi {
         cancel: &CancelFlag,
         on_delta: &mut (dyn for<'x> FnMut(&'x str) + Send),
     ) -> Result<Usage> {
-        let key = self.cfg.key()?;
-        let body = json!({
+        // Khoa bat buoc voi OpenAI; endpoint tuong thich co the khong can khoa (AC-57.3): khong co thi khong gui header.
+        let key = match self.cfg.key() {
+            Ok(k) => Some(k),
+            Err(e) if self.kind.needs_key() => return Err(e),
+            Err(_) => None,
+        };
+        let mut body = json!({
             "model": req.model,
             "stream": true,
-            "stream_options": { "include_usage": true },
             "messages": chat_messages(req),
         });
-        let rb = self
-            .http
-            .post(format!("{}/v1/chat/completions", self.cfg.base_url))
-            .bearer_auth(key)
-            .json_body(&body);
+        if self.kind == ProviderKind::OpenAi {
+            body["stream_options"] = json!({ "include_usage": true });
+        }
+        let mut rb = self.http.post(format!("{}{}", self.cfg.base_url, self.chat_path));
+        if let Some(k) = key {
+            rb = rb.bearer_auth(k);
+        }
+        let rb = rb.json_body(&body);
         let resp = send(rb, self.cfg.timeout, cancel, false).await?;
         let mut usage = Usage::default();
         read_lines(resp, self.cfg.timeout, cancel, |line| {

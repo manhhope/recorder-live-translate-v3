@@ -1,12 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "capture-overlay-window",
+  "platforms": ["macOS", "windows"],
   "description": "Lop phu chon vung chup (M3-04/05, label 'capture-overlay-N'): chi chot hoac huy vung, khong doc phien hay khoa.",
   "windows": ["capture-overlay-*"],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
     "allow-capture-commit",
-    "allow-capture-cancel"
+    "allow-capture-cancel",
+    "allow-diag-js"
   ]
 }

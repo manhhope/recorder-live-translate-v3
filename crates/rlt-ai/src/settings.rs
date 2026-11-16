@@ -46,7 +46,7 @@ pub struct ProviderSettings {
     pub provider: ProviderKind,
     /// Ten model hieu luc (mac dinh trong ma neu chua dat).
     pub model_name: String,
-    /// Chi Ollama co URL.
+    /// Ollama va endpoint tuong thich OpenAI co URL.
     pub base_url: Option<String>,
     /// Co khoa trong kho khoa (chi co/khong, KHONG gia tri).
     pub has_key: bool,
@@ -102,13 +102,22 @@ pub fn load(st: &Store, has_key: impl Fn(ProviderKind) -> bool) -> Result<AiSett
         providers.push(ProviderSettings {
             provider: kind,
             model_name: model.filter(|m| !m.trim().is_empty()).unwrap_or_else(|| kind.default_model().to_string()),
-            base_url: if kind == ProviderKind::Ollama {
-                Some(url.filter(|u| !u.is_empty()).unwrap_or_else(|| kind.default_base_url().to_string()))
+            base_url: if kind.has_custom_url() {
+                Some(url.clone().filter(|u| !u.is_empty()).unwrap_or_else(|| kind.default_base_url().to_string()))
             } else {
                 None
             },
-            has_key: !kind.needs_key() || has_key(kind),
-            consented: !kind.needs_key() || consent.is_some(),
+            // Ollama khong co khoa; endpoint tuong thich co khoa tuy chon nen chi bao co/khong that.
+            has_key: if kind == ProviderKind::Ollama { true } else { has_key(kind) },
+            consented: match kind {
+                ProviderKind::Ollama => true,
+                // Loopback (LM Studio tren may nay) khong gui du lieu ra ngoai: coi nhu da dong y (AC-57.10).
+                ProviderKind::Compat => {
+                    consent.is_some()
+                        || crate::compat::is_loopback(url.as_deref().filter(|u| !u.is_empty()).unwrap_or(kind.default_base_url()))
+                }
+                _ => consent.is_some(),
+            },
         });
     }
     let mut chip_prompts = Vec::new();
@@ -139,7 +148,12 @@ pub fn save(st: &Store, input: &AiSettingsInput) -> Result<()> {
     }
     for p in &input.providers {
         if let Some(u) = p.base_url.as_deref().filter(|u| !u.is_empty()) {
-            if p.provider != ProviderKind::Ollama || !valid_base_url(u) {
+            let ok = match p.provider {
+                ProviderKind::Ollama => valid_base_url(u),
+                ProviderKind::Compat => crate::compat::validate_base_url(u).is_ok(),
+                _ => false,
+            };
+            if !ok {
                 return Err(AiError::InvalidInput("invalid_base_url".into()));
             }
         }
@@ -162,7 +176,7 @@ pub fn save(st: &Store, input: &AiSettingsInput) -> Result<()> {
     )?;
     for p in &input.providers {
         let model = p.model_name.as_deref().map(str::trim).filter(|m| !m.is_empty());
-        let url = if p.provider == ProviderKind::Ollama { p.base_url.as_deref().filter(|u| !u.is_empty()) } else { None };
+        let url = if p.provider.has_custom_url() { p.base_url.as_deref().filter(|u| !u.is_empty()) } else { None };
         conn.execute(
             &format!("UPDATE ai_provider_settings SET model_name = ?2, base_url = ?3, updated_at = {NOW} WHERE provider = ?1"),
             params![p.provider.as_str(), model, url],

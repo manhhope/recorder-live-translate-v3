@@ -29,10 +29,12 @@ pub enum SecretKind {
     DeepL,
     /// Email tai khoan Google dang ket noi Drive (chi de hien thi o Cai dat; khong phai khoa).
     DriveAccountEmail,
+    /// Khoa (tuy chon) cua endpoint tuong thich OpenAI do nguoi dung chon, chi dung cho Hoi AI (US-57).
+    CompatAi,
 }
 
 impl SecretKind {
-    pub const ALL: [SecretKind; 8] = [
+    pub const ALL: [SecretKind; 9] = [
         SecretKind::Soniox,
         SecretKind::Gemini,
         SecretKind::OpenAi,
@@ -41,6 +43,7 @@ impl SecretKind {
         SecretKind::DriveClientSecret,
         SecretKind::DeepL,
         SecretKind::DriveAccountEmail,
+        SecretKind::CompatAi,
     ];
 
     /// Ten account trong Keychain.
@@ -54,6 +57,7 @@ impl SecretKind {
             SecretKind::DriveClientSecret => "drive-client-secret",
             SecretKind::DeepL => "deepl-api-key",
             SecretKind::DriveAccountEmail => "drive-account-email",
+            SecretKind::CompatAi => "compat-ai-key",
         }
     }
 }
@@ -239,11 +243,11 @@ impl SecretStore for InMemorySecretStore {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 mod keychain {
     use super::*;
 
-    /// Ban Keychain macOS dung crate `keyring`.
+    /// Ban Keychain (macOS) / Credential Manager (Windows) dung crate `keyring`, cung ten service.
     #[derive(Debug, Clone)]
     pub struct KeychainSecretStore {
         service: String,
@@ -286,6 +290,7 @@ mod keychain {
                 Err(e) => Err(SecretError::Backend(e.to_string())),
             }
         }
+        #[cfg(target_os = "macos")]
         fn exists(&self, kind: SecretKind) -> Result<bool, SecretError> {
             use security_framework::item::{ItemClass, ItemSearchOptions};
             // Chi hoi thuoc tinh (khong load du lieu) => khong cham ACL cua muc => khong co hop thoai.
@@ -310,7 +315,7 @@ mod keychain {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 pub use keychain::KeychainSecretStore;
 
 #[cfg(test)]
@@ -495,7 +500,7 @@ mod tests {
         assert_eq!(b.gets(), 1);
     }
 
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     #[test]
     fn real_keychain_roundtrip_fake_key_cleaned_up() {
         // Service rieng cho test + khoa gia; luon xoa sau khi chay.

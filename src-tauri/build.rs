@@ -1,11 +1,15 @@
 //! ADR-10: app manifest. Khai báo MỌI lệnh tự định nghĩa để chúng nằm trong một tập có tên; capability của
 //! từng loại cửa sổ (`capabilities/*.json`) chỉ cấp đúng các lệnh của loại đó. Lệnh không có trong manifest
 //! thì ACL không kiểm; vì vậy thêm lệnh mới = thêm vào đây VÀ vào capability cần dùng.
+//! (Sai với tauri 2.12.5: đã có manifest thì lệnh app không thuộc capability nào đều bị chặn, kể cả lệnh không có
+//! trong danh sách này; `diag_js` từng bị chặn như vậy ở mọi cửa sổ phụ.)
 
 /// Mọi lệnh của app. `shell_*`, `shortcut*`, `autostart_*`, `quit_app`: vỏ ứng dụng (M1-06 tới M1-09).
 /// `subtitle_*`: cửa sổ phụ đề (M2-07).
 pub const APP_COMMANDS: &[&str] = &[
     "core_version",
+    "diag_open_logs",
+    "diag_js",
     "quick_translate",
     "quick_cancel",
     "quick_history",
@@ -26,6 +30,7 @@ pub const APP_COMMANDS: &[&str] = &[
     "ai_clear_api_key",
     "ai_accept_consent",
     "ai_test_connection",
+    "ai_list_models",
     "ai_list_conversations",
     "ai_list_messages",
     "ai_ask",
@@ -65,6 +70,7 @@ pub const APP_COMMANDS: &[&str] = &[
     "session_resume",
     "session_stop",
     "session_new",
+    "session_lines",
     "session_state",
     "consent_get",
     "consent_accept",
@@ -72,6 +78,7 @@ pub const APP_COMMANDS: &[&str] = &[
     "soniox_has_api_key",
     "soniox_clear_api_key",
     "soniox_test_connection",
+    "soniox_diag_realtime",
     "permissions_status",
     "screen_permission_check",
     "record_prefs_get",

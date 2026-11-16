@@ -75,9 +75,67 @@ pub fn plan(kind: PanelKind) -> PanelPlan {
     }
 }
 
+
+// ---------------------------------------------------------------------------------------------------------
+// Windows (W2). Cửa sổ do tao/wry tạo là HWND thường; ở đây chỉ chỉnh cờ ex-style, topmost và affinity.
+// Phần quyết định (`win_plan`, `apply_ex_style`) là hàm thuần, test được trên mọi nền tảng.
+// ---------------------------------------------------------------------------------------------------------
+
+/// `WS_EX_TOPMOST`.
+pub const WS_EX_TOPMOST: u32 = 0x0000_0008;
+/// `WS_EX_TRANSPARENT`: click xuyên qua (chỉ dùng khi cần click-through toàn cửa sổ, không đặt mặc định).
+pub const WS_EX_TRANSPARENT: u32 = 0x0000_0020;
+/// `WS_EX_TOOLWINDOW`: không hiện trên thanh tác vụ và Alt+Tab.
+pub const WS_EX_TOOLWINDOW: u32 = 0x0000_0080;
+/// `WS_EX_APPWINDOW`: ép hiện trên thanh tác vụ, phải GỠ khỏi cửa sổ nổi.
+pub const WS_EX_APPWINDOW: u32 = 0x0004_0000;
+/// `WS_EX_LAYERED`.
+pub const WS_EX_LAYERED: u32 = 0x0008_0000;
+/// `WS_EX_NOACTIVATE`: nhấn chuột vào cửa sổ không kích hoạt nó (không cướp tiêu điểm của app đang họp).
+pub const WS_EX_NOACTIVATE: u32 = 0x0800_0000;
+/// `WDA_NONE`.
+pub const WDA_NONE: u32 = 0x0;
+/// `WDA_MONITOR` (cũ, ra ảnh đen): KHÔNG dùng, chỉ để test chặn nhầm.
+pub const WDA_MONITOR: u32 = 0x1;
+/// `WDA_EXCLUDEFROMCAPTURE` (Windows 10 2004 trở lên): cửa sổ vẫn thấy trên màn hình nhưng vắng mặt trong ảnh chụp và chia sẻ.
+pub const WDA_EXCLUDEFROMCAPTURE: u32 = 0x11;
+
+/// Kế hoạch cờ Win32 cho một loại cửa sổ nổi (hàm thuần).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WinPlan {
+    pub ex_add: u32,
+    pub ex_remove: u32,
+    pub topmost: bool,
+    /// Affinity khi `hidden_from_capture` bật.
+    pub affinity_hidden: u32,
+    /// Lớp chọn vùng nhận Esc qua phím tắt toàn cục (EscScope) nên không cần kích hoạt; phụ đề cũng vậy.
+    pub activate_on_show: bool,
+}
+
+pub fn win_plan(kind: PanelKind) -> WinPlan {
+    let _ = plan(kind); // giữ hai nền tảng cùng phân loại; mọi loại hiện dùng chung bộ cờ.
+    WinPlan {
+        ex_add: WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
+        ex_remove: WS_EX_APPWINDOW,
+        topmost: true,
+        affinity_hidden: WDA_EXCLUDEFROMCAPTURE,
+        activate_on_show: false,
+    }
+}
+
+/// Áp kế hoạch lên giá trị ex-style hiện có. Idempotent: gọi hai lần cho cùng kết quả.
+pub fn apply_ex_style(current: u32, p: &WinPlan) -> u32 {
+    (current | p.ex_add) & !p.ex_remove
+}
+
+/// Affinity cần đặt cho trạng thái ẩn/hiện.
+pub fn affinity_for(hidden: bool, p: &WinPlan) -> u32 {
+    if hidden { p.affinity_hidden } else { WDA_NONE }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PanelError {
-    /// Không phải macOS.
+    /// Không phải macOS hay Windows.
     Unsupported,
     /// Phải gọi trên luồng chính (AppKit).
     NotMainThread,
@@ -85,6 +143,8 @@ pub enum PanelError {
     NullWindow,
     /// Kích thước thể hiện của lớp gốc và lớp panel khác nhau: đổi lớp sẽ hỏng bộ nhớ, từ chối.
     LayoutMismatch { window: usize, panel: usize },
+    /// Một lời gọi Win32 thất bại (mã GetLastError).
+    Win32(u32),
 }
 
 impl fmt::Display for PanelError {
@@ -94,6 +154,7 @@ impl fmt::Display for PanelError {
             PanelError::NotMainThread => write!(f, "panel_not_main_thread"),
             PanelError::NullWindow => write!(f, "panel_null_window"),
             PanelError::LayoutMismatch { window, panel } => write!(f, "panel_layout_mismatch:{window}:{panel}"),
+            PanelError::Win32(code) => write!(f, "panel_win32:{code}"),
         }
     }
 }
@@ -101,28 +162,30 @@ impl std::error::Error for PanelError {}
 
 #[cfg(target_os = "macos")]
 pub use macos::{apply, reassert, restore_class, set_hidden_from_capture, show_key, window_number};
+#[cfg(windows)]
+pub use win::{apply, reassert, restore_class, set_hidden_from_capture, show_key, window_number};
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub unsafe fn apply(_ns_window: *mut std::ffi::c_void, _kind: PanelKind) -> Result<(), PanelError> {
     Err(PanelError::Unsupported)
 }
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub unsafe fn show_key(_ns_window: *mut std::ffi::c_void, _kind: PanelKind) -> Result<(), PanelError> {
     Err(PanelError::Unsupported)
 }
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub unsafe fn restore_class(_ns_window: *mut std::ffi::c_void) -> bool {
     false
 }
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub unsafe fn reassert(_ns_window: *mut std::ffi::c_void, _kind: PanelKind) -> Result<(), PanelError> {
     Err(PanelError::Unsupported)
 }
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub unsafe fn set_hidden_from_capture(_ns_window: *mut std::ffi::c_void, _hidden: bool) -> Result<(), PanelError> {
     Err(PanelError::Unsupported)
 }
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub unsafe fn window_number(_ns_window: *mut std::ffi::c_void) -> Result<i64, PanelError> {
     Err(PanelError::Unsupported)
 }
@@ -195,6 +258,9 @@ mod macos {
     ///
     /// # Safety
     /// `ns_window` phải là con trỏ `NSWindow` còn sống.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn restore_class(ns_window: *mut c_void) -> bool {
         if ns_window.is_null() || MainThreadMarker::new().is_none() {
             return false;
@@ -230,6 +296,9 @@ mod macos {
     ///
     /// # Safety
     /// `ns_window` phải là con trỏ `NSWindow` còn sống (từ `WebviewWindow::ns_window()`).
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn apply(ns_window: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
         let win = window_ref(ns_window)?;
         let cls = target_class(kind);
@@ -252,6 +321,9 @@ mod macos {
     ///
     /// # Safety
     /// Như `apply`.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn reassert(ns_window: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
         configure(window_ref(ns_window)?, kind);
         Ok(())
@@ -274,6 +346,9 @@ mod macos {
     ///
     /// # Safety
     /// Như `apply`.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn show_key(ns_window: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
         let win = window_ref(ns_window)?;
         configure(win, kind);
@@ -287,6 +362,9 @@ mod macos {
     ///
     /// # Safety
     /// Như `apply`.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn set_hidden_from_capture(ns_window: *mut c_void, hidden: bool) -> Result<(), PanelError> {
         let win = window_ref(ns_window)?;
         win.setSharingType(if hidden { NSWindowSharingType::None } else { NSWindowSharingType::ReadOnly });
@@ -297,12 +375,143 @@ mod macos {
     ///
     /// # Safety
     /// Như `apply`.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
     pub unsafe fn window_number(ns_window: *mut c_void) -> Result<i64, PanelError> {
         Ok(window_ref(ns_window)?.windowNumber() as i64)
     }
 
     #[allow(dead_code)]
     fn _assert_types(_: Retained<NSPanel>) {}
+}
+
+#[cfg(windows)]
+mod win {
+    use super::{affinity_for, apply_ex_style, win_plan, PanelError, PanelKind};
+    use std::ffi::c_void;
+
+    type Hwnd = *mut c_void;
+    const GWL_EXSTYLE: i32 = -20;
+    const SWP_NOSIZE: u32 = 0x0001;
+    const SWP_NOMOVE: u32 = 0x0002;
+    const SWP_NOACTIVATE: u32 = 0x0010;
+    const SWP_FRAMECHANGED: u32 = 0x0020;
+    const SWP_SHOWWINDOW: u32 = 0x0040;
+    const HWND_TOPMOST: isize = -1;
+    const HWND_NOTOPMOST: isize = -2;
+
+    #[link(name = "user32")]
+    extern "system" {
+        fn IsWindow(hwnd: Hwnd) -> i32;
+        fn GetWindowLongPtrW(hwnd: Hwnd, index: i32) -> isize;
+        fn SetWindowLongPtrW(hwnd: Hwnd, index: i32, value: isize) -> isize;
+        fn SetWindowPos(hwnd: Hwnd, after: isize, x: i32, y: i32, cx: i32, cy: i32, flags: u32) -> i32;
+        fn SetWindowDisplayAffinity(hwnd: Hwnd, affinity: u32) -> i32;
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetLastError() -> u32;
+    }
+
+    fn check(hwnd: Hwnd) -> Result<(), PanelError> {
+        if hwnd.is_null() {
+            return Err(PanelError::NullWindow);
+        }
+        // SAFETY: IsWindow chấp nhận mọi giá trị HWND, trả 0 nếu không hợp lệ.
+        if unsafe { IsWindow(hwnd) } == 0 {
+            return Err(PanelError::NullWindow);
+        }
+        Ok(())
+    }
+
+    fn last() -> PanelError {
+        PanelError::Win32(unsafe { GetLastError() })
+    }
+
+    fn set_topmost(hwnd: Hwnd, top: bool, show: bool) -> Result<(), PanelError> {
+        let mut flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED;
+        if show {
+            flags |= SWP_SHOWWINDOW;
+        }
+        let after = if top { HWND_TOPMOST } else { HWND_NOTOPMOST };
+        if unsafe { SetWindowPos(hwnd, after, 0, 0, 0, 0, flags) } == 0 {
+            return Err(last());
+        }
+        Ok(())
+    }
+
+    /// Đặt ex-style (NOACTIVATE, TOOLWINDOW, TOPMOST) và affinity. Gọi được nhiều lần, từ luồng bất kỳ
+    /// (các API user32 này an toàn khi gọi ngoài luồng sở hữu cửa sổ; SetWindowPos gửi tin sang luồng đó).
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
+    pub unsafe fn apply(hwnd: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
+        check(hwnd)?;
+        let p = win_plan(kind);
+        let cur = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
+        let next = apply_ex_style(cur, &p);
+        if next != cur {
+            SetLastError0();
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next as isize);
+        }
+        set_topmost(hwnd, p.topmost, false)?;
+        set_hidden_from_capture(hwnd, super::plan(kind).hidden_from_capture)
+    }
+
+    #[allow(non_snake_case)]
+    unsafe fn SetLastError0() {
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn SetLastError(code: u32);
+        }
+        SetLastError(0);
+    }
+
+    /// Lớp chọn vùng nhận chuột mà không kích hoạt app (WS_EX_NOACTIVATE): chỉ cần gọi lại cờ và hiện lên.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
+    pub unsafe fn show_key(hwnd: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
+        apply(hwnd, kind)?;
+        set_topmost(hwnd, true, true)
+    }
+
+    /// Gọi lại sau `show()` hoặc khi đổi màn hình: Windows có thể tước TOPMOST khi cửa sổ khác chiếm toàn màn hình.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
+    pub unsafe fn reassert(hwnd: *mut c_void, kind: PanelKind) -> Result<(), PanelError> {
+        apply(hwnd, kind)
+    }
+
+    /// Không có lớp gốc để trả lại như macOS.
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
+    pub unsafe fn restore_class(_hwnd: *mut c_void) -> bool {
+        false
+    }
+
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
+    pub unsafe fn set_hidden_from_capture(hwnd: *mut c_void, hidden: bool) -> Result<(), PanelError> {
+        check(hwnd)?;
+        let p = win_plan(PanelKind::Subtitle);
+        if SetWindowDisplayAffinity(hwnd, affinity_for(hidden, &p)) == 0 {
+            return Err(last());
+        }
+        Ok(())
+    }
+
+    ///
+    /// # Safety
+    /// `hwnd` phai la HWND hop le (hoac null: tra loi) cua mot cua so con ton tai khi goi.
+    pub unsafe fn window_number(hwnd: *mut c_void) -> Result<i64, PanelError> {
+        check(hwnd)?;
+        Ok(hwnd as isize as i64)
+    }
 }
 
 #[cfg(test)]
@@ -349,6 +558,53 @@ mod tests {
     fn error_codes_are_stable_strings() {
         assert_eq!(PanelError::NotMainThread.to_string(), "panel_not_main_thread");
         assert_eq!(PanelError::LayoutMismatch { window: 1, panel: 2 }.to_string(), "panel_layout_mismatch:1:2");
+    }
+
+
+    #[test]
+    fn win_plan_sets_noactivate_toolwindow_topmost_for_every_kind() {
+        for k in [PanelKind::Subtitle, PanelKind::CaptureOverlay] {
+            let p = win_plan(k);
+            assert_ne!(p.ex_add & WS_EX_NOACTIVATE, 0);
+            assert_ne!(p.ex_add & WS_EX_TOOLWINDOW, 0);
+            assert_ne!(p.ex_add & WS_EX_TOPMOST, 0);
+            assert_ne!(p.ex_remove & WS_EX_APPWINDOW, 0, "cua so noi khong duoc hien tren thanh tac vu");
+            assert!(p.topmost);
+            assert!(!p.activate_on_show);
+            assert_eq!(p.ex_add & WS_EX_TRANSPARENT, 0, "khong click xuyen toan cua so (se mat nut keo)");
+        }
+    }
+
+    #[test]
+    fn apply_ex_style_is_idempotent_and_keeps_unrelated_bits() {
+        let p = win_plan(PanelKind::Subtitle);
+        let start = WS_EX_LAYERED | WS_EX_APPWINDOW | 0x100;
+        let once = apply_ex_style(start, &p);
+        assert_eq!(apply_ex_style(once, &p), once);
+        assert_ne!(once & WS_EX_LAYERED, 0, "giu WS_EX_LAYERED cua cua so trong suot");
+        assert_ne!(once & 0x100, 0);
+        assert_eq!(once & WS_EX_APPWINDOW, 0);
+    }
+
+    #[test]
+    fn win_affinity_values_match_win32_and_never_use_monitor() {
+        assert_eq!(WDA_EXCLUDEFROMCAPTURE, 0x11);
+        assert_eq!(WDA_NONE, 0);
+        assert_eq!(WS_EX_NOACTIVATE, 0x0800_0000);
+        assert_eq!(WS_EX_TOOLWINDOW, 0x80);
+        let p = win_plan(PanelKind::Subtitle);
+        assert_eq!(affinity_for(true, &p), WDA_EXCLUDEFROMCAPTURE);
+        assert_eq!(affinity_for(false, &p), WDA_NONE);
+        assert_ne!(affinity_for(true, &p), WDA_MONITOR, "WDA_MONITOR ra anh den, khong dung");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn win_apply_refuses_null_window() {
+        unsafe {
+            assert_eq!(apply(std::ptr::null_mut(), PanelKind::Subtitle), Err(PanelError::NullWindow));
+            assert_eq!(apply(0x10 as *mut std::ffi::c_void, PanelKind::Subtitle), Err(PanelError::NullWindow));
+        }
     }
 
     #[cfg(target_os = "macos")]

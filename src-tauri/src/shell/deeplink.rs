@@ -107,8 +107,8 @@ where
     S: AsRef<str>,
 {
     args.into_iter()
-        .map(|a| a.as_ref().to_string())
-        .filter(|a| a.len() >= 6 && a[..6].eq_ignore_ascii_case("rlt://"))
+        .map(|a| a.as_ref().trim_matches('"').to_string())
+        .filter(|a| a.len() >= 6 && a.as_bytes()[..6].eq_ignore_ascii_case(b"rlt://"))
         .collect()
 }
 
@@ -205,6 +205,12 @@ mod tests {
                 | DeepLinkAction::AskAi => {}
             }
         }
+    }
+
+    #[test]
+    fn args_with_non_ascii_or_quotes_do_not_panic() {
+        let args = ["C:\\Users\\Việt\\app.exe", "\"rlt://open\"", "é"];
+        assert_eq!(urls_from_args(args), vec!["rlt://open".to_string()]);
     }
 
     #[test]

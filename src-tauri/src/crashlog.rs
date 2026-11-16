@@ -32,15 +32,7 @@ pub fn set_dir(dir: &Path) {
 
 /// Thư mục dữ liệu app tính từ môi trường, dùng trước khi Tauri sẵn sàng.
 fn default_dir() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
-    let home = PathBuf::from(home);
-    if cfg!(target_os = "macos") {
-        Some(home.join("Library/Application Support").join(IDENTIFIER))
-    } else if cfg!(windows) {
-        std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join(IDENTIFIER))
-    } else {
-        Some(home.join(".local/share").join(IDENTIFIER))
-    }
+    rlt_platform::paths::data_dir(IDENTIFIER)
 }
 
 /// Cài panic hook. Gọi một lần, đầu `main`. Hook cũ (in ra stderr) vẫn được giữ.

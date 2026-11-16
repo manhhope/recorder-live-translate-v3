@@ -7,6 +7,7 @@
   import { Follow } from "../lib/follow.svelte.ts";
   import { backgroundCss, colorError, liveRows, mergeSnapshot, MODES, rowsForLines, toolbarVisible, upsertLine, type DisplayMode, type SubtitleSettings } from "./model.ts";
   import type { LineDto } from "../lib/api.ts";
+  import { dismiss } from "../lib/dismiss.ts";
   import { afterFinal, type LiveText } from "../lib/live.ts";
 
   interface LiveMsg { kind: "partial" | "clear"; source: string; translation: string }
@@ -46,6 +47,10 @@
     return () => offs.forEach(p => p.then(f => f()));
   });
 
+  // Chi tieu diem ban phim that (:focus-visible) moi giu thanh hien. Bam chuot vao nut/mau/co chu van focus nut do
+  // nhung khong phai ban phim; neu tinh nhu vay thi focusIn ket true va thanh khong bao gio tu an khi con tro roi di.
+  const isKeyboardFocus = (t: EventTarget | null) => t instanceof HTMLElement && t.matches(":focus-visible");
+
   const step = (delta: number) => invoke("subtitle_font_step", { delta });
   const setMode = (mode: DisplayMode) => invoke("subtitle_set_mode", { mode });
   const setOpacity = (e: Event) => invoke("subtitle_set_opacity", { percent: Number((e.target as HTMLInputElement).value) });
@@ -64,7 +69,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="sub" style:background={backgroundCss(s.opacity_percent)} onmousedown={startDrag}
      onpointerenter={() => (hover = true)} onpointerleave={() => { hover = false; if (!rustHover) menuOpen = false; }} role="presentation">
-  <div class="tools" class:show={barOn} data-drag onfocusin={() => (focusIn = true)} onfocusout={e => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) focusIn = false; }}>
+  <div class="tools" class:show={barOn} data-drag onfocusin={e => { if (isKeyboardFocus(e.target)) focusIn = true; }} onfocusout={e => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) focusIn = false; }}>
     <button class="mini" onclick={() => step(-1)} disabled={s.font_size_pt <= 12} title={$_("sub.font.decrease")} aria-label={$_("sub.font.decrease")}>{$_("sub.font.decrease.short")}</button>
     <span class="pt">{s.font_size_pt}{$_("sub.font.unit")}</span>
     <button class="mini" onclick={() => step(1)} disabled={s.font_size_pt >= 36} title={$_("sub.font.increase")} aria-label={$_("sub.font.increase")}>{$_("sub.font.increase.short")}</button>
@@ -75,7 +80,7 @@
     <input class="sw" type="color" aria-label={$_("sub.color.translation")} title={$_("sub.color.translation")} value={s.translation_color} onchange={e => setColor("translation", e)} />
     <input class="rg" type="range" min="0" max="80" step="5" aria-label={$_("sub.opacity")} title={$_("sub.opacity")} value={s.opacity_percent} onchange={setOpacity} />
     <span class="grow"></span>
-    <div class="more">
+    <div class="more" use:dismiss={{ open: menuOpen, onClose: () => (menuOpen = false), restoreFocus: ".mini" }}>
       <button class="mini" onclick={() => (menuOpen = !menuOpen)} title={$_("sub.more")} aria-label={$_("sub.more")} aria-expanded={menuOpen}>
         <svg class="i" viewBox="0 0 16 16"><circle cx="3" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="13" cy="8" r="1"/></svg>
       </button>

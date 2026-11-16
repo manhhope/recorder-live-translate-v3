@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { platformize } from "../lib/platform.ts";
   import { onMount } from "svelte";
   import { _, formatDate, currentLocale, locale } from "../i18n/index.ts";
   import Icon from "../lib/Icon.svelte";
@@ -183,7 +184,7 @@
     <div class="tl"><label class="fld"><Icon name="search" /><input type="search" placeholder={$_("ses.search")} aria-label={$_("ses.search")} bind:value={q} /></label></div>
     <div class="tr2">
       <button type="button" class="btn" onclick={importNet}><Icon name="download" />{$_("ses.import")}</button>
-      <button type="button" class="btn primary" onclick={() => (app.screen = "rec")}><Icon name="plus" />{$_("tool.new")}<kbd>{"⌘N"}</kbd></button>
+      <button type="button" class="btn primary" onclick={() => (app.screen = "rec")}><Icon name="plus" />{$_("tool.new")}<kbd>{platformize("⌘N")}</kbd></button>
     </div>
   </div>
   {#if error}

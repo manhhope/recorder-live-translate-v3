@@ -23,7 +23,19 @@ export default defineConfig({
     viewport: { width: 1100, height: 760 },
     deviceScaleFactor: 1,
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1100, height: 760 }, headless: true } }],
+  // Desktop Chrome mac dinh co UA Windows; cac test cu kiem chuoi macOS nen ghim UA Mac. Windows co project rieng.
+  projects: [
+    {
+      name: "chromium",
+      testIgnore: /windows\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36", viewport: { width: 1100, height: 760 }, headless: true },
+    },
+    {
+      name: "chromium-win",
+      testMatch: /windows\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36", viewport: { width: 1100, height: 760 }, headless: true },
+    },
+  ],
   webServer: {
     command: `npx vite build --outDir .e2e-dist --emptyOutDir && npx vite preview --outDir .e2e-dist --host 127.0.0.1 --port ${PORT} --strictPort`,
     url: `http://127.0.0.1:${PORT}/index.html`,

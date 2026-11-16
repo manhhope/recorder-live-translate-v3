@@ -63,6 +63,7 @@ pub fn consent_text(kind: ProviderKind, model: &str) -> (String, String) {
         ProviderKind::Gemini => "Google (Gemini)",
         ProviderKind::OpenAi => "OpenAI",
         ProviderKind::Ollama => "the Ollama server in your settings",
+        ProviderKind::Compat => "the OpenAI-compatible endpoint in your settings",
     };
     let title = "Send the captured image to an AI model? / Enviar a imagem capturada a um modelo de IA?".to_string();
     let body = format!(

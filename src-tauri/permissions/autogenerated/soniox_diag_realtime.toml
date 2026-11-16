@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-soniox-diag-realtime"
+description = "Enables the soniox_diag_realtime command without any pre-configured scope."
+commands.allow = ["soniox_diag_realtime"]
+
+[[permission]]
+identifier = "deny-soniox-diag-realtime"
+description = "Denies the soniox_diag_realtime command without any pre-configured scope."
+commands.deny = ["soniox_diag_realtime"]

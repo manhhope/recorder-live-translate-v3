@@ -35,7 +35,7 @@ extern "C" {
     fn tzset();
 }
 
-/// Do lech UTC (giay) cua mui gio may tai thoi diem `epoch_secs` (tinh ca gio mua he). Khong phai Unix: 0.
+/// Do lech UTC (giay) cua mui gio may tai thoi diem `epoch_secs` (tinh ca gio mua he). Unix: localtime_r; Windows: SystemTimeToTzSpecificLocalTime; nen tang khac: 0.
 #[cfg(unix)]
 pub fn local_utc_offset_secs(epoch_secs: i64) -> i64 {
     // SAFETY: `tm` khoi tao bang 0 la hop le cho localtime_r; con tro tro toi bien cuc bo con song.
@@ -50,7 +50,58 @@ pub fn local_utc_offset_secs(epoch_secs: i64) -> i64 {
     }
 }
 
-#[cfg(not(unix))]
+/// Windows: doi FILETIME UTC sang gio dia phuong bang `SystemTimeToTzSpecificLocalTime` (tinh ca gio mua he
+/// theo quy tac cua dung thoi diem do), roi lay chenh lech. Loi bat ky: 0 (nhu nhanh Unix).
+#[cfg(windows)]
+pub fn local_utc_offset_secs(epoch_secs: i64) -> i64 {
+    #[repr(C)]
+    #[derive(Default, Clone, Copy)]
+    struct SystemTime {
+        year: u16,
+        month: u16,
+        day_of_week: u16,
+        day: u16,
+        hour: u16,
+        minute: u16,
+        second: u16,
+        millis: u16,
+    }
+    #[repr(C)]
+    #[derive(Default, Clone, Copy)]
+    struct FileTime {
+        low: u32,
+        high: u32,
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn FileTimeToSystemTime(ft: *const FileTime, st: *mut SystemTime) -> i32;
+        fn SystemTimeToTzSpecificLocalTime(tz: *const u8, utc: *const SystemTime, local: *mut SystemTime) -> i32;
+        fn SystemTimeToFileTime(st: *const SystemTime, ft: *mut FileTime) -> i32;
+    }
+    // 100 ns tu 1601-01-01; 11_644_473_600 s giua 1601 va 1970.
+    let Some(ticks) = epoch_secs.checked_add(11_644_473_600).and_then(|s| s.checked_mul(10_000_000)) else {
+        return 0;
+    };
+    if ticks < 0 {
+        return 0;
+    }
+    let ticks = ticks as u64;
+    let ft = FileTime { low: ticks as u32, high: (ticks >> 32) as u32 };
+    let (mut utc, mut local, mut back) = (SystemTime::default(), SystemTime::default(), FileTime::default());
+    // SAFETY: moi con tro tro toi bien cuc bo con song; tz = NULL nghia la mui gio hien hanh cua may.
+    let ok = unsafe {
+        FileTimeToSystemTime(&ft, &mut utc) != 0
+            && SystemTimeToTzSpecificLocalTime(std::ptr::null(), &utc, &mut local) != 0
+            && SystemTimeToFileTime(&local, &mut back) != 0
+    };
+    if !ok {
+        return 0;
+    }
+    let back_ticks = (u64::from(back.high) << 32) | u64::from(back.low);
+    (back_ticks as i64 - ticks as i64) / 10_000_000
+}
+
+#[cfg(not(any(unix, windows)))]
 pub fn local_utc_offset_secs(_epoch_secs: i64) -> i64 {
     0
 }

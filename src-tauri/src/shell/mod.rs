@@ -64,7 +64,7 @@ fn run_action(app: &AppHandle, action: ShortcutAction) {
             let _ = app.emit_to("main", EV_SHORTCUT, action.as_str());
         }
         Dispatch::RegionCaptureBegin => {
-            if let Err(code) = crate::capture::capture_begin(app.clone()) {
+            if let Err(code) = crate::capture::capture_begin_now(app.clone()) {
                 notify_capture_error(app, &code);
             }
             let _ = app.emit_to("main", EV_SHORTCUT, action.as_str());
@@ -72,7 +72,7 @@ fn run_action(app: &AppHandle, action: ShortcutAction) {
         Dispatch::SubtitleToggle => {
             if app.get_webview_window(crate::subtitle::LABEL).is_some() {
                 crate::subtitle::subtitle_close(app.clone());
-            } else if let Err(e) = crate::subtitle::subtitle_open(app.clone()) {
+            } else if let Err(e) = crate::subtitle::subtitle_open_now(app.clone()) {
                 notice(app, "shell.shortcut.err.subtitle", Some(e));
             }
             let _ = app.emit_to("main", EV_SHORTCUT, action.as_str());
@@ -215,10 +215,10 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             crate::crashlog::guard("tray_menu", || match ev.id().as_ref() {
                 "tray-open" => show_main(app),
                 "tray-subtitle" => {
-                    let _ = crate::subtitle::subtitle_open(app.clone());
+                    let _ = crate::subtitle::subtitle_open_now(app.clone());
                 }
                 "tray-capture" => {
-                    if let Err(code) = crate::capture::capture_begin(app.clone()) {
+                    if let Err(code) = crate::capture::capture_begin_now(app.clone()) {
                         notify_capture_error(app, &code);
                     }
                 }
@@ -323,6 +323,13 @@ pub fn setup(app: &AppHandle, data_dir: PathBuf) -> Result<(), Box<dyn std::erro
             }
         });
     });
+    // Windows/Linux: ban chay khong qua NSIS (portable, dev) can tu dang ky scheme; NSIS da ghi san registry.
+    #[cfg(any(windows, target_os = "linux"))]
+    if !app.deep_link().is_registered("rlt").unwrap_or(false) {
+        if let Err(e) = app.deep_link().register_all() {
+            eprintln!("deep_link register_all: {e}");
+        }
+    }
     if let Ok(Some(urls)) = app.deep_link().get_current() {
         for u in urls {
             handle_url(app, u.as_str());
@@ -561,10 +568,10 @@ mod tests {
                 }
             }
         }
-        // Cua so phu de chi duoc cac lenh subtitle.
+        // Cua so phu de chi duoc cac lenh subtitle, tru diag_js (nhat ky chan doan, chi nhan loai trong danh sach trang).
         for p in perms("overlay") {
             if let Some(c) = cmd_of(&p) {
-                assert!(c.starts_with("subtitle_"), "{c}");
+                assert!(c.starts_with("subtitle_") || c == "diag_js", "{c}");
             }
         }
     }

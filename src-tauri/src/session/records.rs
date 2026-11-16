@@ -463,17 +463,9 @@ pub fn drive_save_config(g: &GoogleDrive, client_id: &str, client_secret: Option
     Ok(drive_connection(g))
 }
 
-/// Mo URL trong trinh duyet mac dinh (chi macOS o M3).
+/// Mo URL trong trinh duyet mac dinh (macOS `open`, Windows `ShellExecuteW`; chi nhan http/https).
 pub fn open_in_browser(url: &str) -> bool {
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open").arg(url).status().map(|s| s.success()).unwrap_or(false)
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = url;
-        false
-    }
+    rlt_platform::opener::open_uri(url)
 }
 
 /// Thoi gian toi da cho nguoi dung xac nhan o trinh duyet.

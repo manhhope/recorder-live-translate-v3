@@ -117,6 +117,11 @@ pub trait ShortcutBackend {
 /// `CommandOrControl` được coi là một phím bổ trợ riêng `cmdorctrl` (trên macOS = Cmd); `Cmd+X` và
 /// `CommandOrControl+X` vẫn là hai chuỗi khác nhau ở bước này nên được gộp: xem `canonical`.
 pub fn canonical(accel: &str) -> Result<String, ShortcutError> {
+    canonical_with(accel, cfg!(windows))
+}
+
+/// `windows = true`: CommandOrControl = Ctrl, còn Cmd/Super/Meta = phím Windows ("super").
+pub fn canonical_with(accel: &str, windows: bool) -> Result<String, ShortcutError> {
     let mut mods: Vec<&'static str> = Vec::new();
     let mut key: Option<String> = None;
     for part in accel.split('+') {
@@ -126,6 +131,8 @@ pub fn canonical(accel: &str) -> Result<String, ShortcutError> {
         }
         let m = match p.as_str() {
             // Trên macOS cmd = super = meta = commandorcontrol (nền tảng đích của M1); gộp để bắt trùng.
+            "commandorcontrol" | "cmdorctrl" | "commandorctrl" if windows => Some("ctrl"),
+            "cmd" | "command" | "super" | "meta" if windows => Some("super"),
             "cmd" | "command" | "super" | "meta" | "commandorcontrol" | "cmdorctrl" | "commandorctrl" => Some("cmd"),
             "ctrl" | "control" => Some("ctrl"),
             "alt" | "option" | "opt" => Some("alt"),
@@ -439,15 +446,30 @@ mod tests {
         }
     }
 
+    /// Dạng chuẩn hóa của một chuỗi phím trên nền tảng đang chạy: macOS CommandOrControl = "cmd", Windows = "ctrl".
+    fn cn(accel: &str) -> String {
+        canonical(accel).unwrap()
+    }
+
     fn reg() -> ShortcutRegistry<Fake> {
         ShortcutRegistry::new(Fake::default(), &[])
     }
 
     #[test]
     fn canonical_merges_aliases_and_orders_modifiers() {
-        assert_eq!(canonical("CommandOrControl+Shift+T").unwrap(), "cmd+shift+t");
-        assert_eq!(canonical("shift+cmd+T").unwrap(), "cmd+shift+t");
-        assert_eq!(canonical("Option+Command+F5").unwrap(), "alt+cmd+f5");
+        // Windows: CommandOrControl = ctrl; macOS: = cmd. Bí danh Command/Option chỉ khớp trên macOS (Windows: Command = phím Win).
+        let m = if cfg!(windows) { "ctrl" } else { "cmd" };
+        assert_eq!(canonical("CommandOrControl+Shift+T").unwrap(), format!("{m}+shift+t"));
+        assert_eq!(canonical("shift+CommandOrControl+T").unwrap(), format!("{m}+shift+t"));
+        assert_eq!(canonical("Option+CommandOrControl+F5").unwrap(), format!("alt+{m}+f5"));
+    }
+
+    #[test]
+    fn windows_maps_commandorcontrol_to_ctrl_and_cmd_to_super() {
+        assert_eq!(canonical_with("CommandOrControl+Shift+T", true).unwrap(), "ctrl+shift+t");
+        assert_eq!(canonical_with("Ctrl+Shift+T", true).unwrap(), "ctrl+shift+t");
+        assert_eq!(canonical_with("Super+T", true).unwrap(), "super+t");
+        assert_eq!(canonical_with("Cmd+T", false).unwrap(), "cmd+t");
     }
 
     #[test]
@@ -468,7 +490,7 @@ mod tests {
 
     #[test]
     fn register_failure_is_reported_for_that_key_only() {
-        let mut r = ShortcutRegistry::new(Fake { taken_by_others: vec!["cmd+shift+t".into()], ..Default::default() }, &[]);
+        let mut r = ShortcutRegistry::new(Fake { taken_by_others: vec![cn("CommandOrControl+Shift+T")], ..Default::default() }, &[]);
         let res = r.register_all();
         let quick = res.iter().find(|(a, _)| *a == ShortcutAction::QuickTranslate).unwrap();
         assert!(matches!(quick.1, Err(ShortcutError::Unavailable(_))));
@@ -485,22 +507,22 @@ mod tests {
         r.register_all();
         r.backend.log.clear();
         r.rebind(ShortcutAction::AskAi, "CommandOrControl+Alt+K").unwrap();
-        assert_eq!(r.backend().log, vec!["+alt+cmd+k", "-cmd+shift+a"]);
-        assert!(!r.backend().registered.contains_key("cmd+shift+a"), "phim cu ngung chay");
-        assert!(r.backend().registered.contains_key("alt+cmd+k"), "phim moi chay ngay");
+        assert_eq!(r.backend().log, vec![format!("+{}", cn("CommandOrControl+Alt+K")), format!("-{}", cn("CommandOrControl+Shift+A"))]);
+        assert!(!r.backend().registered.contains_key(&cn("CommandOrControl+Shift+A")), "phim cu ngung chay");
+        assert!(r.backend().registered.contains_key(&cn("CommandOrControl+Alt+K")), "phim moi chay ngay");
     }
 
     #[test]
     fn rebind_to_a_key_taken_by_another_app_keeps_old_key_and_does_not_save() {
         let mut r = reg();
         r.register_all();
-        r.backend.taken_by_others.push("alt+cmd+k".into());
-        let err = r.rebind(ShortcutAction::AskAi, "Cmd+Alt+K").unwrap_err();
+        r.backend.taken_by_others.push(cn("CommandOrControl+Alt+K"));
+        let err = r.rebind(ShortcutAction::AskAi, "CommandOrControl+Alt+K").unwrap_err();
         assert!(matches!(err, ShortcutError::Unavailable(_)));
         let s = r.status().into_iter().find(|s| s.action == ShortcutAction::AskAi).unwrap();
         assert_eq!(s.accelerator, "CommandOrControl+Shift+A", "khong luu phim loi");
         assert!(s.registered);
-        assert!(r.backend().registered.contains_key("cmd+shift+a"), "phim cu van chay");
+        assert!(r.backend().registered.contains_key(&cn("CommandOrControl+Shift+A")), "phim cu van chay");
     }
 
     #[test]
@@ -513,7 +535,7 @@ mod tests {
             ("Ctrl+Alt+1", false), // app khác chiếm
             ("Ctrl+Alt+2", false),
             ("Ctrl+Alt+3", false),
-            ("Cmd+Shift+T", true), // trùng QuickTranslate của chính app
+            ("CommandOrControl+Shift+T", true), // trùng QuickTranslate của chính app
             ("CommandOrControl+Shift+I", true), // trùng InlineTranslate
         ];
         let before = r.snapshot();
@@ -534,7 +556,7 @@ mod tests {
         let mut r = reg();
         r.register_all();
         r.backend.log.clear();
-        assert_eq!(r.rebind(ShortcutAction::AskAi, "Cmd+Shift+T"), Err(ShortcutError::ConflictInternal(ShortcutAction::QuickTranslate)));
+        assert_eq!(r.rebind(ShortcutAction::AskAi, "CommandOrControl+Shift+T"), Err(ShortcutError::ConflictInternal(ShortcutAction::QuickTranslate)));
         assert!(r.backend().log.is_empty());
     }
 
@@ -543,7 +565,7 @@ mod tests {
         let mut r = reg();
         r.register_all();
         r.backend.log.clear();
-        r.rebind(ShortcutAction::AskAi, "shift+cmd+a").unwrap();
+        r.rebind(ShortcutAction::AskAi, "shift+CommandOrControl+a").unwrap();
         assert!(r.backend().log.is_empty());
     }
 
@@ -552,19 +574,19 @@ mod tests {
         let mut r = reg();
         r.register_all();
         r.set_enabled(ShortcutAction::RegionCapture, false).unwrap();
-        assert!(!r.backend().registered.contains_key("cmd+shift+s"));
+        assert!(!r.backend().registered.contains_key(&cn("CommandOrControl+Shift+S")));
         r.set_enabled(ShortcutAction::RegionCapture, true).unwrap();
-        assert!(r.backend().registered.contains_key("cmd+shift+s"));
+        assert!(r.backend().registered.contains_key(&cn("CommandOrControl+Shift+S")));
     }
 
     #[test]
     fn disabled_key_is_not_registered_at_startup_and_does_not_conflict() {
-        let init = vec![(ShortcutAction::QuickTranslate, "Cmd+Shift+T".to_string(), false)];
+        let init = vec![(ShortcutAction::QuickTranslate, "CommandOrControl+Shift+T".to_string(), false)];
         let mut r = ShortcutRegistry::new(Fake::default(), &init);
         r.register_all();
-        assert!(!r.backend().registered.contains_key("cmd+shift+t"));
+        assert!(!r.backend().registered.contains_key(&cn("CommandOrControl+Shift+T")));
         // phím đang tắt không chặn hành động khác dùng phím đó
-        r.rebind(ShortcutAction::AskAi, "Cmd+Shift+T").unwrap();
+        r.rebind(ShortcutAction::AskAi, "CommandOrControl+Shift+T").unwrap();
         // nhưng bật lại QuickTranslate thì trùng
         assert!(matches!(r.set_enabled(ShortcutAction::QuickTranslate, true), Err(ShortcutError::ConflictInternal(_))));
         assert!(!r.status().iter().find(|s| s.action == ShortcutAction::QuickTranslate).unwrap().enabled);
@@ -572,8 +594,8 @@ mod tests {
 
     #[test]
     fn enabling_a_key_the_os_refuses_stays_disabled() {
-        let init = vec![(ShortcutAction::QuickTranslate, "Cmd+Shift+T".to_string(), false)];
-        let mut r = ShortcutRegistry::new(Fake { taken_by_others: vec!["cmd+shift+t".into()], ..Default::default() }, &init);
+        let init = vec![(ShortcutAction::QuickTranslate, "CommandOrControl+Shift+T".to_string(), false)];
+        let mut r = ShortcutRegistry::new(Fake { taken_by_others: vec![cn("CommandOrControl+Shift+T")], ..Default::default() }, &init);
         r.register_all();
         assert!(r.set_enabled(ShortcutAction::QuickTranslate, true).is_err());
         let s = r.status().into_iter().find(|s| s.action == ShortcutAction::QuickTranslate).unwrap();
@@ -637,8 +659,8 @@ mod tests {
         for a in ShortcutAction::ALL {
             assert_eq!(r.backend().registered[&canonical(a.default_accelerator()).unwrap()], a);
         }
-        r.rebind(ShortcutAction::RegionCapture, "Cmd+Alt+9").unwrap();
-        assert_eq!(r.backend().registered["alt+cmd+9"], ShortcutAction::RegionCapture, "phim moi goi dung hanh dong");
+        r.rebind(ShortcutAction::RegionCapture, "CommandOrControl+Alt+9").unwrap();
+        assert_eq!(r.backend().registered[&cn("CommandOrControl+Alt+9")], ShortcutAction::RegionCapture, "phim moi goi dung hanh dong");
     }
 
     #[test]
@@ -646,18 +668,19 @@ mod tests {
         let mut r = reg();
         r.register_all();
         assert_eq!(
-            r.rebind(ShortcutAction::RecordToggle, "Cmd+Option+L"),
+            r.rebind(ShortcutAction::RecordToggle, "CommandOrControl+Option+L"),
             Err(ShortcutError::ConflictInternal(ShortcutAction::SubtitleToggle))
         );
-        // Cmd và Ctrl là hai phím bổ trợ khác nhau: không trùng.
-        assert!(r.rebind(ShortcutAction::RecordToggle, "Ctrl+Alt+L").is_ok());
+        // Cmd và Ctrl là hai phím bổ trợ khác nhau trên macOS: không trùng. Windows: CommandOrControl = Ctrl nên dùng phím Win.
+        let other = if cfg!(windows) { "Super+Alt+L" } else { "Ctrl+Alt+L" };
+        assert!(r.rebind(ShortcutAction::RecordToggle, other).is_ok());
     }
 
     #[test]
     fn saved_duplicate_keys_fall_back_to_default_for_the_later_action() {
         let init = vec![
-            (ShortcutAction::QuickTranslate, "Cmd+Alt+9".to_string(), true),
-            (ShortcutAction::AskAi, "Cmd+Alt+9".to_string(), true),
+            (ShortcutAction::QuickTranslate, "CommandOrControl+Alt+9".to_string(), true),
+            (ShortcutAction::AskAi, "CommandOrControl+Alt+9".to_string(), true),
         ];
         let mut r = ShortcutRegistry::new(Fake::default(), &init);
         assert!(r.register_all().iter().all(|(_, x)| x.is_ok()));
@@ -670,7 +693,7 @@ mod tests {
     fn config_roundtrips_through_json_bytes() {
         let mut r = reg();
         r.register_all();
-        r.rebind(ShortcutAction::AskAi, "Cmd+Alt+K").unwrap();
+        r.rebind(ShortcutAction::AskAi, "CommandOrControl+Alt+K").unwrap();
         r.set_enabled(ShortcutAction::RegionCapture, false).unwrap();
         let bytes = encode_saved(&r.snapshot()).unwrap();
         assert_eq!(parse_saved(&bytes), r.snapshot());
@@ -712,7 +735,7 @@ mod tests {
         let mut r2 = ShortcutRegistry::new(Fake::default(), &load_from(&path));
         assert!(r2.register_all().iter().all(|(_, x)| x.is_ok()));
         assert!(r2.backend().registered.contains_key("alt+ctrl+space"));
-        assert!(!r2.backend().registered.contains_key("cmd+shift+i"));
+        assert!(!r2.backend().registered.contains_key(&cn("CommandOrControl+Shift+I")));
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -720,56 +743,56 @@ mod tests {
     fn rebind_applies_immediately_and_survives_a_second_rebind() {
         let mut r = reg();
         r.register_all();
-        r.rebind(ShortcutAction::QuickTranslate, "Cmd+Alt+1").unwrap();
-        r.rebind(ShortcutAction::QuickTranslate, "Cmd+Alt+2").unwrap();
+        r.rebind(ShortcutAction::QuickTranslate, "CommandOrControl+Alt+1").unwrap();
+        r.rebind(ShortcutAction::QuickTranslate, "CommandOrControl+Alt+2").unwrap();
         let keys: Vec<_> = r.backend().registered.keys().cloned().collect();
-        assert!(keys.contains(&"alt+cmd+2".to_string()));
-        assert!(!keys.contains(&"alt+cmd+1".to_string()) && !keys.contains(&"cmd+shift+t".to_string()));
+        assert!(keys.contains(&cn("CommandOrControl+Alt+2")));
+        assert!(!keys.contains(&cn("CommandOrControl+Alt+1")) && !keys.contains(&cn("CommandOrControl+Shift+T")));
         assert_eq!(r.backend().registered.len(), ShortcutAction::ALL.len(), "khong ro ri phim cu");
     }
 
     #[test]
     fn enabling_again_retries_a_key_that_failed_at_startup() {
-        let mut r = ShortcutRegistry::new(Fake { taken_by_others: vec!["cmd+shift+t".into()], ..Default::default() }, &[]);
+        let mut r = ShortcutRegistry::new(Fake { taken_by_others: vec![cn("CommandOrControl+Shift+T")], ..Default::default() }, &[]);
         r.register_all();
         assert!(!r.status()[0].registered);
         // app khác nhả phím, người dùng bấm bật lại
         r.backend.taken_by_others.clear();
         r.set_enabled(ShortcutAction::QuickTranslate, true).unwrap();
         assert!(r.status()[0].registered && r.status()[0].error_key.is_none());
-        assert!(r.backend().registered.contains_key("cmd+shift+t"));
+        assert!(r.backend().registered.contains_key(&cn("CommandOrControl+Shift+T")));
     }
 
     #[test]
     fn reset_restores_default_and_reenables() {
         let mut r = reg();
         r.register_all();
-        r.rebind(ShortcutAction::AskAi, "Cmd+Alt+K").unwrap();
+        r.rebind(ShortcutAction::AskAi, "CommandOrControl+Alt+K").unwrap();
         r.set_enabled(ShortcutAction::AskAi, false).unwrap();
         r.reset(ShortcutAction::AskAi).unwrap();
         let s = r.status().into_iter().find(|s| s.action == ShortcutAction::AskAi).unwrap();
         assert_eq!((s.accelerator.as_str(), s.enabled, s.registered), ("CommandOrControl+Shift+A", true, true));
-        assert!(!r.backend().registered.contains_key("alt+cmd+k"));
+        assert!(!r.backend().registered.contains_key(&cn("CommandOrControl+Alt+K")));
     }
 
     #[test]
     fn reset_fails_cleanly_when_default_is_taken_by_another_action() {
         let mut r = reg();
         r.register_all();
-        r.rebind(ShortcutAction::AskAi, "Cmd+Alt+K").unwrap();
-        r.rebind(ShortcutAction::RegionCapture, "Cmd+Shift+A").unwrap(); // chiếm mặc định của AskAi
+        r.rebind(ShortcutAction::AskAi, "CommandOrControl+Alt+K").unwrap();
+        r.rebind(ShortcutAction::RegionCapture, "CommandOrControl+Shift+A").unwrap(); // chiếm mặc định của AskAi
         let before = r.snapshot();
         assert_eq!(r.reset(ShortcutAction::AskAi), Err(ShortcutError::ConflictInternal(ShortcutAction::RegionCapture)));
         assert_eq!(r.snapshot(), before);
-        assert!(r.backend().registered.contains_key("alt+cmd+k"));
+        assert!(r.backend().registered.contains_key(&cn("CommandOrControl+Alt+K")));
     }
 
     #[test]
     fn reset_all_returns_to_defaults_even_after_swaps() {
         let mut r = reg();
         r.register_all();
-        r.rebind(ShortcutAction::AskAi, "Cmd+Alt+K").unwrap();
-        r.rebind(ShortcutAction::RegionCapture, "Cmd+Shift+A").unwrap();
+        r.rebind(ShortcutAction::AskAi, "CommandOrControl+Alt+K").unwrap();
+        r.rebind(ShortcutAction::RegionCapture, "CommandOrControl+Shift+A").unwrap();
         r.set_enabled(ShortcutAction::QuickTranslate, false).unwrap();
         assert!(r.reset_all().iter().all(|(_, x)| x.is_ok()));
         assert!(r.status().iter().all(|s| s.enabled && s.registered && s.accelerator == s.action.default_accelerator()));

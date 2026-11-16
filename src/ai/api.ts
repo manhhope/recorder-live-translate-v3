@@ -2,7 +2,7 @@
 // `setApiKey` chi gui khoa di, khong lay lai. Moi DTO chi co `has_key`.
 import { Channel, invoke } from "@tauri-apps/api/core";
 
-export type Provider = "gemini" | "openai" | "ollama";
+export type Provider = "gemini" | "openai" | "ollama" | "compat";
 export type ChipKind = "summary" | "explain" | "action_items";
 
 export interface ProviderSettings { provider: Provider; model_name: string; base_url: string | null; has_key: boolean; consented: boolean }
@@ -26,7 +26,18 @@ export interface StreamUpdate { assistant_message_id: number; text: string }
 export interface AskOutcome { conversation_id: number; user_message_id: number; assistant_message_id: number; status: "completed" | "failed"; error_code: string | null; text: string }
 export interface AskParams { session_id: string; conversation_id: number | null; text: string | null; chip: ChipKind | null; provider: Provider | null; ui_lang: string }
 
-export const PROVIDERS: Provider[] = ["gemini", "openai", "ollama"];
+export const PROVIDERS: Provider[] = ["gemini", "openai", "ollama", "compat"];
+export const COMPAT_DEFAULT_URL = "http://localhost:1234/v1";
+
+// Kiem URL nhu phia Rust (`rlt_ai::compat::validate_base_url`, AC-57.1): http/https, khong user:pw, query, fragment, khoang trang.
+export function validCompatUrl(raw: string): boolean {
+  const t = raw.trim();
+  if (!t || t.length > 500 || /\s/.test(t) || !/^https?:\/\//i.test(t)) return false;
+  try {
+    const u = new URL(t);
+    return !!u.hostname && !u.username && !u.password && !u.search && !u.hash && !t.includes("?") && !t.includes("#");
+  } catch { return false; }
+}
 
 export const getSettings = () => invoke<AiSettings>("ai_get_settings");
 export const saveSettings = (input: AiSettingsInput) => invoke<void>("ai_save_settings", { input });
@@ -34,6 +45,8 @@ export const setApiKey = (provider: Provider, value: string) => invoke<void>("ai
 export const clearApiKey = (provider: Provider) => invoke<void>("ai_clear_api_key", { provider });
 export const acceptConsent = (provider: Provider) => invoke<void>("ai_accept_consent", { provider });
 export const testConnection = (provider: Provider) => invoke<void>("ai_test_connection", { provider });
+// Danh sach model cua endpoint tuong thich (AC-57.4). Chi tra ten model.
+export const listModels = (provider: Provider) => invoke<string[]>("ai_list_models", { provider });
 export const listConversations = (sessionId: string) => invoke<Conversation[]>("ai_list_conversations", { sessionId });
 export const listMessages = (conversationId: number) => invoke<Message[]>("ai_list_messages", { conversationId });
 export const clearHistory = (conversationId: number) => invoke<number>("ai_clear_history", { conversationId });
@@ -69,5 +82,6 @@ const ERR_KEY: Record<string, string> = {
   invalid_input: "ai.err.input",
   store_error: "ai.err.store",
 };
-export const errKey = (code: string | null | undefined): string => (code && ERR_KEY[code]) || "ai.err.generic";
+export const errKey = (code: string | null | undefined, provider?: Provider | null): string =>
+  code === "provider_unreachable" && provider === "compat" ? "ai.err.unreachable.compat" : (code && ERR_KEY[code]) || "ai.err.generic";
 export const providerLabelKey = (p: Provider) => `ai.provider.${p}`;

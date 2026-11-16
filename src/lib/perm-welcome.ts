@@ -27,6 +27,11 @@ export function screenState(raw: string | null | undefined, settingsOpened: bool
   return boolState(false, settingsOpened);
 }
 
+/** Quyen ap dung tren nen tang: Windows chi co micro (khong co Ghi man hinh / Accessibility). */
+export function keysFor(platform: string | null | undefined): PermKey[] {
+  return platform === "windows" ? ["mic"] : PERM_ORDER;
+}
+
 export const isAllowed = (s: PermState) => s === "allowed";
 /** Quyen bat buoc con thieu (Accessibility la tuy chon, khong tinh). */
 export function missingRequired(st: PermStates): PermKey[] {

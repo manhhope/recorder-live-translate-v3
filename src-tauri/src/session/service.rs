@@ -102,7 +102,12 @@ pub enum UiEvent {
     Partial { partial: Option<PartialDto> },
     Level { level: f32 },
     /// `code` = None: het loi. Ma: `permission`, `auth`, `quota`, `network`, `timeout`.
-    Status { code: Option<&'static str> },
+    /// `detail`: ly do Soniox gui kem khi `code` = `rejected` (da cat ngan); cac ma khac khong co.
+    Status {
+        code: Option<&'static str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        detail: Option<String>,
+    },
     Stopped { session_id: String, lines: i64, duration_ms: i64, drained: bool },
     /// Thong bao cho nguoi dung ma phien van chay. `code`: `mixed_no_mic` (che do tron ha xuong chi he thong vi
     /// khong co micro), `translation_quota` (het quota Soniox: van ghi am cuc bo, khong co ban dich).
@@ -111,6 +116,17 @@ pub enum UiEvent {
 
 /// Nguon da dung: nguon am thanh, loai ghi vao dong chu, nhan che do tron (neu co).
 type BuiltSource = (Box<dyn AudioSource>, AudioSourceKind, Option<&'static str>, Option<Arc<ActivityLog>>, Option<&'static str>);
+
+/// Ket qua chan doan WebSocket (`soniox_diag_realtime`). `detail` la ly do ky thuat da che khoa.
+#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RealtimeDiag {
+    pub ok: bool,
+    pub code: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    pub elapsed_ms: i64,
+}
 
 pub type UiSink = Arc<dyn Fn(UiEvent) + Send + Sync>;
 
@@ -129,25 +145,37 @@ pub fn state_name(s: SessionState) -> &'static str {
 pub enum ErrKind {
     /// Cao nhat.
     Permission,
+    /// Loi thiet bi am thanh that (khong phai thieu quyen): mic/he thong khong mo duoc.
+    Device,
     Auth,
+    /// Soniox tu choi vi ly do khac khoa sai (vd 400, 402 khong phai quota): khong duoc bao "khoa sai".
+    Rejected,
     Quota,
     Network,
     /// 408: thap nhat.
     Timeout,
+    /// Loi doc/ghi CSDL cuc bo (khoa hong, SQLite busy, rang buoc): khong lien quan mang.
+    Storage,
+    /// Loi trang thai noi bo (chuyen trang thai khong hop le, phien da dong): khong lien quan mang.
+    Internal,
 }
 
 impl ErrKind {
     pub fn code(self) -> &'static str {
         match self {
             Self::Permission => "permission",
+            Self::Device => "audio_device",
             Self::Auth => "auth",
+            Self::Rejected => "rejected",
             Self::Quota => "quota",
             Self::Network => "network",
             Self::Timeout => "timeout",
+            Self::Storage => "storage",
+            Self::Internal => "internal",
         }
     }
-    fn bit(self) -> u8 {
-        1 << (self as u8)
+    fn bit(self) -> u16 {
+        1 << (self as u16)
     }
     /// Loi tam (tu het khi co chu moi); cac loi con lai giu den het phien.
     fn transient(self) -> bool {
@@ -157,9 +185,19 @@ impl ErrKind {
 
 /// Tap hop loi dang co; hien loi uu tien cao nhat: Thieu quyen > Khoa sai > Het quota > Mat mang > 408.
 #[derive(Debug, Default)]
-pub struct ErrorTracker(u8);
+pub struct ErrorTracker(u16);
 
-const ORDER: [ErrKind; 5] = [ErrKind::Permission, ErrKind::Auth, ErrKind::Quota, ErrKind::Network, ErrKind::Timeout];
+const ORDER: [ErrKind; 9] = [
+    ErrKind::Permission,
+    ErrKind::Device,
+    ErrKind::Auth,
+    ErrKind::Rejected,
+    ErrKind::Quota,
+    ErrKind::Network,
+    ErrKind::Timeout,
+    ErrKind::Storage,
+    ErrKind::Internal,
+];
 
 impl ErrorTracker {
     pub fn current(&self) -> Option<ErrKind> {
@@ -179,9 +217,24 @@ impl ErrorTracker {
     }
 }
 
+/// Ly do ky thuat cua loi (chi voi `Rejected` va `Network`), mot dong, toi da 200 ky tu. Khong chua khoa API:
+/// `Rejected` la thong diep Soniox gui, `Network` la `<giai doan>/<loai>: <chuoi nguyen nhan>` tu `describe_ws_error`
+/// (da qua `scrub_log`, che moi chuoi dai giong khoa).
+pub fn rejected_detail(e: &SonioxError) -> Option<String> {
+    match e {
+        SonioxError::Rejected { code, message } => {
+            let m: String = message.chars().filter(|c| !c.is_control()).take(200).collect();
+            Some(if m.trim().is_empty() { format!("HTTP {code}") } else { format!("{} ({code})", m.trim()) })
+        }
+        SonioxError::Network(m) => Some(scrub_log(m)),
+        _ => None,
+    }
+}
+
 pub fn classify_soniox(e: &SonioxError) -> ErrKind {
     match e {
-        SonioxError::Auth { .. } | SonioxError::Rejected { .. } => ErrKind::Auth,
+        SonioxError::Auth { .. } => ErrKind::Auth,
+        SonioxError::Rejected { .. } => ErrKind::Rejected,
         SonioxError::QuotaExhausted { .. } => ErrKind::Quota,
         SonioxError::Timeout => ErrKind::Timeout,
         _ => ErrKind::Network,
@@ -233,14 +286,34 @@ pub fn scrub_log(s: &str) -> String {
 }
 
 fn log_dir() -> Option<std::path::PathBuf> {
-    let home = std::path::PathBuf::from(std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?);
-    const ID: &str = "com.mmola.recorderlivetranslate";
-    if cfg!(target_os = "macos") {
-        Some(home.join("Library/Application Support").join(ID))
-    } else if cfg!(windows) {
-        std::env::var_os("APPDATA").map(|a| std::path::PathBuf::from(a).join(ID))
+    rlt_platform::paths::data_dir("com.mmola.recorderlivetranslate")
+}
+
+/// Dong ghi vao diag.log: moi truong qua `scrub_log`; `detail` (ly do ky thuat) ghi them, da scrub, bo xuong dong
+/// va cat toi da 200 ky tu. Khong bao gio chua khoa Soniox (chuoi dai giong khoa bi che thanh `[che]`).
+pub fn diag_line(event: &str, fields: &[(&str, String)]) -> String {
+    let parts: Vec<String> = fields
+        .iter()
+        .map(|(k, v)| {
+            let clean = scrub_log(v);
+            if *k == "detail" {
+                format!("detail=\"{}\"", clean.replace('"', "'").chars().filter(|c| !c.is_control()).take(200).collect::<String>())
+            } else {
+                format!("{k}={clean}")
+            }
+        })
+        .collect();
+    format!("{event} {}", parts.join(" "))
+}
+
+/// Ma gui giao dien khi bat dau phien that bai. Loi luu tru/noi bo di kem mot dong ky thuat ngan sau dau `|`
+/// (`storage|loi luu tru: ...`); giao dien tach ma o dau `|` (`errCode`) va hien phan con lai (`errDetail`).
+pub fn start_error_string(code: &str, e: &CoreError) -> String {
+    if matches!(code, "storage" | "internal") {
+        let d: String = scrub_log(&e.to_string()).chars().filter(|c| !c.is_control() && *c != '|').take(200).collect();
+        format!("{code}|{d}")
     } else {
-        Some(home.join(".local/share").join(ID))
+        code.to_string()
     }
 }
 
@@ -253,6 +326,7 @@ pub fn log_event(event: &str, fields: &[(&str, String)]) {
         line.push_str(&format!(" {k}=\"{}\"", scrub_log(v).replace('"', "'")));
     }
     eprintln!("{line}");
+    crate::diag::log("session_event", &diag_line(event, fields));
     if cfg!(test) {
         return; // test khong ghi vao thu muc du lieu that cua nguoi dung
     }
@@ -269,7 +343,8 @@ pub fn log_event(event: &str, fields: &[(&str, String)]) {
 
 fn classify_audio(e: &AudioError) -> ErrKind {
     match e {
-        AudioError::Device(m) if m.contains("permission") => ErrKind::Permission,
+        AudioError::Device(m) if m.to_lowercase().contains("permission") || m.to_lowercase().contains("denied") => ErrKind::Permission,
+        AudioError::Device(_) => ErrKind::Device,
         _ => ErrKind::Permission,
     }
 }
@@ -278,7 +353,8 @@ fn classify_core(e: &CoreError) -> ErrKind {
     match e {
         CoreError::Soniox(s) => classify_soniox(s),
         CoreError::Audio(a) => classify_audio(a),
-        _ => ErrKind::Network,
+        CoreError::Store(_) => ErrKind::Storage,
+        CoreError::Transition(_) | CoreError::Closed => ErrKind::Internal,
     }
 }
 
@@ -387,32 +463,53 @@ impl SessionService {
     /// Thu ket noi: mo mot luong Soniox, doi `Connected`, roi cho ngan xem co loi xac thuc khong.
     /// Tra Ok(()) hoac ma loi (`auth`, `quota`, `network`, `timeout`, `key_missing`).
     pub async fn test_connection(&self) -> Result<(), String> {
-        let auth = self.read_key()?;
+        self.test_connection_detail().await.map_err(|(code, _)| code)
+    }
+
+    /// Nhu `test_connection` nhung loi kem ly do ky thuat (chi voi `rejected`, `network`), da qua `scrub_log`.
+    async fn test_connection_detail(&self) -> Result<(), (String, Option<String>)> {
+        let auth = self.read_key().map_err(|c| (c, None))?;
         let settings = self.soniox_settings("en", &[], None);
         let (audio_tx, audio_rx) = mpsc::channel::<Vec<u8>>(1);
         let (ev_tx, mut ev_rx) = mpsc::channel(8);
         let task = tokio::spawn(rlt_soniox::run_session(settings, auth, audio_rx, ev_tx));
+        let fail = |e: &SonioxError| Err((classify_soniox(e).code().to_string(), rejected_detail(e)));
         let verdict = tokio::time::timeout(Duration::from_secs(8), async {
             let mut connected = false;
             loop {
                 let wait = if connected { Duration::from_millis(1200) } else { Duration::from_secs(8) };
                 match tokio::time::timeout(wait, ev_rx.recv()).await {
                     Ok(Some(SonioxEvent::Connected { .. })) => connected = true,
-                    Ok(Some(SonioxEvent::Failed(e))) => return Err(classify_soniox(&e).code().to_string()),
-                    Ok(Some(SonioxEvent::Reconnecting { error, .. })) => {
-                        return Err(classify_soniox(&error).code().to_string())
-                    }
+                    Ok(Some(SonioxEvent::Failed(e))) => return fail(&e),
+                    Ok(Some(SonioxEvent::Reconnecting { error, .. })) => return fail(&error),
                     Ok(Some(_)) => {}
-                    Ok(None) => return if connected { Ok(()) } else { Err("network".into()) },
-                    Err(_) => return if connected { Ok(()) } else { Err("timeout".into()) },
+                    Ok(None) => return if connected { Ok(()) } else { Err(("network".to_string(), None)) },
+                    Err(_) => return if connected { Ok(()) } else { Err(("timeout".to_string(), None)) },
                 }
             }
         })
         .await
-        .unwrap_or_else(|_| Err("timeout".into()));
+        .unwrap_or_else(|_| Err(("timeout".to_string(), None)));
         drop(audio_tx);
         task.abort();
         verdict
+    }
+
+    /// Chan doan "Test realtime connection": thu rieng WebSocket Soniox, khong ghi am, khong luu gi. Ghi ket qua vao
+    /// `session-errors.log`. Tra ve ma + ly do ky thuat (khong chua khoa) de giao dien hien.
+    pub async fn diag_realtime(&self) -> RealtimeDiag {
+        let started = std::time::Instant::now();
+        let r = self.test_connection_detail().await;
+        let elapsed_ms = started.elapsed().as_millis() as i64;
+        let out = match r {
+            Ok(()) => RealtimeDiag { ok: true, code: "ok".into(), detail: None, elapsed_ms },
+            Err((code, detail)) => RealtimeDiag { ok: false, code, detail, elapsed_ms },
+        };
+        log_event(
+            "diag_realtime",
+            &[("ok", out.ok.to_string()), ("code", out.code.clone()), ("elapsed_ms", elapsed_ms.to_string()), ("detail", out.detail.clone().unwrap_or_default())],
+        );
+        out
     }
 
     // ---- dong y (US-09)
@@ -447,6 +544,27 @@ impl SessionService {
 
     pub fn active_session_id(&self) -> Option<String> {
         self.active.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|a| a.session_id.clone())
+    }
+
+    /// Cac dong da chot cua phien DANG CHAY (rong khi idle). Giao dien goi lai khi man Ghi gan lai giua phien
+    /// (chuyen Cai dat/Phien roi ve) de khoi phuc phu de, thay vi phu thuoc kenh su kien da bo lo.
+    pub fn active_lines(&self) -> Vec<LineDto> {
+        let Some(id) = self.active_session_id() else { return Vec::new() };
+        let store = self.store.lock().unwrap_or_else(|e| e.into_inner());
+        store
+            .list_caption_lines(&id)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|l| l.source_text.is_some())
+            .map(|l| LineDto {
+                caption_line_id: l.caption_line_id,
+                seq: l.seq,
+                offset_ms: l.offset_ms,
+                source_lang: l.source_lang.unwrap_or_default(),
+                source_text: l.source_text.unwrap_or_default(),
+                translated_text: l.translated_text,
+            })
+            .collect()
     }
 
     /// Chup glossary LUC MO PHIEN thanh `context` gui Soniox (AC-04.1, gioi han ky tu theo Soniox) va danh dau
@@ -519,7 +637,7 @@ impl SessionService {
                     other => classify_core(other).code(),
                 };
                 log_event("session_start_failed", &[("stage", "start_session".into()), ("session", id.clone()), ("mode", format!("{:?}", p.mode)), ("code", code.into()), ("detail", e.to_string())]);
-                return Err(code.to_string());
+                return Err(start_error_string(code, &e));
             }
         };
         *self.active.lock().unwrap_or_else(|e| e.into_inner()) = Some(Active { handle, session_id: id.clone() });
@@ -562,19 +680,24 @@ async fn pump(
     let mut errs = ErrorTracker::default();
     let mut shown: Option<ErrKind> = None;
     let mut audio_ms: i64 = 0;
-    let update = |sink: &UiSink, shown: &mut Option<ErrKind>, now: Option<ErrKind>| {
+    let mut why: Option<String> = None;
+    let update = |sink: &UiSink, shown: &mut Option<ErrKind>, now: Option<ErrKind>, why: &Option<String>| {
         if *shown != now {
             *shown = now;
-            sink(UiEvent::Status { code: now.map(|k| k.code()) });
+            let detail = if matches!(now, Some(ErrKind::Rejected | ErrKind::Network)) { why.clone() } else { None };
+            sink(UiEvent::Status { code: now.map(|k| k.code()), detail });
         }
     };
     let mut finished = false;
     while let Some(ev) = rx.recv().await {
         match ev {
-            CoreEvent::StateChanged(s) => sink(UiEvent::State { state: state_name(s) }),
+            CoreEvent::StateChanged(s) => {
+                crate::diag::session_state(state_name(s));
+                sink(UiEvent::State { state: state_name(s) })
+            }
             CoreEvent::Line(l) => {
                 if errs.recovered() {
-                    update(&sink, &mut shown, errs.current());
+                    update(&sink, &mut shown, errs.current(), &why);
                 }
                 sink(UiEvent::Line {
                     line: LineDto {
@@ -588,20 +711,31 @@ async fn pump(
                 });
             }
             CoreEvent::Partial(p) => sink(UiEvent::Partial { partial: p.map(PartialDto::from) }),
-            CoreEvent::Reconnecting { error, .. } => {
+            CoreEvent::Reconnecting { error, failures, .. } => {
                 let k = classify_soniox(&error);
+                if let Some(d) = rejected_detail(&error) {
+                    why = Some(d);
+                }
+                crate::diag::log("soniox", &format!("reconnecting code={}", k.code()));
+                log_event("soniox_reconnecting", &[("session", session_id.clone()), ("code", k.code().into()), ("failures", failures.to_string()), ("detail", error.to_string())]);
                 errs.raise(k);
-                update(&sink, &mut shown, errs.current());
+                update(&sink, &mut shown, errs.current(), &why);
             }
             CoreEvent::Device(DeviceEvent::PermissionRevoked) => {
+                crate::diag::log("device", "permission_revoked");
                 errs.raise(ErrKind::Permission);
-                update(&sink, &mut shown, errs.current());
+                update(&sink, &mut shown, errs.current(), &why);
             }
-            CoreEvent::Device(DeviceEvent::DeviceChanged) => {}
+            CoreEvent::Device(DeviceEvent::DeviceChanged) => crate::diag::log("device", "device_changed (mic hoac system dung lai luong)"),
             CoreEvent::Failed(e) => {
+                if let CoreError::Soniox(se) = &e {
+                    if let Some(d) = rejected_detail(se) {
+                        why = Some(d);
+                    }
+                }
                 log_event("session_failed", &[("session", session_id.clone()), ("code", classify_core(&e).code().into()), ("detail", e.to_string())]);
                 errs.raise(classify_core(&e));
-                update(&sink, &mut shown, errs.current());
+                update(&sink, &mut shown, errs.current(), &why);
                 finished = true;
                 // Phien bi cat: nguoi dung thay trang thai loi va ve Idle.
                 *active.lock().unwrap_or_else(|e| e.into_inner()) = None;
@@ -663,6 +797,56 @@ mod tests {
     }
 
     #[test]
+    fn core_errors_map_to_specific_codes_never_network() {
+        use rlt_core::{SessionState, Transition};
+        let tr = SessionState::Idle.apply(Transition::Pause).unwrap_err();
+        assert_eq!(classify_core(&CoreError::Store("x".into())).code(), "storage");
+        assert_eq!(classify_core(&CoreError::Transition(tr)).code(), "internal");
+        assert_eq!(classify_core(&CoreError::Closed).code(), "internal");
+        assert_eq!(classify_core(&CoreError::Soniox(SonioxError::Auth { code: 401 })).code(), "auth");
+        assert_eq!(classify_core(&CoreError::Soniox(SonioxError::Timeout)).code(), "timeout");
+        assert_eq!(classify_core(&CoreError::Soniox(SonioxError::Network("x".into()))).code(), "network");
+        assert_eq!(classify_core(&CoreError::Audio(AudioError::Device("denied".into()))).code(), "permission");
+        assert_eq!(classify_core(&CoreError::Audio(AudioError::Device("boom".into()))).code(), "audio_device");
+    }
+
+    #[test]
+    fn storage_and_internal_rank_below_network_in_tracker() {
+        let mut t = ErrorTracker::default();
+        assert_eq!(t.raise(ErrKind::Internal), Some(ErrKind::Internal));
+        assert_eq!(t.raise(ErrKind::Storage), Some(ErrKind::Storage));
+        assert_eq!(t.raise(ErrKind::Network), Some(ErrKind::Network));
+        assert!(t.recovered());
+        assert_eq!(t.current(), Some(ErrKind::Storage), "loi luu tru khong la loi tam");
+    }
+
+    #[test]
+    fn diag_line_keeps_scrubbed_detail_capped_at_200() {
+        let key = "abcdefghijklmnopqrstuvwxyz0123456789";
+        let line = diag_line("session_start_failed", &[("code", "storage".into()), ("detail", format!("loi luu tru: database is locked key={key} \"q\"\n{}", "x ".repeat(300)))]);
+        assert!(line.starts_with("session_start_failed code=storage detail=\""), "{line}");
+        assert!(line.contains("database is locked"), "{line}");
+        assert!(!line.contains(key), "khoa phai bi che: {line}");
+        assert!(line.contains("[che]"), "{line}");
+        assert!(!line.contains('\n'));
+        let detail = line.split("detail=\"").nth(1).unwrap().trim_end_matches('"');
+        assert!(detail.chars().count() <= 200, "{}", detail.chars().count());
+        assert!(detail.chars().count() >= 150, "van phai du dai de chan doan");
+    }
+
+    #[test]
+    fn start_error_string_carries_short_detail_only_for_storage_and_internal() {
+        let e = CoreError::Store("database is locked".into());
+        let s = start_error_string("storage", &e);
+        assert_eq!(s, "storage|loi luu tru: database is locked");
+        assert_eq!(start_error_string("network", &CoreError::Closed), "network");
+        let long = CoreError::Store(format!("a|b {}", "y".repeat(500)));
+        let s = start_error_string("storage", &long);
+        assert!(s.chars().count() <= "storage|".len() + 200);
+        assert_eq!(s.matches('|').count(), 1, "{s}");
+    }
+
+    #[test]
     fn transient_errors_clear_but_persistent_ones_stay() {
         let mut t = ErrorTracker::default();
         t.raise(ErrKind::Network);
@@ -674,9 +858,31 @@ mod tests {
     #[test]
     fn soniox_errors_map_to_codes() {
         assert_eq!(classify_soniox(&SonioxError::Auth { code: 401 }), ErrKind::Auth);
+        assert_eq!(classify_soniox(&SonioxError::Rejected { code: 400, message: "x".into() }), ErrKind::Rejected);
+        assert_eq!(ErrKind::Rejected.code(), "rejected");
+        assert_ne!(ErrKind::Rejected.code(), ErrKind::Auth.code());
+        // Chi 401/403 la khoa sai; 400 va 4xx khac la tu choi, kem ly do tu Soniox.
+        for c in [401u16, 403] {
+            assert_eq!(classify_soniox(&rlt_soniox::classify(c, None, "")), ErrKind::Auth);
+        }
+        for c in [400u16, 404, 422] {
+            assert_eq!(classify_soniox(&rlt_soniox::classify(c, None, "x")), ErrKind::Rejected, "{c}");
+        }
+        let e = SonioxError::Rejected { code: 400, message: "Invalid language hint.".into() };
+        assert_eq!(rejected_detail(&e).as_deref(), Some("Invalid language hint. (400)"));
+        assert_eq!(rejected_detail(&SonioxError::Auth { code: 401 }), None);
+        let long = SonioxError::Rejected { code: 400, message: "x".repeat(500) };
+        assert!(rejected_detail(&long).unwrap().chars().count() <= 206);
+        let empty = SonioxError::Rejected { code: 400, message: "".into() };
+        assert_eq!(rejected_detail(&empty).as_deref(), Some("HTTP 400"));
         assert_eq!(classify_soniox(&SonioxError::QuotaExhausted { error_type: "x".into() }), ErrKind::Quota);
         assert_eq!(classify_soniox(&SonioxError::Timeout), ErrKind::Timeout);
         assert_eq!(classify_soniox(&SonioxError::Network("x".into())), ErrKind::Network);
+        // Network mang ly do ky thuat, da che chuoi dai giong khoa.
+        let n = SonioxError::Network("connect/tls_cert: invalid peer certificate: UnknownIssuer sk_live_0123456789abcdefghij".into());
+        let d = rejected_detail(&n).unwrap();
+        assert!(d.starts_with("connect/tls_cert: invalid peer certificate: UnknownIssuer"), "{d}");
+        assert!(!d.contains("0123456789abcdefghij"), "{d}");
     }
 
     #[test]

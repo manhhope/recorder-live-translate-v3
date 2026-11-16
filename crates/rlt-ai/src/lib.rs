@@ -6,6 +6,7 @@
 //! - Moi chu do mo hinh tra ve di qua `sanitize_model_output`.
 
 mod b64;
+pub mod compat;
 pub mod error;
 pub mod gemini;
 pub mod history;

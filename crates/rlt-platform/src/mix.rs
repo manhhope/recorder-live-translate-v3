@@ -145,6 +145,8 @@ impl AudioSource for MixedSource {
             .name("rlt-mix".into())
             .spawn(move || {
                 let (mut qa, mut qb): (VecDeque<PcmFrame>, VecDeque<PcmFrame>) = (VecDeque::new(), VecDeque::new());
+                let t0 = std::time::Instant::now();
+                let (mut first, mut solo_logged) = ([false; 2], [false; 2]);
                 loop {
                     let stopping = stop2.load(Ordering::SeqCst);
                     for (rx, q) in [(&mut ra, &mut qa), (&mut rb, &mut qb)] {
@@ -155,6 +157,12 @@ impl AudioSource for MixedSource {
                             }
                         });
                     }
+                    for (i, q) in [&qa, &qb].into_iter().enumerate() {
+                        if !first[i] && !q.is_empty() {
+                            first[i] = true;
+                            crate::diag_hook::emit("mix", &format!("first_frame side={} at_ms={}", ["system", "mic"][i], t0.elapsed().as_millis()));
+                        }
+                    }
                     while let (Some(x), Some(y)) = (qa.front(), qb.front()) {
                         let m = mix_frames(x, y);
                         qa.pop_front();
@@ -162,7 +170,12 @@ impl AudioSource for MixedSource {
                         let _ = sink.send(AudioMessage::Frame(m));
                     }
                     // Một nguồn im: đẩy nguồn còn lại một mình khi đã chờ đủ lâu (hoặc khi dừng).
-                    for q in [&mut qa, &mut qb] {
+                    for (i, q) in [&mut qa, &mut qb].into_iter().enumerate() {
+                        if q.len() > SOLO_AFTER_FRAMES && !solo_logged[i] {
+                            solo_logged[i] = true;
+                            // Mot nguon khong phat khung trong ~300 ms: nguon con lai bi day mot minh (nghi mic/system im).
+                            crate::diag_hook::emit("mix", &format!("solo side={} at_ms={} other_first_frame={}", ["system", "mic"][i], t0.elapsed().as_millis(), first[1 - i]));
+                        }
                         while q.len() > SOLO_AFTER_FRAMES || (stopping && !q.is_empty()) {
                             if let Some(f) = q.pop_front() {
                                 let _ = sink.send(AudioMessage::Frame(f));
@@ -263,5 +276,43 @@ mod tests {
             }
         });
         assert_eq!(frames, vec![300, 7]);
+    }
+
+    #[test]
+    fn late_mic_makes_system_go_solo_then_pairs_again_when_mic_catches_up() {
+        // Tai hien diag_1.log: mic ra khung dau roi cham >300 ms (xrun lam mat du lieu). System di mot minh, mic van
+        // khong bi bo: khi no ra khung tro lai thi khung duoc cong voi system.
+        let (fa, fb) = (Fake::default(), Fake::default());
+        let mut m = MixedSource::new(Box::new(fa.clone()), Box::new(fb.clone()));
+        let (tx, mut rx) = unbounded_channel();
+        m.start(tx).unwrap();
+        for _ in 0..5 {
+            fa.push(100); // system lien tuc, mic im
+        }
+        let mut out: Vec<i16> = Vec::new();
+        let wait = |rx: &mut UnboundedReceiver<AudioMessage>, out: &mut Vec<i16>, n: usize| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(3);
+            while out.len() < n && std::time::Instant::now() < deadline {
+                drain(rx, |m| {
+                    if let AudioMessage::Frame(f) = m {
+                        out.push(f.samples[0]);
+                    }
+                });
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        };
+        wait(&mut rx, &mut out, 2);
+        assert_eq!(out, vec![100, 100], "system di mot minh khi mic tre qua 300 ms");
+        for _ in 0..3 {
+            fb.push(200); // mic bat kip
+        }
+        wait(&mut rx, &mut out, 5);
+        m.stop();
+        drain(&mut rx, |m| {
+            if let AudioMessage::Frame(f) = m {
+                out.push(f.samples[0]);
+            }
+        });
+        assert_eq!(out[2..], [300, 300, 300], "mic tro lai thi duoc cong voi system, khong bi mat");
     }
 }

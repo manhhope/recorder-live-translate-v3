@@ -1,12 +1,13 @@
 // Trang thai modal Welcome: cap quyen. Dung chung co che xep hang runWhenIdle cua What's New (khong chong hop thoai).
 // Thu tu: Welcome cap quyen truoc, What's New sau (What's New chi duoc goi khi Welcome khong hien hoac sau khi no dong).
 import * as api from "./api.ts";
-import { boolState, loadOff, micState, missingRequired, PERM_ORDER, remindOnStart, saveOff, screenState, shouldAutoShow, takeReminders, type PermKey, type PermStates } from "./perm-welcome.ts";
+import { boolState, keysFor, loadOff, micState, missingRequired, PERM_ORDER, remindOnStart, saveOff, screenState, shouldAutoShow, takeReminders, type PermKey, type PermStates } from "./perm-welcome.ts";
 import { runWhenIdle } from "./whats-new.ts";
 import { evaluateWhatsNew } from "./whats-new.svelte.ts";
 
 export const permWelcome = $state({
   open: false,
+  keys: PERM_ORDER as PermKey[], // quyen hien o Welcome (Windows: chi micro)
   states: { mic: "notasked", screen: "notasked", ax: "notasked" } as PermStates,
   focus: null as PermKey | null, // quyen thieu khi bam Bat dau (lam noi bat dong do)
   off: false, // o "Dung hien lai"
@@ -27,6 +28,12 @@ export async function refreshPerms(): Promise<PermStates> {
   try {
     const p = await api.permissionsStatus();
     next.mic = micState(p.mic);
+    permWelcome.keys = keysFor(p.platform);
+    if (permWelcome.keys.length === 1) { // Windows: khong co quyen Ghi man hinh / Accessibility, coi nhu da du
+      next.screen = "allowed"; next.ax = "allowed";
+      permWelcome.states = next; permWelcome.err = false; permWelcome.loaded = true;
+      return next;
+    }
     let screen = p.screen;
     if (screen !== "granted" && settingsOpened.screen) {
       try { screen = await api.screenPermissionCheck(true); } catch { /* giu ket qua doc nhanh */ }

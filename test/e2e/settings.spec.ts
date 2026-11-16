@@ -40,6 +40,33 @@ test.describe("Cai dat: Soniox (trong Usage Logs)", () => {
   });
 });
 
+test.describe("Cai dat: nhat ky chan doan", () => {
+  test("nut Test realtime goi soniox_diag_realtime va hien ly do ky thuat", async ({ page, rlt }) => {
+    await rlt.open();
+    await openTab(page, rlt, "set.tab.sonioxusage");
+    await page.getByTestId("diag-realtime").click();
+    expect(await rlt.calls("soniox_diag_realtime")).toHaveLength(1);
+    await expect(page.getByTestId("diag-realtime-detail")).toContainText("tls_cert");
+  });
+
+  test("nut Mo thu muc nhat ky goi lenh diag_open_logs va hien duong dan", async ({ page, rlt }) => {
+    await rlt.open();
+    await openTab(page, rlt, "set.tab.sonioxusage");
+    await page.getByTestId("diag-open-logs").click();
+    expect(await rlt.calls("diag_open_logs")).toHaveLength(1);
+    await expect(page.getByTestId("diag-msg")).toContainText("com.mmola.recorderlivetranslate");
+    await expect(page.getByTestId("diag-msg")).toContainText("logs");
+  });
+
+  test("mo thu muc that bai: hien loi co khoa i18n, khong vang loi chung", async ({ page, rlt }) => {
+    await rlt.open();
+    await openTab(page, rlt, "set.tab.sonioxusage");
+    await rlt.setFail("diag_open_logs", "logs_open_failed");
+    await page.getByTestId("diag-open-logs").click();
+    await expect(page.getByTestId("diag-msg")).toContainText(rlt.t("err.logsopenfailed"));
+  });
+});
+
 test.describe("Cai dat: Usage Logs", () => {
   test("tuan nay co du lieu: tong thoi luong, chi phi uoc tinh, bieu do 7 cot", async ({ page, rlt }) => {
     await rlt.open();

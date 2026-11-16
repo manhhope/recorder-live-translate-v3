@@ -13,7 +13,7 @@ export interface MockSeed {
   whatsNewSeen?: string | null;
   hasKey: boolean;
   consent: boolean;
-  aiKeys: { gemini: boolean; openai: boolean };
+  aiKeys: { gemini: boolean; openai: boolean; compat?: boolean };
   sessions: unknown[];
   details: Record<string, unknown>;
   // Lenh -> ma loi se bi tu choi (chuoi ngan nhu Rust). Doi duoc trong luc chay bang __rlt.fail.
@@ -67,7 +67,9 @@ export function installTauriMock(seed: MockSeed): void {
     aiKeys: { ...seed.aiKeys },
     ai: {
       default_provider: null, context_max_chars: 60000, context_max_turns: 10,
-      models: { gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b" },
+      models: { gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "" } as Record<string, string>,
+      compatUrl: "http://localhost:1234/v1",
+      compatModels: ["qwen2.5-7b-instruct", "llama-3.1-8b"] as string[],
       chips: { summary: null, explain: null, action_items: null },
     },
     usageCleared: false,
@@ -81,7 +83,7 @@ export function installTauriMock(seed: MockSeed): void {
     perms: { mic: "authorized", screen: "granted", screenProbe: "denied", ax: true, micAnswer: "authorized", ...(seed.perms ?? {}) } as any,
     drive: { state: "disconnected", email: null, builtin: false, ...(seed.drive ?? {}) } as any,
   };
-  const rlt: any = { calls: [] as { cmd: string; args: any }[], unhandled: [] as string[], state, fail: { ...seed.fail } };
+  const rlt: any = { calls: [] as { cmd: string; args: any }[], unhandled: [] as string[], state, fail: { ...seed.fail }, delay: {} as Record<string, number> };
   w.__rlt = rlt;
   rlt.setPerm = (p: any) => { Object.assign(state.perms, p); };
   rlt.subtitleLines = clone(seed.subtitleLines ?? []);
@@ -89,7 +91,11 @@ export function installTauriMock(seed: MockSeed): void {
   rlt.usage = clone(seed.usage ?? {});
   rlt.emit = (event: unknown) => {
     const ev = event as any;
-    if (ev && ev.kind === "line") { state.lineIds.add(ev.line.captionLineId); state.lineCount = state.lineIds.size; }
+    if (ev && ev.kind === "line") {
+      state.lineIds.add(ev.line.captionLineId); state.lineCount = state.lineIds.size;
+      // Backend that luu dong chot vao store: `session_lines` doc lai tu day.
+      state.lines = (state.lines ?? []).filter((l: any) => l.captionLineId !== ev.line.captionLineId).concat([ev.line]);
+    }
     const cb = callbacks.get(state.channelId);
     if (!cb) throw new Error("khong co Channel dang mo");
     cb({ index: state.channelIndex++, message: event });
@@ -105,9 +111,11 @@ export function installTauriMock(seed: MockSeed): void {
     default_provider: state.ai.default_provider,
     context_max_chars: state.ai.context_max_chars,
     context_max_turns: state.ai.context_max_turns,
-    providers: (["gemini", "openai", "ollama"] as const).map(p => ({
-      provider: p, model_name: state.ai.models[p], has_key: p === "ollama" ? false : !!state.aiKeys[p],
-      base_url: p === "ollama" ? "http://localhost:11434" : null, consented: !!state.aiConsent[p],
+    providers: (["gemini", "openai", "ollama", "compat"] as const).map(p => ({
+      provider: p, model_name: state.ai.models[p], has_key: p === "ollama" ? false : !!(state.aiKeys as any)[p],
+      base_url: p === "ollama" ? "http://localhost:11434" : p === "compat" ? state.ai.compatUrl : null,
+      // Loopback (LM Studio tren may nay) coi nhu da dong y (AC-57.10); dia chi khac can dong y.
+      consented: p === "compat" ? (!!state.aiConsent[p] || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(state.ai.compatUrl)) : !!state.aiConsent[p],
     })),
     chip_prompts: (["summary", "explain", "action_items"] as const).map(c => ({ chip: c, prompt: state.ai.chips[c] })),
   });
@@ -141,6 +149,8 @@ export function installTauriMock(seed: MockSeed): void {
     soniox_save_api_key: () => { state.hasKey = true; },
     soniox_clear_api_key: () => { state.hasKey = false; },
     soniox_test_connection: () => undefined,
+    soniox_diag_realtime: () => ({ ok: false, code: "network", detail: "connect/tls_cert: invalid peer certificate: UnknownIssuer", elapsedMs: 120 }),
+    diag_open_logs: () => "C:\\Users\\a\\AppData\\Roaming\\com.mmola.recorderlivetranslate\\logs",
     permissions_status: () => ({ mic: state.perms.mic, screen: state.perms.screen }),
     mic_permission_request: () => { state.perms.mic = state.perms.micAnswer; return state.perms.mic; },
     screen_permission_check: () => (state.perms.screen === "granted" ? "granted" : state.perms.screenProbe),
@@ -149,12 +159,13 @@ export function installTauriMock(seed: MockSeed): void {
     record_prefs_get: () => ({ targetLang: "pt-PT", listenLangs: ["en"], mode: "mixed", uiLanguage: "pt-PT" }),
     record_prefs_set: () => undefined,
     session_state: () => [state.run, state.run === "idle" ? null : "sess-live"],
+    session_lines: () => (state.run === "idle" ? [] : clone(state.lines ?? [])),
     session_start: (a) => {
       if (!state.hasKey) throw "key_missing";
       if (!state.consent) throw "consent_required";
       if (state.run !== "idle") throw "already_recording";
       state.channelId = Number(String(a.onEvent.id ?? a.onEvent));
-      state.channelIndex = 0; state.lineCount = 0; state.lineIds = new Set<number>();
+      state.channelIndex = 0; state.lineCount = 0; state.lineIds = new Set<number>(); state.lines = [];
       // Rust phat su kien sau khi lenh tra ve; hoan lai de giong thu tu that.
       queueMicrotask(() => emitState("recording"));
       return "sess-live";
@@ -232,10 +243,12 @@ export function installTauriMock(seed: MockSeed): void {
     shell_set_recording: () => undefined,
     shell_set_keep_awake: () => undefined,
     autostart_get: () => false,
+    autostart_set: (a: any) => !!a.enabled,
     core_version: () => "0.1.0",
     quick_ax_status: () => state.perms.ax,
     shortcuts_status: () => ["quick_translate", "inline_translate", "ask_ai", "region_capture"].map((action, i) => ({ action, accelerator: ["CmdOrCtrl+Shift+T", "CmdOrCtrl+Shift+I", "CmdOrCtrl+Shift+A", "CmdOrCtrl+Shift+R"][i], enabled: true, registered: true, error_key: null, error_detail: null })),
     subtitle_font_step: () => undefined,
+    subtitle_set_color: () => undefined,
     subtitle_set_opacity: () => undefined,
     subtitle_lines: () => clone(rlt.subtitleLines ?? []),
     subtitle_get: () => ({ display_mode: "bilingual", font_size_pt: 24, source_color: "#FFFFFF", translation_color: "#FFD60A", opacity_percent: 80, hidden_from_capture: false }),
@@ -288,12 +301,16 @@ export function installTauriMock(seed: MockSeed): void {
     ai_save_settings: (a) => {
       const i = a.input;
       state.ai.default_provider = i.default_provider; state.ai.context_max_chars = i.context_max_chars; state.ai.context_max_turns = i.context_max_turns;
-      for (const p of i.providers) if (p.model_name) state.ai.models[p.provider] = p.model_name;
+      for (const p of i.providers) {
+        if (p.model_name) state.ai.models[p.provider] = p.model_name;
+        if (p.provider === "compat" && p.base_url) state.ai.compatUrl = p.base_url;
+      }
       for (const c of i.chip_prompts) state.ai.chips[c.chip] = c.prompt;
     },
     ai_set_api_key: (a) => { state.aiKeys[a.provider] = true; },
     ai_clear_api_key: (a) => { state.aiKeys[a.provider] = false; },
     ai_test_connection: () => undefined,
+    ai_list_models: () => clone(state.ai.compatModels),
     "plugin:event|listen": (a) => { const id = state.listeners.length + 1; state.listeners.push({ event: a.event, id, cb: a.handler }); return id; },
     "plugin:window|start_dragging": () => undefined,
     "plugin:event|unlisten": (a) => { state.listeners = state.listeners.filter((l: any) => !(l.event === a.event && l.id === a.eventId)); },
@@ -336,6 +353,10 @@ export function installTauriMock(seed: MockSeed): void {
       if (!h) { rlt.unhandled.push(cmd); throw "mock_unhandled:" + cmd; }
       // Mot nhip bat dong bo that, nhu mot lenh IPC.
       await Promise.resolve();
+      // Lenh cham (ms) hoac treo han (-1): mo phong luong UI Windows bi ket, lenh khong bao gio tra ve.
+      const wait = rlt.delay[cmd];
+      if (wait === -1) await new Promise(() => {});
+      else if (wait) await new Promise(r => setTimeout(r, wait));
       const code = rlt.fail[cmd];
       if (code) throw code;
       return h(args);

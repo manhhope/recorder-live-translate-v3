@@ -1,6 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "quick-translate-window",
+  "platforms": ["macOS", "windows"],
   "description": "Cua so quick-translate (ADR-10): dich nhanh, lich su, tuy chon. Khong co lenh doc khoa, phim tat hay thoat app.",
   "windows": ["quick-translate"],
   "permissions": [
@@ -14,6 +15,7 @@
     "allow-quick-ax-status",
     "allow-quick-prefs-get",
     "allow-quick-prefs-set",
-    "allow-quick-ocr-translate"
+    "allow-quick-ocr-translate",
+    "allow-diag-js"
   ]
 }

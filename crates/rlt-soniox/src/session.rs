@@ -256,10 +256,57 @@ async fn emit_segment(
         .is_ok()
 }
 
-fn map_ws_error(e: &WsError) -> SonioxError {
+/// Loại lỗi kỹ thuật của một lỗi WebSocket: `dns`, `tcp_refused`, `tcp_timeout`, `tls_cert`, `tls`, `reset`,
+/// `ws_protocol`, `closed`, `io`... Dựa vào chuỗi nguyên nhân (rustls bọc trong `io::Error`), nên chỉ là phỏng đoán có căn cứ.
+pub fn ws_error_kind(e: &WsError) -> &'static str {
+    match e {
+        WsError::Http(_) => "http_status",
+        WsError::Tls(_) => "tls",
+        WsError::Url(_) => "url",
+        WsError::Protocol(_) | WsError::HttpFormat(_) | WsError::Utf8(_) => "ws_protocol",
+        WsError::ConnectionClosed | WsError::AlreadyClosed => "closed",
+        WsError::Io(io) => {
+            let chain = error_chain(io).to_lowercase();
+            if chain.contains("certificate") || chain.contains("unknownissuer") || chain.contains("notvalidforname") {
+                "tls_cert"
+            } else if chain.contains("tls") || chain.contains("alert") || chain.contains("handshake") || chain.contains("close_notify") {
+                "tls"
+            } else if chain.contains("failed to lookup") || chain.contains("nodename nor servname") || chain.contains("no such host") || chain.contains("11001") || chain.contains("no address associated") {
+                "dns"
+            } else {
+                match io.kind() {
+                    std::io::ErrorKind::ConnectionRefused => "tcp_refused",
+                    std::io::ErrorKind::TimedOut => "tcp_timeout",
+                    std::io::ErrorKind::ConnectionReset | std::io::ErrorKind::ConnectionAborted | std::io::ErrorKind::UnexpectedEof => "reset",
+                    _ => "io",
+                }
+            }
+        }
+        _ => "ws",
+    }
+}
+
+fn error_chain(e: &(dyn std::error::Error + 'static)) -> String {
+    let mut out = e.to_string();
+    let mut cur = e.source();
+    while let Some(c) = cur {
+        out.push_str(": ");
+        out.push_str(&c.to_string());
+        cur = c.source();
+    }
+    out
+}
+
+/// Lý do kỹ thuật một dòng, dạng `<giai đoạn>/<loại>: <chuỗi nguyên nhân>`. Không chứa khoá: lỗi của tungstenite/rustls
+/// không bao giờ in header `Authorization`.
+pub fn describe_ws_error(stage: &str, e: &WsError) -> String {
+    format!("{stage}/{}: {}", ws_error_kind(e), error_chain(e))
+}
+
+fn map_ws_error(stage: &str, e: &WsError) -> SonioxError {
     match e {
         WsError::Http(resp) => classify(resp.status().as_u16(), None, "handshake"),
-        other => SonioxError::Network(other.to_string()),
+        other => SonioxError::Network(describe_ws_error(stage, other)),
     }
 }
 
@@ -297,8 +344,13 @@ async fn stream_once(
     )
     .await
     {
-        Err(_) => return net("het thoi gian ket noi"),
-        Ok(Err(e)) => return Outcome::Error(map_ws_error(&e)),
+        Err(_) => {
+            return net(&format!(
+                "connect/timeout: qua {} giay chua xong TCP+TLS+nang cap WebSocket",
+                settings.connect_timeout.as_secs()
+            ))
+        }
+        Ok(Err(e)) => return Outcome::Error(map_ws_error("connect", &e)),
         Ok(Ok((ws, _))) => ws,
     };
 
@@ -307,7 +359,7 @@ async fn stream_once(
         .await
         .is_err()
     {
-        return net("khong gui duoc cau hinh");
+        return net("send/io: khong gui duoc cau hinh");
     }
     if events
         .send(Event::Connected {
@@ -320,6 +372,8 @@ async fn stream_once(
     }
 
     let mut last_send = Instant::now();
+    // Tin TEXT cuoi ma parser khong hieu (cat 80 ky tu): neu Soniox dong ngay sau do thi day la manh moi nguyen nhan.
+    let mut last_unparsed = String::new();
     loop {
         let keepalive_at = last_send + settings.keepalive_interval;
         tokio::select! {
@@ -329,7 +383,7 @@ async fn stream_once(
                     if ws.send(Message::Binary(f.into())).await.is_err() {
                         // Khung này chưa tới Soniox: tính là bỏ.
                         comp.on_dropped(samples);
-                        return net("khong gui duoc audio");
+                        return net("send/io: khong gui duoc audio");
                     }
                     comp.on_sent(samples);
                     last_send = Instant::now();
@@ -338,22 +392,29 @@ async fn stream_once(
                     *audio_closed = true;
                     // Khung TEXT rỗng = hết âm thanh (khung binary rỗng không kết thúc luồng).
                     if ws.send(Message::Text("".into())).await.is_err() {
-                        return net("khong gui duoc khung ket thuc");
+                        return net("send/io: khong gui duoc khung ket thuc");
                     }
                     last_send = Instant::now();
                 }
             },
             () = tokio::time::sleep_until(keepalive_at), if !*audio_closed => {
                 if ws.send(Message::Text(r#"{"type":"keepalive"}"#.into())).await.is_err() {
-                    return net("khong gui duoc keepalive");
+                    return net("send/io: khong gui duoc keepalive");
                 }
                 last_send = Instant::now();
             },
             msg = ws.next() => match msg {
                 Some(Ok(Message::Text(text))) => {
-                    let Some(resp) = parse_response(text.as_str()) else { continue };
+                    let Some(resp) = parse_response(text.as_str()) else {
+                        last_unparsed = text.chars().filter(|c| !c.is_control()).take(80).collect();
+                        continue;
+                    };
                     if let Some(code) = resp.error_code {
                         return Outcome::Error(classify(code, resp.error_type.as_deref(), resp.error_message.as_deref().unwrap_or("")));
+                    }
+                    if let Some(m) = resp.error_message.as_deref() {
+                        // Có lý do lỗi nhưng không có error_code số: đừng nuốt, giữ làm manh mối nếu luồng đóng ngay sau.
+                        last_unparsed = m.chars().filter(|c| !c.is_control()).take(80).collect();
                     }
                     *failures = 0; // nhận được tin hợp lệ: luồng khoẻ
                     let now_ms = start.elapsed().as_millis() as i64;
@@ -369,9 +430,19 @@ async fn stream_once(
                         return Outcome::Finished;
                     }
                 }
-                Some(Ok(Message::Close(_))) | None => return net("ket noi bi dong truoc khi co finished"),
+                Some(Ok(Message::Close(frame))) => {
+                    let mut m = match frame {
+                        Some(f) => format!("stream/closed: Soniox dong ket noi code={} ly do={}", u16::from(f.code), f.reason),
+                        None => "stream/closed: Soniox dong ket noi khong kem ma".into(),
+                    };
+                    if !last_unparsed.is_empty() {
+                        m.push_str(&format!(" tin_cuoi_khong_hieu={last_unparsed}"));
+                    }
+                    return net(&m)
+                }
+                None => return net("stream/closed: ket noi bi cat khong co khung Close"),
                 Some(Ok(_)) => {}
-                Some(Err(e)) => return Outcome::Error(map_ws_error(&e)),
+                Some(Err(e)) => return Outcome::Error(map_ws_error("stream", &e)),
             },
         }
     }

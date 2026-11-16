@@ -6,6 +6,7 @@ use rlt_platform as _;
 mod ai;
 mod capture;
 mod crashlog;
+mod diag;
 mod quick;
 mod session;
 mod shell;
@@ -16,6 +17,17 @@ fn core_version() -> String {
     rlt_core::core_version().to_string()
 }
 
+/// Bọc handler lệnh: ghi tên lệnh + thời lượng (lệnh đồng bộ chạy trên luồng UI) vào nhật ký chẩn đoán. Không ghi tham số.
+fn timed<F>(handler: F) -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static
+where
+    F: Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static,
+{
+    move |invoke| {
+        let _g = diag::begin_command(invoke.message.command());
+        handler(invoke)
+    }
+}
+
 fn main() {
     crashlog::install();
     shell::plugins(tauri::Builder::default())
@@ -23,6 +35,8 @@ fn main() {
             use tauri::Manager;
             let dir = app.path().app_data_dir()?;
             crashlog::set_dir(&dir);
+            diag::init(&dir);
+            diag::mark("setup_begin");
             let dir_for_shell = dir.clone();
             app.manage(subtitle::SubtitleState::load(dir.clone()));
             std::fs::create_dir_all(&dir)?;
@@ -34,18 +48,36 @@ fn main() {
             app.manage(quick::QuickState::new(dir_for_shell.clone(), quick_store));
             let sess_store = std::sync::Arc::new(std::sync::Mutex::new(rlt_store::Store::open(dir_for_shell.join("rlt.db"))?));
             app.manage(session::SessionState::new(sess_store, dir_for_shell.clone()));
+            diag::mark("stores_open");
             shell::setup(app.handle(), dir_for_shell)?;
-            quick::setup(app.handle());
+            diag::mark("shell_setup_done");
+            // Tao WebView2 thu hai (prewarm quick) va doi monitor tren luong UI ngay trong `setup`, luc vong lap su kien
+            // chua chay, la nghi van treo C (chua kiem tren Windows). Tri hoan: sau khi cua so main da len, chay tren luong UI.
+            let qa = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+                diag::mark("quick_setup_begin");
+                let qb = qa.clone();
+                let _ = qa.run_on_main_thread(move || {
+                    quick::setup(&qb);
+                    diag::mark("quick_setup_done");
+                });
+            });
+            diag::start_watchdog(app.handle().clone());
+            diag::mark("setup_done");
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler(timed(tauri::generate_handler![
             core_version,
+            diag::diag_open_logs,
+            diag::diag_js,
             ai::ai_get_settings,
             ai::ai_save_settings,
             ai::ai_set_api_key,
             ai::ai_clear_api_key,
             ai::ai_accept_consent,
             ai::ai_test_connection,
+            ai::ai_list_models,
             ai::ai_list_conversations,
             ai::ai_list_messages,
             ai::ai_ask,
@@ -101,12 +133,14 @@ fn main() {
             session::session_stop,
             session::session_new,
             session::session_state,
+            session::session_lines,
             session::consent_get,
             session::consent_accept,
             session::soniox_save_api_key,
             session::soniox_has_api_key,
             session::soniox_clear_api_key,
             session::soniox_test_connection,
+            session::soniox_diag_realtime,
             session::permissions_status,
             session::screen_permission_check,
             session::record_prefs_get,
@@ -139,7 +173,7 @@ fn main() {
             session::drive_sync_now,
             session::mic_permission_request,
             session::import_dotnet_pick
-        ])
+        ]))
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
