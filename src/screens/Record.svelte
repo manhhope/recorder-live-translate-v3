@@ -12,17 +12,12 @@
   import { AUTO } from "../lib/langs.ts";
   import * as api from "../lib/api.ts";
   import { openPermWelcome, remindMissingOnStart } from "../lib/perm-welcome.svelte.ts";
-  import type { LineDto, SessionStateName, StatusCode } from "../lib/api.ts";
+  import type { LineDto, StatusCode } from "../lib/api.ts";
   import { Follow } from "../lib/follow.svelte.ts";
-  import { afterFinal, fromPartial, type LiveText } from "../lib/live.ts";
+  import { rec, resetForNewSession, openChannel, sync } from "../lib/rec.svelte.ts";
 
-  let state = $state<SessionStateName>("idle");
-  let lines = $state<LineDto[]>([]);
-  let level = $state(0);
-  let status = $state<StatusCode | null>(null);
   let errCode = $state<string | null>(null);
   let errTech = $state<string | null>(null);
-  let statusDetail = $state<string | null>(null);
   let hasKey = $state(true);
   let consent = $state(true);
   let askConsent = $state(false);
@@ -30,10 +25,6 @@
   let keyInput = $state("");
   let busy = $state(false);
   let loaded = $state(false);
-  let sessionId = $state<string | null>(null);
-  let lastStop = $state<{ lines: number; drained: boolean } | null>(null);
-  let notices = $state<string[]>([]);
-  let timer: ReturnType<typeof setInterval> | undefined;
   const follow = new Follow();
 
   // Tuy chinh hien thi transcript: nho lan sau, ap ngay. `view` dung chung voi bo chuyen Both/Dich/Nguon (app.view).
@@ -46,6 +37,16 @@
   const tpStyle = $derived(cssVars(tp, dark));
   $effect(() => savePrefs({ ...tp, view: app.view }));
 
+  // Phien dang chay song trong `rec` (store toan cuc): component nay co the bi go/gan lai bat cu luc nao.
+  const state = $derived(rec.state);
+  const lines = $derived(rec.lines);
+  const level = $derived(rec.level);
+  const status = $derived(rec.status);
+  const statusDetail = $derived(rec.statusDetail);
+  const sessionId = $derived(rec.sessionId);
+  const lastStop = $derived(rec.lastStop);
+  const notices = $derived(rec.notices);
+  const live = $derived(rec.live);
   const active = $derived(state !== "idle");
   const mode = $derived<api.RecordMode | null>(app.sysOn && app.micOn ? "mixed" : app.sysOn ? "system" : app.micOn ? "mic" : null);
   const lvl = $derived<Level>(!active || state === "paused" ? "idle" : level > 0.9 ? "clip" : level > 0.03 ? "talk" : "quiet");
@@ -61,59 +62,28 @@
   );
   const errKey = (c: string) => api.errKeyOf(c, k => $_(k) !== k);
 
-  function setState(s: SessionStateName) {
-    state = s;
-    app.recording = s !== "idle";
-    void api.shellSetRecording(s === "recording").catch(() => {});
-    clearInterval(timer);
-    if (s === "recording") timer = setInterval(() => app.seconds++, 1000);
-  }
-
-  // Chu tam (token chua chot cua Soniox): moi ban THAY ban truoc, dong chot den thi bo phan da chot.
-  let live = $state<LiveText | null>(null);
-
-  function onEvent(e: api.UiEvent) {
-    if (e.kind === "partial") live = fromPartial(e.partial);
-    else if (e.kind === "state") {
-      if (e.state === "idle") live = null;
-      if (e.state === "recording" && state === "idle") { app.seconds = 0; level = 0; }
-      setState(e.state);
-      void api.sessionState().then(st => (sessionId = st[1])).catch(() => {});
-    } else if (e.kind === "line") {
-      const i = lines.findIndex(l => l.captionLineId === e.line.captionLineId);
-      if (i >= 0) lines[i] = e.line; else lines.push(e.line);
-      live = afterFinal(live, e.line.sourceText, e.line.translatedText);
-    } else if (e.kind === "level") level = e.level;
-    else if (e.kind === "status") { status = e.code; statusDetail = e.code === "rejected" || e.code === "network" ? (e.detail ?? null) : null; }
-    else if (e.kind === "notice") { if (!notices.includes(e.code)) notices.push(e.code); }
-    else if (e.kind === "stopped") lastStop = { lines: e.lines, drained: e.drained };
-  }
-
   onMount(() => {
     (async () => {
       try {
-        const [p, k, c, st] = await Promise.all([api.prefsGet(), api.hasApiKey(), api.consentGet(), api.sessionState()]);
+        const [p, k, c] = await Promise.all([api.prefsGet(), api.hasApiKey(), api.consentGet()]);
         app.dst = p.targetLang;
         app.src = p.listenLangs.length === 1 ? p.listenLangs[0] : AUTO;
         app.sysOn = p.mode !== "mic";
         app.micOn = p.mode !== "system";
         hasKey = k; consent = c;
-        sessionId = st[1];
-        if (st[0] !== "idle") setState(st[0] as SessionStateName);
+        await sync(); // phien dang chay (chuyen man roi ve): nap lai trang thai that + dong chot tu backend
       } catch (e) { errCode = api.errCode(e); }
       loaded = true;
     })();
-    return () => clearInterval(timer);
   });
 
   async function begin() {
     if (!mode) return;
-    busy = true; errCode = null; errTech = null; status = null; statusDetail = null; lastStop = null; notices = [];
+    busy = true; errCode = null; errTech = null; resetForNewSession();
     try {
       const listenLangs = app.src === AUTO ? [] : [app.src];
       await api.prefsSet({ targetLang: app.dst, listenLangs, mode, uiLanguage: document.documentElement.lang === "en" ? "en" : "pt-PT" });
-      lines = [];
-      await api.sessionStart({ targetLang: app.dst, listenLangs, mode }, api.newChannel(onEvent));
+      await api.sessionStart({ targetLang: app.dst, listenLangs, mode }, openChannel());
     } catch (e) {
       const c = api.errCode(e);
       if (c === "key_missing") { hasKey = false; askKey = true; }
@@ -142,14 +112,20 @@
 
   async function act(fn: () => Promise<unknown>) {
     errCode = null;
-    try { await fn(); } catch (e) { errCode = api.errCode(e); }
+    try { await fn(); } catch (e) {
+      errCode = api.errCode(e);
+      // Giao dien lech backend (not_recording/invalid_state/session_closed): doi chieu lai thay vi ket o "Dang ghi".
+      if (errCode === "not_recording" || errCode === "invalid_state" || errCode === "session_closed") {
+        try { await sync(); if (rec.state === "idle") errCode = null; } catch { /* giu loi goc */ }
+      }
+    }
   }
   const stop = () => act(api.sessionStop);
   const togglePause = () => act(state === "paused" ? api.sessionResume : api.sessionPause);
 
   /** US-45: ghi dang chay thi dung roi xoa man hinh; dang rong thi chi xoa man hinh. */
   async function newSession() {
-    await act(async () => { await api.sessionNew(); lines = []; lastStop = null; app.seconds = 0; });
+    await act(async () => { await api.sessionNew(); resetForNewSession(); app.seconds = 0; });
   }
   /** Chup vung: chi khi dang co phien; the capture overlay doc phien va moc thoi gian tu localStorage. */
   async function capture() {

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-session-lines"
+description = "Enables the session_lines command without any pre-configured scope."
+commands.allow = ["session_lines"]
+
+[[permission]]
+identifier = "deny-session-lines"
+description = "Denies the session_lines command without any pre-configured scope."
+commands.deny = ["session_lines"]

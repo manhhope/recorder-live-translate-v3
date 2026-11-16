@@ -61,6 +61,7 @@
     "allow-session-resume",
     "allow-session-stop",
     "allow-session-new",
+    "allow-session-lines",
     "allow-session-state",
     "allow-consent-get",
     "allow-consent-accept",

@@ -546,6 +546,27 @@ impl SessionService {
         self.active.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|a| a.session_id.clone())
     }
 
+    /// Cac dong da chot cua phien DANG CHAY (rong khi idle). Giao dien goi lai khi man Ghi gan lai giua phien
+    /// (chuyen Cai dat/Phien roi ve) de khoi phuc phu de, thay vi phu thuoc kenh su kien da bo lo.
+    pub fn active_lines(&self) -> Vec<LineDto> {
+        let Some(id) = self.active_session_id() else { return Vec::new() };
+        let store = self.store.lock().unwrap_or_else(|e| e.into_inner());
+        store
+            .list_caption_lines(&id)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|l| l.source_text.is_some())
+            .map(|l| LineDto {
+                caption_line_id: l.caption_line_id,
+                seq: l.seq,
+                offset_ms: l.offset_ms,
+                source_lang: l.source_lang.unwrap_or_default(),
+                source_text: l.source_text.unwrap_or_default(),
+                translated_text: l.translated_text,
+            })
+            .collect()
+    }
+
     /// Chup glossary LUC MO PHIEN thanh `context` gui Soniox (AC-04.1, gioi han ky tu theo Soniox) va danh dau
     /// cac muc da gui. Cau hinh da chot vao `SessionSettings` nen doi thuat ngu giua phien chi co hieu luc o phien sau
     /// (ke ca khi Soniox noi lai giua phien: van gui lai ban chup cu).

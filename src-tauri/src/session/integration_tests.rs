@@ -871,3 +871,67 @@ async fn busy_database_reports_storage_not_network() {
     assert!(err.to_lowercase().contains("locked") || err.to_lowercase().contains("busy"), "{err}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- Loi win-test e1079c0: chuyen man luc dang ghi -> Stop bao `not_recording`, phu de mat.
+// Gia thuyet (b): sink UI (Channel da bo) gui loi lam pump don `active`. Trong `session_start` sink bo qua ket qua
+// `on_event.send`, nen o day mo phong "sink loi" bang sink nuot het su kien (khong luu lai gi). Phien PHAI van chay.
+
+#[tokio::test]
+async fn dead_ui_sink_does_not_clear_active_and_stop_pause_still_work() {
+    let url = fake_soniox(false).await;
+    let svc = service(&url, true, true);
+    let dropped = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let d2 = dropped.clone();
+    // Sink "chet": moi su kien bi nuot (giong Channel gui loi roi `let _ =`).
+    let sink: UiSink = Arc::new(move |_e| {
+        d2.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    });
+    let id = svc.start(params(RecordMode::Mixed), sink).await.unwrap();
+
+    // Cho dong chu chot vao store (nguon that cua phu de), khong qua sink.
+    let mut lines = Vec::new();
+    for _ in 0..200 {
+        lines = svc.active_lines();
+        if !lines.is_empty() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    assert!(dropped.load(std::sync::atomic::Ordering::SeqCst) > 0, "sink chet phai nhan duoc su kien");
+    assert_eq!(svc.active_session_id().as_deref(), Some(id.as_str()), "pump khong duoc don `active` chi vi sink khong nghe");
+    assert!(lines.iter().any(|l| l.source_text == "Good morning everyone." && l.translated_text.as_deref() == Some("Bom dia a todos.")), "{lines:?}");
+
+    // Pause/Resume/Stop tac dong dung phien, khong bao `not_recording`.
+    assert_eq!(svc.pause(), Ok(()));
+    for _ in 0..80 {
+        if svc.state() == rlt_core::SessionState::Paused {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    assert_eq!(svc.state(), rlt_core::SessionState::Paused);
+    assert_eq!(svc.resume(), Ok(()));
+    for _ in 0..80 {
+        if svc.state() == rlt_core::SessionState::Recording {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    assert_eq!(svc.stop(), Ok(()));
+    for _ in 0..80 {
+        if svc.active_session_id().is_none() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+    assert!(svc.active_session_id().is_none(), "Stop xong thi moi don `active`");
+    assert_eq!(svc.stop(), Err("not_recording".to_string()));
+    assert!(svc.active_lines().is_empty(), "het phien thi khong con dong dang chay");
+}
+
+#[tokio::test]
+async fn active_lines_is_empty_when_idle() {
+    let url = fake_soniox(false).await;
+    let svc = service(&url, true, true);
+    assert!(svc.active_lines().is_empty());
+}

@@ -26,6 +26,7 @@ pub const SESSION_COMMANDS: &[&str] = &[
     "session_stop",
     "session_new",
     "session_state",
+    "session_lines",
     "consent_get",
     "consent_accept",
     "soniox_save_api_key",
@@ -129,6 +130,12 @@ pub fn session_new(s: State<'_, SessionState>) -> Res<bool> {
 #[tauri::command]
 pub fn session_state(s: State<'_, SessionState>) -> (String, Option<String>) {
     (service::state_name(s.svc.state()).to_string(), s.svc.active_session_id())
+}
+
+/// Cac dong da chot cua phien dang chay (xem `SessionService::active_lines`).
+#[tauri::command]
+pub fn session_lines(s: State<'_, SessionState>) -> Vec<service::LineDto> {
+    s.svc.active_lines()
 }
 
 // ---------------------------------------------------------------- dong y, khoa, quyen

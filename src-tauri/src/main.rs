@@ -133,6 +133,7 @@ fn main() {
             session::session_stop,
             session::session_new,
             session::session_state,
+            session::session_lines,
             session::consent_get,
             session::consent_accept,
             session::soniox_save_api_key,

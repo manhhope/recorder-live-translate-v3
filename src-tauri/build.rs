@@ -67,6 +67,7 @@ pub const APP_COMMANDS: &[&str] = &[
     "session_resume",
     "session_stop",
     "session_new",
+    "session_lines",
     "session_state",
     "consent_get",
     "consent_accept",

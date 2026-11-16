@@ -59,6 +59,8 @@ export const sessionResume = () => invoke<void>("session_resume");
 export const sessionStop = () => invoke<void>("session_stop");
 export const sessionNew = () => invoke<boolean>("session_new");
 export const sessionState = () => invoke<[string, string | null]>("session_state");
+/** Cac dong da chot cua phien dang chay (rong khi idle): man Ghi nap lai sau khi chuyen man giua phien. */
+export const sessionLines = () => invoke<LineDto[]>("session_lines");
 export const consentGet = () => invoke<boolean>("consent_get");
 export const consentAccept = () => invoke<void>("consent_accept");
 export const saveApiKey = (value: string) => invoke<void>("soniox_save_api_key", { value });

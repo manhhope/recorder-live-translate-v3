@@ -91,7 +91,11 @@ export function installTauriMock(seed: MockSeed): void {
   rlt.usage = clone(seed.usage ?? {});
   rlt.emit = (event: unknown) => {
     const ev = event as any;
-    if (ev && ev.kind === "line") { state.lineIds.add(ev.line.captionLineId); state.lineCount = state.lineIds.size; }
+    if (ev && ev.kind === "line") {
+      state.lineIds.add(ev.line.captionLineId); state.lineCount = state.lineIds.size;
+      // Backend that luu dong chot vao store: `session_lines` doc lai tu day.
+      state.lines = (state.lines ?? []).filter((l: any) => l.captionLineId !== ev.line.captionLineId).concat([ev.line]);
+    }
     const cb = callbacks.get(state.channelId);
     if (!cb) throw new Error("khong co Channel dang mo");
     cb({ index: state.channelIndex++, message: event });
@@ -155,12 +159,13 @@ export function installTauriMock(seed: MockSeed): void {
     record_prefs_get: () => ({ targetLang: "pt-PT", listenLangs: ["en"], mode: "mixed", uiLanguage: "pt-PT" }),
     record_prefs_set: () => undefined,
     session_state: () => [state.run, state.run === "idle" ? null : "sess-live"],
+    session_lines: () => (state.run === "idle" ? [] : clone(state.lines ?? [])),
     session_start: (a) => {
       if (!state.hasKey) throw "key_missing";
       if (!state.consent) throw "consent_required";
       if (state.run !== "idle") throw "already_recording";
       state.channelId = Number(String(a.onEvent.id ?? a.onEvent));
-      state.channelIndex = 0; state.lineCount = 0; state.lineIds = new Set<number>();
+      state.channelIndex = 0; state.lineCount = 0; state.lineIds = new Set<number>(); state.lines = [];
       // Rust phat su kien sau khi lenh tra ve; hoan lai de giong thu tu that.
       queueMicrotask(() => emitState("recording"));
       return "sess-live";
