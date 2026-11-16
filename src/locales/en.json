@@ -5,6 +5,8 @@
   "ask.chip.explain": "Explain",
   "ask.chip.summary": "Summarise",
   "ask.chip.todo": "Action items",
+  "ask.copy": "Copy message",
+  "ask.copied": "Copied",
   "ask.clear": "Clear chat history",
   "ask.consent.body": "The first time you use Gemini, the transcript content (and images, if attached) is sent to Gemini. Until you agree, not a single byte is sent.",
   "ask.consent.local": "With Ollama running on this computer: \"processed on your computer\".",
