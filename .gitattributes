@@ -1,0 +1,9 @@
+# Fixture va nguon duoc nhung vao test (include_str!) phai giu LF tren moi he dieu hanh.
+# Windows checkout voi core.autocrlf=true doi LF thanh CRLF, lam vo cac test so khop chuoi nhieu dong
+# (vd soniox_usage::rejects_responses_that_break_the_schema).
+fixtures/** text eol=lf
+crates/**/fixtures/** text eol=lf
+crates/**/tests/fixtures/** text eol=lf
+docs/schema-v3.sql text eol=lf
+*.json text eol=lf
+*.sql text eol=lf
