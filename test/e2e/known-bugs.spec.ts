@@ -66,7 +66,9 @@ test.describe("Loi da biet", () => {
   });
 
   test("P-06 o 820 px khi dang ghi, o ngon ngu dich khong bi nut nguon am thanh de len", async ({ page, rlt }) => {
-    test.fail(true, "P-06: thanh cau hinh qua rong o pt-PT, nut nguon de len o ngon ngu dich");
+    // Loi chi tai hien voi font macOS; tren may Windows (CI windows-latest) font hep hon nen bo cuc vua, test.fail se bao "pass bat ngo".
+    // Vi vay chi dat test.fail tren nen tang khac win32; tren Windows test chay nhu test thuong (phai pass).
+    test.fail(process.platform !== "win32", "P-06: thanh cau hinh qua rong o pt-PT, nut nguon de len o ngon ngu dich (chi tai hien tren macOS)");
     await page.setViewportSize({ width: 820, height: 640 });
     await rlt.open({ locale: "pt-PT" });
     await rlt.startRecording();
