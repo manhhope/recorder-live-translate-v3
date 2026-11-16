@@ -52,10 +52,9 @@ dist/assets/core-BEhigYQN.js       186.92 kB │ gzip: 61.67 kB
 ### npm run test:i18n -> exit=0
 ℹ tests 12  ℹ pass 12  ℹ fail 0
 
-### npm run scan:i18n -> exit=1 (LỖI CÓ SẴN, KHÔNG PHẢI DO VIỆC NÀY)
+### npm run scan:i18n -> exit=0 (sau khi sửa lỗi có sẵn ở lượt bổ sung)
 Quet 73 tep trong src/ (bo qua locales, i18n)
-src/screens/UsageLogsTab.svelte:153: van ban cung: "(                   ms)"
-So chuoi cung tim thay: 1
+So chuoi cung tim thay: 0
 
 ### npm run test:unit -> exit=0
 ℹ tests 79  ℹ pass 79  ℹ fail 0
@@ -64,10 +63,10 @@ So chuoi cung tim thay: 1
 OK: 76 lenh goi tu api.ts, 76 nam trong manifest va deu duoc cap quyen
 
 ### npx playwright test (toàn bộ, chromium + chromium-win)
-263 passed (32.7s)
+263 passed (33.0s)
 ```
 
-- `scan:i18n`: một phát hiện duy nhất, ở `UsageLogsTab.svelte:153` (`({rtDiag.elapsedMs} ms)`, thuộc commit 0eb74e9 của nút Test realtime), file này không nằm trong diff của việc này. Quét trên các file đã sửa không có chuỗi cứng mới. Đề xuất riêng: dùng chuỗi i18n có tham số cho đơn vị ms, hoặc thêm ngoại lệ vào script; không tự sửa vì ngoài phạm vi.
+- `scan:i18n`: lượt bổ sung đã sửa phát hiện có sẵn ở `UsageLogsTab.svelte:153` (chuỗi cứng `({rtDiag.elapsedMs} ms)`) bằng khoá i18n mới `set.diag.rt.ms` (`({ms} ms)`) ở en và pt-PT, tính qua `$derived rtMs`. Cả 5 cổng kiểm và Playwright đã chạy lại, đều pass. Hash commit sửa này: xem mục cuối.
 - Không đụng Rust nên không chạy `cargo test`.
 - Test mới `test/e2e/ask-ai-copy.spec.ts` chạy ở en và pt-PT (8 test, đều pass): icon ở góc dưới phải bong bóng; không còn nút chữ; hai bong bóng, bấm từng icon thì clipboard thật (`navigator.clipboard.readText`) khớp đúng nội dung bong bóng đó; trạng thái đã chép đổi rồi trở lại; 720x520 icon trong khung nhìn và nằm dưới dòng chữ cuối; panel Sessions; focus-visible và tương phản >= 4,5 ở theme sáng và tối (cả trạng thái nghỉ và đã chép).
 - Ảnh e2e trong `test/e2e/screenshots/` không bị ghi đè trong nhánh này (test mới chỉ ghi vào `docs/ask-ai-copy-img/`); `git status` sạch ngoài phạm vi.
