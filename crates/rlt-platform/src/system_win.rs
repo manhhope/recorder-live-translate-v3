@@ -204,7 +204,7 @@ mod imp {
                     let t_wait = Instant::now();
                     if let Err(e) = s.ev.wait_for_event(WAIT_MS) {
                         let waited = t_wait.elapsed();
-                        if wait_returned_too_fast(waited, WAIT_MS) {
+                        if super::wait_returned_too_fast(waited, WAIT_MS) {
                             if wait_err_log.elapsed() >= Duration::from_secs(10) {
                                 wait_err_log = Instant::now();
                                 crate::diag_hook::emit("system", &format!("wait_failed_fast err={e} waited_ms={}", waited.as_millis()));

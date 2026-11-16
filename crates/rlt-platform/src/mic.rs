@@ -191,11 +191,7 @@ pub fn supervise<S>(
     let (mut attempt, mut next_try) = (0u32, Instant::now());
     let mut last_report = Instant::now();
     let (mut xr_total, mut dropped_total) = (0u64, 0u64);
-    loop {
-        match stop_rx.recv_timeout(t.tick) {
-            Err(std_mpsc::RecvTimeoutError::Timeout) => {}
-            _ => break,
-        }
+    while let Err(std_mpsc::RecvTimeoutError::Timeout) = stop_rx.recv_timeout(t.tick) {
         if let Some((_, pump)) = cur.as_mut() {
             for f in pump.pump() {
                 let _ = sink.send(AudioMessage::Frame(f));
@@ -283,7 +279,7 @@ fn build_stream() -> Result<(cpal::Stream, Pump), AudioError> {
     let ring_cap = (base.sample_rate as usize * base.channels.max(1) as usize * RING_SECONDS).max(16_384);
     let mut last_err: Option<AudioError> = None;
     for buffer_size in buffer_candidates(base.sample_rate) {
-        let mut config = base.clone();
+        let mut config = base;
         config.buffer_size = buffer_size;
         let shared = Arc::new(MicShared::new(ring_cap));
         let (cb, eb) = (shared.clone(), shared.clone());

@@ -568,10 +568,10 @@ mod tests {
                 }
             }
         }
-        // Cua so phu de chi duoc cac lenh subtitle.
+        // Cua so phu de chi duoc cac lenh subtitle, tru diag_js (nhat ky chan doan, chi nhan loai trong danh sach trang).
         for p in perms("overlay") {
             if let Some(c) = cmd_of(&p) {
-                assert!(c.starts_with("subtitle_"), "{c}");
+                assert!(c.starts_with("subtitle_") || c == "diag_js", "{c}");
             }
         }
     }
