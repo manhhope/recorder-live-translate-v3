@@ -5,11 +5,15 @@ Ban cai: `Recorder-Live-Translate-win-mic-21517a6.zip` (commit build 21517a6; co
 
 ## 1. Nguyen nhan (doc ma nguon cpal 0.18.2, wasapi 0.27, tauri 2.12.5)
 
-- **xrun lap 14 lan**: `ErrorKind::Xrun` cua cpal WASAPI sinh tu co `AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY`, la loi KHONG nghiem trong, stream van chay. Ma cu coi moi loi la mat thiet bi.
+- **xrun lap 14 lan** (da chung minh / da loai tru / chua chung minh duoc):
+  - DA CHUNG MINH ban chat loi: cpal 0.18.2 `host/wasapi/stream.rs:823` chi phat `ErrorKind::Xrun` khi `GetBuffer` tra co `AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY` (va `device_position != 0`). Do la co gian doan du lieu do WASAPI gan, stream van chay; ma cu (274f2d5, mic.rs `on_err`) coi moi loi la `DeviceChanged`.
+  - DA LOAI TRU "callback qua nang": do bang `cargo run --release -p rlt-platform --example mic_cb_cost` (dung dung phan xu ly trong callback cu: to_f32 + MicPipeline::push 48k/2ch -> 16k/mono + gui kenh, goi 10 ms): p50=2 us, p99=6 us, max=43 us tren 20000 goi, ngan sach moi goi 10000 us (do tren Mac; Windows cham hon vai lan van chua toi 1% ngan sach). Kenh `AudioSink` la `UnboundedSender` nen `send` khong chan. Vay resample/mix/cap phat trong callback KHONG the gay ra 14 lan mat du lieu.
+  - DA LOAI TRU "tich luy qua tai": trong diag_1.log (05:39:42.319 den 05:41:24.972) xrun dau tien den 155 ms sau `open`, hai lan cach nhau 10 ms (.319, .329), sau do cach thua ngau nhien 0,4 s den 14 s trong luc chi co mic va luong he thong dang chay. Neu do tai tang dan thi xrun phai day dan, nhung log khong the hien xu huong do.
+  - Con lai nghi van duy nhat nam trong luong capture cu: `on_err` goi `diag_hook::emit` (mo file + ghi them duoi `Mutex`, `diag.rs:105,125`) NGAY tren luong cpal. Dieu nay chi co the KHUECH DAI (mot lan ghi cham > buffer WASAPI se gay them mat du lieu), khong the la nguyen nhan khoi dau, va khong do duoc tu log vi khoang cach `stream_error` -> `device_changed` (6 den 226 ms) la do tre giao su kien o luong khac, khong phai thoi gian luong capture bi chan.
+  - CHUA CHUNG MINH (can Windows that): vi sao WASAPI gan co ngay tu dau. Ung vien con lai la nguon ngoai ung dung (driver/clock mic USB hoac Bluetooth lech, che do chia se voi luong loopback he thong chay cung luc). Cach lam ro tren Windows: xem muc 5. Ban sua lam cho xrun vo hai bat ke nguon la gi: chi dem, khong dung lai luong, khong ghi file trong callback.
 - **device_changed bao theo moi loi**: error callback map moi loi thanh DeviceChanged. Gio phan loai: Xrun chi dem, DeviceChanged/StreamInvalidated/DeviceNotAvailable moi dung lai stream.
 - **mic bi coi im lang o 806 ms**: ben mic cham, MixedSource day ben he thong chay solo khi hang doi he thong qua 3 khung (300 ms) trong luc ben kia tut lai. Ghep FIFO nen mic den tre van duoc tron sau do (co test).
 - **`Handle wait timed out`**: la het han cho binh thuong cua `wait_for_event` (50 ms) khi khong co du lieu, KHONG phai loi. Gio im lang; chi khi tra ve nhanh bat thuong (< 25 ms) moi log `wait_failed_fast` (gioi han 10 s/lan).
-- **Chua chung minh duoc**: vi sao WASAPI gan co discontinuity ngay tu dau. Gia thuyet: I/O cham trong error callback duoi mutex toan cuc cua diag tren luong capture, bo dem mac dinh nho, cap phat trong callback. Can do tren Windows that.
 
 ## 2. Sua mic (crates/rlt-platform)
 
@@ -40,5 +44,13 @@ Ban cai: `Recorder-Live-Translate-win-mic-21517a6.zip` (commit build 21517a6; co
 - Khong thu `BufferSize::Fixed` voi driver that (co du phong ve Default).
 - Khong xac nhan hai cua so phu gui duoc `diag_js` (chi test chuoi cau hinh).
 - Khong thu watchdog sau khi may ngu that.
+- Chua do duoc nguyen nhan WASAPI gan co discontinuity (muc 1); sau khi xac nhan tren Windows, so dong `mic xrun count=` voi ban cu (14 lan trong 2 phut).
 - Tinh nang `realtime` cua cpal (audio_thread_priority) khong co trong registry nen chi la de xuat.
 - Cach xac nhan khi co Windows: noi vao mic, tim dong nguon mic trong phien; mo diag.log, kiem `mic xrun count=` (tong hop, khong lap 14 lan), khong con `js_silent` cua cua so phu, khong `ui_stall` sau khi ngu.
+
+## 6. Lenh do callback (Mac)
+
+```
+$ cargo run --release -q -p rlt-platform --example mic_cb_cost
+goi 10 ms: p50=2us p99=6us max=43us (n=20000); ngan sach moi goi = 10000us
+```
