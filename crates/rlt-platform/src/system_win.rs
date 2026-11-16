@@ -51,6 +51,12 @@ impl SilenceClock {
     }
 }
 
+
+/// `wait_for_event(timeout_ms)` lỗi mà quay về sớm hơn nửa hạn chờ: không phải hết hạn bình thường (handle hỏng).
+pub fn wait_returned_too_fast(waited: Duration, timeout_ms: u32) -> bool {
+    waited < Duration::from_millis(u64::from(timeout_ms) / 2)
+}
+
 #[cfg(windows)]
 pub use imp::SystemAudioSource;
 
@@ -191,12 +197,19 @@ mod imp {
             let mut broken = false;
             match stream.as_ref() {
                 Some(s) => {
-                    // Het han (khong co su kien) khong phai loi: do dong ho o buoc 4 xu ly.
+                    // Het han (khong co su kien) khong phai loi: loopback khong phat goi khi may dang im lang, nen
+                    // `wait_for_event` het han la binh thuong (crate wasapi tra `EventTimeout`, in ra "Handle wait
+                    // timed out"). Do dong ho o buoc 4 xu ly. Chi khi no tra ve NGAY (handle hong) moi la loi that:
+                    // ghi 1 lan/10 giay va ngu bu de khong chay vong bat ban.
+                    let t_wait = Instant::now();
                     if let Err(e) = s.ev.wait_for_event(WAIT_MS) {
-                        // Het han la binh thuong; loi khac (handle hong) tra ngay -> tranh vong bat ban + ghi 1 lan/10 giay.
-                        if wait_err_log.elapsed() >= Duration::from_secs(10) {
-                            wait_err_log = Instant::now();
-                            crate::diag_hook::emit("system", &format!("wait_for_event err={e}"));
+                        let waited = t_wait.elapsed();
+                        if wait_returned_too_fast(waited, WAIT_MS) {
+                            if wait_err_log.elapsed() >= Duration::from_secs(10) {
+                                wait_err_log = Instant::now();
+                                crate::diag_hook::emit("system", &format!("wait_failed_fast err={e} waited_ms={}", waited.as_millis()));
+                            }
+                            std::thread::sleep(Duration::from_millis(WAIT_MS as u64));
                         }
                     }
                     if drain_packets(&s.cap, &mut q).is_err() {
@@ -286,6 +299,14 @@ mod tests {
     use super::*;
 
     const MS: fn(u64) -> Duration = Duration::from_millis;
+
+    #[test]
+    fn a_wait_that_runs_out_its_timeout_is_normal_silence_not_an_error() {
+        assert!(!wait_returned_too_fast(MS(50), 50), "het han day du = im lang binh thuong");
+        assert!(!wait_returned_too_fast(MS(26), 50));
+        assert!(wait_returned_too_fast(MS(0), 50), "tra ngay = handle hong");
+        assert!(wait_returned_too_fast(MS(24), 50));
+    }
 
     #[test]
     fn no_fill_while_audio_keeps_up() {

@@ -5,6 +5,7 @@
 pub mod audio_convert;
 pub mod diag_hook;
 pub mod mic;
+pub mod mic_ring;
 pub mod mix;
 pub mod opener;
 pub mod panel;

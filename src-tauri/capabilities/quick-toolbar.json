@@ -4,5 +4,5 @@
   "platforms": ["macOS", "windows"],
   "description": "Thanh nho khi boi chon chu (US-41): chi duoc bam Dich (inline) va dong.",
   "windows": ["quick-toolbar"],
-  "permissions": ["allow-quick-inline-run"]
+  "permissions": ["allow-quick-inline-run", "allow-diag-js"]
 }

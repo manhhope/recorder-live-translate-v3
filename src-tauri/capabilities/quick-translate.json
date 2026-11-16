@@ -15,6 +15,7 @@
     "allow-quick-ax-status",
     "allow-quick-prefs-get",
     "allow-quick-prefs-set",
-    "allow-quick-ocr-translate"
+    "allow-quick-ocr-translate",
+    "allow-diag-js"
   ]
 }
