@@ -42,7 +42,6 @@
   const empty = $derived(!data || (isLocal ? data.totalAudioMs === 0 : data.totalRequests === 0 && data.totalCostUsdMicros === 0));
   const reasonKey = (r: string) => "set.usage.reason." + r.replace(/_/g, "");
   const requestsText = (n: number) => $_("set.usage.requests", { values: { n: formatNumber(n, loc) } });
-  const rtElapsed = $derived(rtDiag ? $_("common.elapsed", { values: { n: rtDiag.elapsedMs } }) : "");
   const audioLabel = $derived.by(() => {
     const mins = Math.round((data?.totalAudioMs ?? 0) / 60000);
     return $_("set.usage.audio", { values: { h: formatNumber(Math.floor(mins / 60), loc), m: mins % 60 } });
@@ -86,6 +85,7 @@
     busy = false;
   }
   let rtDiag = $state<api.RealtimeDiag | null>(null);
+  const rtMs = $derived(rtDiag ? $_("set.diag.rt.ms", { values: { ms: rtDiag.elapsedMs } }) : "");
   let rtBusy = $state(false);
   async function testRealtime() {
     rtBusy = true; rtDiag = null;
@@ -151,7 +151,7 @@
     <div><b>{$_("set.diag.rt.label")}</b><small>{$_("set.diag.rt.hint")}</small></div>
     <div class="rr">
       <button type="button" class="btn sm" data-testid="diag-realtime" disabled={rtBusy} onclick={testRealtime}>{$_("set.diag.rt.run")}</button>
-      {#if rtDiag}<span class="bd {rtDiag.ok ? 'ok' : 'rec'}" data-testid="diag-realtime-result"><Icon name={rtDiag.ok ? "check" : "warn"} />{rtDiag.ok ? $_("set.soniox.ok") : $_(errKey(rtDiag.code))} {rtElapsed}</span>{/if}
+      {#if rtDiag}<span class="bd {rtDiag.ok ? 'ok' : 'rec'}" data-testid="diag-realtime-result"><Icon name={rtDiag.ok ? "check" : "warn"} />{rtDiag.ok ? $_("set.soniox.ok") : $_(errKey(rtDiag.code))} {rtMs}</span>{/if}
     </div>
   </div>
   {#if rtDiag?.detail}<div class="hint" data-testid="diag-realtime-detail" style="word-break:break-word">{rtDiag.detail}</div>{/if}
