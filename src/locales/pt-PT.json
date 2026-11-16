@@ -5,6 +5,8 @@
   "ask.chip.explain": "Explicar",
   "ask.chip.summary": "Resumir",
   "ask.chip.todo": "Tarefas",
+  "ask.copy": "Copiar mensagem",
+  "ask.copied": "Copiado",
   "ask.clear": "Limpar histórico da conversa",
   "ask.consent.body": "Na primeira utilização do Gemini, o conteúdo da ata (e as imagens, se anexadas) é enviado ao Gemini. Sem o seu consentimento, não é enviado nenhum byte.",
   "ask.consent.local": "Com o Ollama a funcionar neste computador: “processado no seu computador”.",

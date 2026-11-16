@@ -1,7 +1,7 @@
 <script lang="ts">
   // Popup noi "Hoi AI" (phuong an A, US-46). Noi dung mo hinh luon hien bang van ban thuan
   // (`{...}` cua Svelte), KHONG dung {@html}; sanitizer o Rust da bo the va lien ket nguy hiem.
-  import { onMount, tick } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import { _, locale } from "svelte-i18n";
   import Icon from "../lib/Icon.svelte";
   import { dismiss } from "../lib/dismiss.ts";
@@ -113,8 +113,17 @@
   function onKey(e: KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); startAsk(null); }
   }
-  async function copy(t: string) { try { await navigator.clipboard.writeText(t); } catch { /* khong co quyen clipboard */ } }
+  // Dau tich "da chep" chi o bong bong vua bam, ~1,5 giay roi tro lai icon.
+  let copiedId = $state<number | null>(null);
+  let copiedTimer: ReturnType<typeof setTimeout> | undefined;
+  async function copy(id: number, t: string) {
+    try { await navigator.clipboard.writeText(t); } catch { return; /* khong co quyen clipboard: khong bao da chep */ }
+    copiedId = id;
+    clearTimeout(copiedTimer);
+    copiedTimer = setTimeout(() => (copiedId = null), 1500);
+  }
 
+  onDestroy(() => clearTimeout(copiedTimer));
   onMount(() => { reload().catch(e => (errCode = String(e))); });
 </script>
 
@@ -163,10 +172,13 @@
     {#if msgs.length === 0}<p class="hint greet">{$_("ask.greet")}</p>{/if}
     {#each msgs as m (m.message_id)}
       <div class="msg {m.role} {m.status}">
-        <div class="bub">{m.content}{#if m.status === "streaming" && !m.content}<span class="dots" aria-label={$_("ai.thinking")}>…</span>{/if}</div>
-        {#if m.role === "assistant" && m.status === "completed"}
-          <div class="mt"><button type="button" class="btn sm ghost" onclick={() => copy(m.content)}>{$_("common.copy")}</button></div>
-        {/if}
+        <div class="bw">
+          <div class="bub">{m.content}{#if m.status === "streaming" && !m.content}<span class="dots" aria-label={$_("ai.thinking")}>…</span>{/if}</div>
+          {#if m.role === "assistant" && m.status === "completed"}
+            {@const done = copiedId === m.message_id}
+            <button type="button" class="cp" class:done={done} title={$_(done ? "ask.copied" : "ask.copy")} aria-label={$_(done ? "ask.copied" : "ask.copy")} onclick={() => copy(m.message_id, m.content)}><Icon name={done ? "check" : "copy"} /></button>
+          {/if}
+        </div>
         {#if m.status === "failed"}
           <div class="err" role="alert">{$_(api.errKey(m.error_code, provider))} {$_("ask.err.keep")}</div>
         {/if}
@@ -200,6 +212,11 @@
   .msg{display:flex;flex-direction:column;max-width:92%}
   .msg.user{align-self:flex-end;align-items:flex-end}
   .bub{white-space:pre-wrap;overflow-wrap:anywhere;padding:8px 10px;border-radius:var(--rlt-rb);border:1px solid var(--rlt-line);background:var(--rlt-bg,transparent);font-size:var(--rlt-fs)}
+  .bw{position:relative}
+  .msg.assistant.completed .bub{padding-bottom:34px}
+  .cp{position:absolute;right:6px;bottom:6px;width:26px;height:26px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:var(--rlt-rb);border:1px solid transparent;background:transparent;color:var(--rlt-text2);cursor:pointer}
+  .cp:hover{background:var(--rlt-ctl);color:var(--rlt-text)}
+  .cp.done{color:var(--rlt-ok)}
   .msg.user .bub{background:var(--rlt-fill);color:var(--rlt-onfill);border-color:transparent}
   .msg.failed .bub:empty{display:none}
   .err{color:var(--rlt-rec);font-size:12px;margin-top:4px}
