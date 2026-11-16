@@ -483,6 +483,7 @@
   "set.diag.open": "Abrir pasta do registo",
   "set.diag.rt.label": "Testar ligação em tempo real",
   "set.diag.rt.hint": "Abre apenas o WebSocket do Soniox, sem gravar. Mostra o motivo técnico quando falha (DNS, certificado TLS, handshake). A chave nunca é mostrada.",
+  "set.diag.rt.ms": "({ms} ms)",
   "set.diag.rt.run": "Testar tempo real",
   "err.rejected": "O Soniox recusou o pedido (não é problema da chave). Veja o 'Registo de diagnóstico' nas Definições.",
   "err.audiodevice": "Não foi possível abrir o dispositivo de áudio. Verifique o microfone ou a saída e tente de novo.",

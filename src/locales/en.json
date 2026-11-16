@@ -483,6 +483,7 @@
   "set.diag.open": "Open log folder",
   "set.diag.rt.label": "Test realtime connection",
   "set.diag.rt.hint": "Opens only the Soniox WebSocket, with no recording. Shows the technical reason when it fails (DNS, TLS certificate, handshake). The key is never shown.",
+  "set.diag.rt.ms": "({ms} ms)",
   "set.diag.rt.run": "Test realtime",
   "err.rejected": "Soniox rejected the request (not a key problem). See 'Diagnostic log' in Settings for details.",
   "err.audiodevice": "The audio device could not be opened. Check the microphone or output device, then try again.",
