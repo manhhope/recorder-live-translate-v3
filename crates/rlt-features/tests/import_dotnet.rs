@@ -5,7 +5,7 @@ use rlt_features::{glossary, search, FeatureError};
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
 
-const NET_SCHEMA: &str = include_str!("../../../../recorder-live-translate/docs/schema.sql");
+const NET_SCHEMA: &str = include_str!("fixtures/dotnet-schema.sql");
 const TS: &str = "2026-10-01T09:00:00.000Z";
 
 fn tmpdir(tag: &str) -> PathBuf {
