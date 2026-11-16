@@ -4,6 +4,7 @@
   import type { Snippet } from "svelte";
   import { _ } from "../i18n/index.ts";
   import Icon from "./Icon.svelte";
+  import { dismiss } from "./dismiss.ts";
   import * as api from "./api.ts";
   import { DEFAULT_DST, DEFAULT_SRC, LANGS } from "./langs.ts";
 
@@ -41,10 +42,10 @@
       done = true; dlg = null; err = null;
     } catch (e) { err = errKey(api.errCode(e)); }
   }
-  function onWindowKey(e: KeyboardEvent) { if (e.key === "Escape") { menu = null; dlg = null; } }
+  function onWindowKey(e: KeyboardEvent) { if (e.key === "Escape") dlg = null; }
 </script>
 
-<svelte:window onkeydown={onWindowKey} onclick={() => (menu = null)} />
+<svelte:window onkeydown={onWindowKey} />
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div oncontextmenu={onContext}>
@@ -54,7 +55,7 @@
 {#if done}<div class="hint" role="status" style="padding:0 18px">{$_("set.gl.added")}</div>{/if}
 
 {#if menu}
-  <div class="ctxmenu" role="menu" style="left:{menu.x}px;top:{menu.y}px">
+  <div class="ctxmenu" role="menu" use:dismiss={{ open: true, onClose: () => (menu = null) }} style="left:{menu.x}px;top:{menu.y}px">
     <button type="button" role="menuitem" onclick={(e) => { e.stopPropagation(); openDialog(); }}><Icon name="book" />{$_("term.menu.add")}</button>
   </div>
 {/if}

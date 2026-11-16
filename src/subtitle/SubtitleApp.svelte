@@ -7,6 +7,7 @@
   import { Follow } from "../lib/follow.svelte.ts";
   import { backgroundCss, colorError, liveRows, mergeSnapshot, MODES, rowsForLines, toolbarVisible, upsertLine, type DisplayMode, type SubtitleSettings } from "./model.ts";
   import type { LineDto } from "../lib/api.ts";
+  import { dismiss } from "../lib/dismiss.ts";
   import { afterFinal, type LiveText } from "../lib/live.ts";
 
   interface LiveMsg { kind: "partial" | "clear"; source: string; translation: string }
@@ -79,7 +80,7 @@
     <input class="sw" type="color" aria-label={$_("sub.color.translation")} title={$_("sub.color.translation")} value={s.translation_color} onchange={e => setColor("translation", e)} />
     <input class="rg" type="range" min="0" max="80" step="5" aria-label={$_("sub.opacity")} title={$_("sub.opacity")} value={s.opacity_percent} onchange={setOpacity} />
     <span class="grow"></span>
-    <div class="more">
+    <div class="more" use:dismiss={{ open: menuOpen, onClose: () => (menuOpen = false), restoreFocus: ".mini" }}>
       <button class="mini" onclick={() => (menuOpen = !menuOpen)} title={$_("sub.more")} aria-label={$_("sub.more")} aria-expanded={menuOpen}>
         <svg class="i" viewBox="0 0 16 16"><circle cx="3" cy="8" r="1"/><circle cx="8" cy="8" r="1"/><circle cx="13" cy="8" r="1"/></svg>
       </button>

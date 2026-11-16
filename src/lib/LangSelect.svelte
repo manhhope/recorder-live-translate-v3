@@ -1,6 +1,7 @@
 <script lang="ts">
   import { _ } from "../i18n/index.ts";
   import Icon from "./Icon.svelte";
+  import { dismiss } from "./dismiss.ts";
   import { LANGS, AUTO } from "./langs.ts";
 
   let { value = $bindable(), withAuto = false, locked = false, cls = "", short = false, ariaKey, tipKey }:
@@ -16,11 +17,14 @@
   const rest = $derived(shown.filter(l => !l.popular));
   const showAuto = $derived(withAuto && (!q || fold($_("lang.auto")).includes(fold(q))));
 
+  // Dang ghi (locked) thi khong the con mo: dong ngay neu popup dang mo luc bat dau ghi.
+  $effect(() => { if (locked) { open = false; q = ""; } });
+  function close() { open = false; q = ""; }
   function pick(code: string) { value = code; open = false; q = ""; }
   function label(key: string) { return short && key === "lang.pt" ? $_("lang.pt.short") : $_(key); }
 </script>
 
-<span class="langwrap">
+<span class="langwrap" use:dismiss={{ open, onClose: close, restoreFocus: ".sel" }}>
   <button type="button" class="sel {cls} {open ? 'open' : ''}" aria-haspopup="listbox" aria-expanded={open}
     aria-disabled={locked} disabled={locked}
     aria-label={$_(ariaKey)} data-tip={$_(tipKey) + $_(locked ? "cfg.lock.tip" : "cfg.change.tip")}

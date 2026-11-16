@@ -4,6 +4,7 @@
   import { onMount, tick } from "svelte";
   import { _, locale } from "svelte-i18n";
   import Icon from "../lib/Icon.svelte";
+  import { dismiss } from "../lib/dismiss.ts";
   import * as api from "./api.ts";
   import type { AiSettings, ChipKind, Conversation, Message, Provider } from "./api.ts";
 
@@ -117,7 +118,7 @@
   onMount(() => { reload().catch(e => (errCode = String(e))); });
 </script>
 
-<section class="ask" aria-label={$_("ask.input")}>
+<section class="ask" aria-label={$_("ask.input")} use:dismiss={{ open: showList, onClose: () => (showList = false), restoreFocus: ".acts .btn" }}>
   <header class="hd">
     <label class="mdl">
       <span class="vh">{$_("ask.model.pick")}</span>
