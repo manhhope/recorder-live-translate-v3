@@ -802,3 +802,17 @@ scripts/pack-updater-mac.sh:10:[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}${TAURI_SIGNI
 grep-exit=0
 ```
 (grep-exit=1 nghĩa là 0 kết quả.)
+
+## Sửa CI phát hành: mac-x64 biên dịch chéo trên macos-latest
+
+Run 44016111690 của tag v3.0.3 kẹt hơn 35 phút vì dòng ma trận `mac-x64` dùng runner Intel `macos-13`, không còn tồn tại nên job không bao giờ được nhận.
+
+Thay đổi trong `.github/workflows/release.yml`:
+- `mac-x64` chạy trên `macos-latest` (Apple Silicon), biên dịch chéo sang `x86_64-apple-darwin`.
+- Thêm bước `rustup target add x86_64-apple-darwin` (bước riêng, chỉ trên macOS) bên cạnh `targets:` của `rust-toolchain`.
+- Build vẫn dùng `--target "${{ matrix.target }}"`, nên là `cargo tauri build --target x86_64-apple-darwin --bundles app`.
+- Không còn tham chiếu `macos-13`.
+
+Đã kiểm, không cần sửa: đường dẫn bundle `target/x86_64-apple-darwin/release/bundle/macos/*.app` khớp lệnh build; tên tệp ổn định `RLT-darwin-x86_64.app.tar.gz(.sig)` và khóa `darwin-x86_64` trong `latest.json` giữ nguyên; `scripts/make-latest-json.mjs` không đổi. Chạy thử với dữ liệu giả cho darwin-aarch64, darwin-x86_64, windows-x86_64 cho `latest.json` đủ ba khóa.
+
+Chưa kiểm được: build biên dịch chéo thật trên runner GitHub (chỉ kiểm cú pháp YAML và script sinh latest.json). Bản x86_64 sinh ra trên Apple Silicon chưa được chạy thử trên máy Intel.
