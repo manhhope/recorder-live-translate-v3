@@ -1,6 +1,20 @@
 {
   "entries": [
     {
+      "version": "3.0.4",
+      "date": "2026-11-17",
+      "groups": {
+        "improved": {
+          "en": [
+            "Maintenance release with no feature changes: it confirms that automatic updates from 3.0.3 to 3.0.4 work."
+          ],
+          "pt-PT": [
+            "Versão de manutenção sem alterações de funcionalidades: confirma que as atualizações automáticas da 3.0.3 para a 3.0.4 funcionam."
+          ]
+        }
+      }
+    },
+    {
       "version": "3.0.3",
       "date": "2026-11-17",
       "groups": {

@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/rlt-core", "crates/rlt-platform", "crates/rlt-store", "crates/rlt-segment", "crates/rlt-soniox", "crates/rlt-secrets", "crates/rlt-features", "crates/rlt-ai", "crates/rlt-quick", "src-tauri"]
 
 [workspace.package]
-version = "3.0.3"
+version = "3.0.4"
 edition = "2021"
 license = "UNLICENSED"
 
