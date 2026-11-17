@@ -1,6 +1,20 @@
 {
   "entries": [
     {
+      "version": "3.0.3",
+      "date": "2026-11-17",
+      "groups": {
+        "new": {
+          "en": [
+            "This is the first version with automatic updates: the app now checks for new versions and offers to install them."
+          ],
+          "pt-PT": [
+            "Esta é a primeira versão com atualizações automáticas: a aplicação passa a verificar novas versões e propõe instalá-las."
+          ]
+        }
+      }
+    },
+    {
       "version": "3.0.2",
       "date": "2026-11-15",
       "groups": {
