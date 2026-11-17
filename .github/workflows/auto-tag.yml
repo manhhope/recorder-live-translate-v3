@@ -1,0 +1,64 @@
+name: auto-tag
+
+# Khi PR release duoc merge vao main: kiem version, gan tag vX.Y.Z, roi kich hoat build release.yml.
+# Chi PR release moi phat hanh: ten PR bat dau `release X.Y.Z` hoac nhanh `release-X.Y.Z`. Merge khac: bo qua.
+#
+# Vi sao dispatch thay vi chi day tag: tag tao bang GITHUB_TOKEN KHONG kich hoat workflow khac (`on: push: tags`).
+# Cach chon: sau khi tao tag, goi `gh workflow run release.yml --ref vX.Y.Z` (workflow_dispatch la ngoai le cho phep
+# voi GITHUB_TOKEN, can quyen actions: write). Chay tren ref la tag nen release.yml thay GITHUB_REF_TYPE=tag va
+# GITHUB_REF_NAME=vX.Y.Z, giong het luc day tag; release.yml khong phai sua. Khong can PAT nen khong them bi mat moi.
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: auto-tag
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write
+  pull-requests: read
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tim PR release vua merge, kiem version, gan tag, kich hoat release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # PR gan voi commit nay tren main (merge commit hoac squash deu tra ve PR).
+          pr="$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '[.[] | select(.merged_at != null and .base.ref == "main" and .head.repo.full_name == "'"$REPO"'")][0] // empty')"
+          if [ -z "$pr" ]; then echo "Khong phai merge tu PR cung repo: bo qua."; exit 0; fi
+          title="$(jq -r '.title' <<<"$pr")"
+          head="$(jq -r '.head.ref' <<<"$pr")"
+          num="$(jq -r '.number' <<<"$pr")"
+          semver='(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?'
+          want=""
+          if [[ "$head" =~ ^release-($semver)$ ]]; then want="${BASH_REMATCH[1]}"; fi
+          if [ -z "$want" ] && [[ "$title" =~ ^[Rr]elease\ ($semver)([^0-9A-Za-z.-]|$) ]]; then want="${BASH_REMATCH[1]}"; fi
+          if [ -z "$want" ]; then echo "PR #$num ('$title', nhanh '$head') khong phai PR release: bo qua."; exit 0; fi
+
+          conf="$(jq -r '.version' src-tauri/tauri.conf.json)"
+          if [ "$conf" != "$want" ]; then
+            echo "::error::PR #$num bao release $want nhung src-tauri/tauri.conf.json la $conf. Khong gan tag."; exit 1
+          fi
+          tag="v$want"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Tag $tag da ton tai: bo qua (khong chay lai phat hanh)."; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" "$SHA" -m "Release $want (PR #$num)"
+          git push origin "refs/tags/$tag"
+          echo "Da tao tag $tag tai $SHA"
+          gh workflow run release.yml --repo "$REPO" --ref "$tag"
+          echo "Da kich hoat release.yml tren $tag"
