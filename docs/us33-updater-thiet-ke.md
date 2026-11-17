@@ -14,7 +14,7 @@ cargo tauri signer generate -w ~/.rlt-secrets/rlt-updater.key
 #  -> ~/.rlt-secrets/rlt-updater.key.pub   khóa CÔNG KHAI (một dòng base64)
 ```
 
-1. Dán nội dung `rlt-updater.key.pub` vào `src-tauri/tauri.conf.json`, mục `plugins.updater.pubkey` (đang là `REPLACE_WITH_MINISIGN_PUBLIC_KEY_BASE64`). App bản chưa thay khóa trả `update_notconfigured` và tắt cập nhật; `release.yml` từ chối chạy khi còn `REPLACE_WITH_`.
+1. Đã xong: `plugins.updater.pubkey` trong `src-tauri/tauri.conf.json` là khóa công khai thật (minisign key id 168127847E844627, nội dung `rlt-updater.key.pub`). Giữ nguyên hai lớp chặn: app trả `update_notconfigured` nếu khóa trống hoặc còn dạng `REPLACE_WITH_`, và `release.yml` từ chối chạy khi còn `REPLACE_WITH_`.
 2. Trong GitHub: Settings, Secrets and variables, Actions, tạo `TAURI_SIGNING_PRIVATE_KEY` (nội dung file `.key`) và `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
 3. Build cục bộ cần khóa trong biến môi trường: `export TAURI_SIGNING_PRIVATE_KEY="$(cat ~/.rlt-secrets/rlt-updater.key)"` (và `_PASSWORD`). Không ghi vào file trong repo, không đưa vào `.env` được commit.
 4. Mất khóa riêng thì không phát hành cập nhật được cho bản đã cài (app cũ chỉ tin khóa công khai cũ). Sao lưu ở nơi an toàn.

@@ -7,7 +7,7 @@ Nhánh `us33-updater` (tách từ `win-final` 6aacf62). Không merge `main`, kh�
 
 ## 1. Đã làm
 
-- **Rust**: `tauri-plugin-updater` 2.14.1, 3 lệnh `update_check`, `update_download` (Channel tiến độ), `update_install` trong `src-tauri/src/update.rs`; endpoint cấu hình được (`plugins.updater.endpoints`; bản debug đọc `RLT_UPDATE_ENDPOINT` để thử với máy chủ giả). Khóa công khai là chỗ giữ chỗ `REPLACE_WITH_MINISIGN_PUBLIC_KEY_BASE64` nên bản này trả `update_notconfigured` cho tới khi chủ đặt khóa thật.
+- **Rust**: `tauri-plugin-updater` 2.14.1, 3 lệnh `update_check`, `update_download` (Channel tiến độ), `update_install` trong `src-tauri/src/update.rs`; endpoint cấu hình được (`plugins.updater.endpoints`; bản debug đọc `RLT_UPDATE_ENDPOINT` để thử với máy chủ giả). Khóa công khai trong `tauri.conf.json` đã là khóa minisign thật (key id 168127847E844627); lệnh vẫn trả `update_notconfigured` nếu khóa trống hoặc còn dạng `REPLACE_WITH_`.
 - **Capability**: chỉ `capabilities/main.json` (cửa sổ `main`) có 3 quyền `allow-update-*`. Không cấp `updater:*`, không cấp `process:*`. `check:caps` được mở rộng để bắt trường hợp lệch.
 - **Giao diện**: thẻ Cập nhật ở Cài đặt, Giới thiệu (`UpdateCard.svelte`): công tắc tự động (mặc định bật), nút Check, phiên bản hiện tại và mới, ghi chú bản phát hành, tiến độ tải, "Install and restart", Thử lại; banner khi bản đã tải xong mà người dùng ở màn khác; lời giải thích TCC/Keychain chỉ hiện trên macOS. Mọi chuỗi qua i18n en và pt-PT.
 - **Không cài khi đang ghi**: Rust trả `update_recording`, giao diện khóa nút Cài và giải thích; tải vẫn được.
