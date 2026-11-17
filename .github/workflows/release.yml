@@ -1,9 +1,10 @@
 name: release
 
-# US-33: dung ban phat hanh, ky goi cap nhat (minisign) va dang len GitHub Releases cung latest.json.
+# US-33: dung ban phat hanh, ky goi cap nhat (minisign) va dang len GitHub Releases cua repo cong khai manhhope/recorder-live-translate-releases cung latest.json.
 # TRANG THAI THAT: workflow nay CHUA TUNG CHAY (chua co secret, chua co tag). Chi duoc viet va kiem cu phap YAML.
 # Kich hoat: day tag `v<semver>` (vd v3.1.0). Tag phai khop version trong src-tauri/tauri.conf.json (buoc dau kiem).
 # Secret (Settings > Secrets and variables > Actions), chu repo tu tao, KHONG de trong repo:
+#   RELEASES_REPO_TOKEN                  PAT (fine-grained) quyen Contents: Read and write CHO repo manhhope/recorder-live-translate-releases
 #   TAURI_SIGNING_PRIVATE_KEY            noi dung khoa rieng minisign (tao bang `cargo tauri signer generate -w <duong dan NGOAI repo>`)
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD   mat khau cua khoa (de trong neu tao khong dat mat khau)
 #   MAC_CERT_P12_BASE64, MAC_CERT_P12_PASSWORD   (tuy chon) chung chi 'RLT Local Signing' dang .p12 base64; khong co thi ky ad-hoc, xem ghi chu ben duoi
@@ -15,7 +16,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   check:
@@ -133,7 +134,7 @@ jobs:
       - name: Sinh latest.json
         env:
           VERSION: ${{ needs.check.outputs.version }}
-          BASE: https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}
+          BASE: https://github.com/manhhope/recorder-live-translate-releases/releases/download/${{ github.ref_name }}
         run: |
           set -euo pipefail
           ls -l assets
@@ -146,7 +147,11 @@ jobs:
           cat assets/latest.json
       - name: Tao Release va tai tep len
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITHUB_TOKEN khong ghi duoc repo khac: dung PAT RELEASES_REPO_TOKEN (Contents: Read and write cho repo releases). Chi qua env, khong echo.
+          GH_TOKEN: ${{ secrets.RELEASES_REPO_TOKEN }}
+          RELEASES_REPO: manhhope/recorder-live-translate-releases
         run: |
           set -euo pipefail
-          gh release create "${GITHUB_REF_NAME}" --title "${GITHUB_REF_NAME}" --generate-notes assets/* || gh release upload "${GITHUB_REF_NAME}" assets/* --clobber
+          if [ -z "${GH_TOKEN:-}" ]; then echo "Thieu secret RELEASES_REPO_TOKEN" >&2; exit 1; fi
+          gh release create "${GITHUB_REF_NAME}" --repo "$RELEASES_REPO" --title "${GITHUB_REF_NAME}" --notes "Recorder Live Translate ${GITHUB_REF_NAME#v}" assets/* \
+            || gh release upload "${GITHUB_REF_NAME}" --repo "$RELEASES_REPO" assets/* --clobber

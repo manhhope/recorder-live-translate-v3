@@ -2,7 +2,7 @@
 
 Nhánh `us33-updater` (tách từ `win-final` 6aacf62). Không merge `main`, không đụng .NET. Thiết kế và checklist máy thật: `docs/us33-updater-thiet-ke.md`.
 
-- **Commit mã nguồn để cherry-pick: `543690d6d95736fc0ce584111046d9111f71ce75`** (một commit gồm toàn bộ mã, test, workflow, tài liệu thiết kế). Commit báo cáo này nằm ngay sau nó.
+- **Commit mã nguồn để cherry-pick: `e0b080a`** (nối tiếp `543690d`) (một commit gồm toàn bộ mã, test, workflow, tài liệu thiết kế). Commit báo cáo này nằm ngay sau nó.
 - Tất cả output dưới đây chạy THẬT trên macOS (Apple Silicon) trong worktree `rlt-us33` sau commit trên; log gốc ghi ở `/tmp/us33/` (không đưa vào repo).
 
 ## 1. Đã làm
@@ -447,7 +447,7 @@ CHƯA chạy / CHƯA kiểm (nói rõ, không giả định):
 
 1. Tạo khóa: `cargo tauri signer generate -w ~/.rlt-secrets/rlt-updater.key` (NGOÀI repo), sao lưu khóa riêng và mật khẩu.
 2. Dán khóa công khai (`.key.pub`) vào `src-tauri/tauri.conf.json`, `plugins.updater.pubkey`.
-3. Thêm GitHub Secrets `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (tùy chọn `MAC_CERT_P12_BASE64`, `MAC_CERT_P12_PASSWORD` để CI ký bằng 'RLT Local Signing'; không có thì CI ký ad-hoc và macOS sẽ hỏi lại quyền sau mỗi cập nhật).
+3. Thêm 3 GitHub Secrets vào repo mã nguồn (Settings > Secrets and variables > Actions): `RELEASES_REPO_TOKEN` (PAT fine-grained, quyền **Contents: Read and write** chỉ cho repo công khai `manhhope/recorder-live-translate-releases`; `GITHUB_TOKEN` không ghi được repo khác), `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`. Repo releases cần có ít nhất một commit (vd README) để tạo được tag/Release. Phát hành nằm ở repo `manhhope/recorder-live-translate-releases`, endpoint cập nhật trỏ tới đó (tùy chọn `MAC_CERT_P12_BASE64`, `MAC_CERT_P12_PASSWORD` để CI ký bằng 'RLT Local Signing'; không có thì CI ký ad-hoc và macOS sẽ hỏi lại quyền sau mỗi cập nhật).
 4. Thêm scope `workflow` cho PAT để push được `.github/workflows/release.yml`.
 5. Đẩy tag `v<semver>` khớp `version` trong `tauri.conf.json` để chạy `release.yml`, theo dõi lần chạy đầu (chưa từng chạy), kiểm Release có `latest.json`, `.app.tar.gz(.sig)`, `setup.exe(.sig)`.
 6. Làm checklist máy thật ở mục 6 của `docs/us33-updater-thiet-ke.md` (macOS và Windows), ghi kết quả N → N+1.
