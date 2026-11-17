@@ -76,6 +76,19 @@ export const permissionsStatus = () => invoke<PermissionsOut>("permissions_statu
 /** `granted` | `denied` | `needsrestart` | `unknown`. Do that SCShareableContent: chi goi khi nguoi dung bam Check again. */
 export const screenPermissionCheck = (settingsOpened: boolean) => invoke<string>("screen_permission_check", { settingsOpened });
 export const restartApp = () => invoke<void>("restart_app");
+
+// ---- Cap nhat tu dong (US-33). Ma loi: update_network | update_signature | update_manifest | update_notconfigured | update_install | update_busy | update_recording | update_none | update_nodownload.
+export interface UpdateInfo { version: string; currentVersion: string; notes: string | null; pubDate: string | null }
+export type UpdateEvent = { kind: "progress"; downloaded: number; total: number | null } | { kind: "finished" };
+export const updateCheck = () => invoke<UpdateInfo | null>("update_check");
+export const updateDownload = (onProgress: (e: UpdateEvent) => void) => {
+  const ch = new Channel<UpdateEvent>();
+  ch.onmessage = onProgress;
+  return invoke<void>("update_download", { onEvent: ch });
+};
+export const updateInstall = () => invoke<void>("update_install");
+export const updateAutoGet = () => invoke<boolean>("update_auto_get");
+export const updateAutoSet = (on: boolean) => invoke<void>("update_auto_set", { on });
 export const prefsGet = () => invoke<RecordPrefs>("record_prefs_get");
 export const prefsSet = (prefs: RecordPrefs) => invoke<void>("record_prefs_set", { prefs });
 

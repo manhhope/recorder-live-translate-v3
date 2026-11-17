@@ -438,3 +438,13 @@ fn nang_cap_tu_v11_len_v12_giu_nguyen_chat_cu_va_cho_phep_compat() {
     drop(s);
     std::fs::remove_dir_all(dir).ok();
 }
+
+#[test]
+fn auto_update_enabled_mac_dinh_bat_va_ghi_duoc() {
+    let s = rlt_store::Store::open_in_memory().unwrap();
+    assert!(s.auto_update_enabled().unwrap());
+    s.set_auto_update_enabled(false).unwrap();
+    assert!(!s.auto_update_enabled().unwrap());
+    s.set_auto_update_enabled(true).unwrap();
+    assert!(s.auto_update_enabled().unwrap());
+}

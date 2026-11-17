@@ -112,6 +112,21 @@ impl Store {
         Ok(self.conn.query_row("PRAGMA user_version", [], |r| r.get(0))?)
     }
 
+    // ---------------- cai dat ----------------
+
+    /// `settings.auto_update_enabled` (US-33, AC-33.1; mac dinh 1 theo schema).
+    pub fn auto_update_enabled(&self) -> Result<bool> {
+        Ok(self.conn.query_row("SELECT auto_update_enabled FROM settings WHERE settings_id = 1", [], |r| r.get::<_, i64>(0))? != 0)
+    }
+
+    pub fn set_auto_update_enabled(&self, on: bool) -> Result<()> {
+        self.conn.execute(
+            &format!("UPDATE settings SET auto_update_enabled = ?1, updated_at = {NOW} WHERE settings_id = 1"),
+            params![on as i64],
+        )?;
+        Ok(())
+    }
+
     // ---------------- phien ----------------
 
     pub fn create_session(&self, s: &NewSession) -> Result<()> {

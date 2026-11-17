@@ -56,7 +56,8 @@
         "displayLanguageSelector": false,
         "compression": "lzma"
       }
-    }
+    },
+    "createUpdaterArtifacts": true
   },
   "plugins": {
     "deep-link": {
@@ -64,6 +65,16 @@
         "schemes": [
           "rlt"
         ]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE2ODEyNzg0N0U4NDQ2MjcKUldRblJvUitoQ2VCRnBPdXFBK25KMnBEbDV1QTNENXZ3Smg0NWNGcGtEd1daL0EwVUF1T2JkenEK",
+      "endpoints": [
+        "https://github.com/manhhope/recorder-live-translate-releases/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
       }
     }
   }

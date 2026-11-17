@@ -12,6 +12,12 @@ const row = (page: Page, k: "mic" | "screen" | "ax") => page.getByTestId("pw-" +
 const NONE = { mic: "notDetermined", screen: "denied", ax: false } as const;
 /** Mo phong "nguoi dung doi quyen trong Cai dat He thong roi quay lai app": doi quyen gia roi phat su kien focus. */
 const back = (page: Page, p: Record<string, unknown>) => page.evaluate(v => { (window as any).__rlt.setPerm(v); window.dispatchEvent(new Event("focus")); }, p);
+/** Doi buoc kiem quyen luc khoi dong (App.svelte, requestAnimationFrame -> evaluatePermWelcome) doc xong ca micro lan Accessibility. Neu test doi quyen truoc do thi lan kiem dau thay thieu quyen va tu mo Welcome, che nut Bat dau. */
+const startupPermsRead = async (page: Page) => {
+  await expect.poll(() => calls(page, "permissions_status")).toBeGreaterThan(0);
+  await expect.poll(() => calls(page, "quick_ax_status")).toBeGreaterThan(0);
+  await page.evaluate(() => new Promise<void>(r => setTimeout(r, 50)));
+};
 const calls = (page: Page, cmd: string) => page.evaluate(c => (window as any).__rlt.calls.filter((x: any) => x.cmd === c).length as number, cmd);
 
 for (const loc of ["en", "pt-PT"] as const) {
@@ -207,6 +213,7 @@ test("bam Bat dau thieu quyen man hinh: nhac dung quyen thieu mot lan, lan sau c
 
 test("bam Bat dau thieu micro: nhac dung quyen micro; thieu quyen khac van nhac rieng", async ({ page, rlt }) => {
   await rlt.open({ fail: { session_start: "permission_mic" } });
+  await startupPermsRead(page);
   await back(page, { mic: "denied" });
   await rlt.btn("tool.start").click();
   await expect(row(page, "mic")).toHaveClass(/hot/);

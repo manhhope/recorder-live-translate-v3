@@ -13,6 +13,7 @@
   import { permWelcome, evaluatePermWelcome } from "./lib/perm-welcome.svelte.ts";
   import { whatsNew, evaluateWhatsNew } from "./lib/whats-new.svelte.ts";
   import { listen } from "@tauri-apps/api/event";
+  import { upd, startAutoUpdate } from "./lib/update.svelte.ts";
   import { displayAccel } from "./lib/accel.ts";
   import { app, applyTheme, openAsk, type Screen } from "./lib/app.svelte.ts";
 
@@ -38,9 +39,11 @@
     // What's New: sau khi giao dien da ve xong (khung hinh ke tiep), hien mot lan neu phien ban doi so voi lan xem truoc.
     // Thu tu: Welcome cap quyen truoc (chi khi con quyen bat buoc chua cap), What's New sau; Welcome dong xong thi tu goi What's New.
     requestAnimationFrame(() => { void evaluatePermWelcome().then(shown => { if (!shown) evaluateWhatsNew(); }, () => evaluateWhatsNew()); });
+    const stopUpd = startAutoUpdate(); // US-33: kiem nen sau vai giay, chi khi cong tu dong bat
     const un = listen<{ action?: string }>("shell://deeplink", e => { if (e.payload?.action === "ask_ai") openAsk(); });
-    return () => { void un.then(f => f()).catch(() => {}); };
+    return () => { stopUpd(); void un.then(f => f()).catch(() => {}); };
   });
+  const bannerText = $derived($_("set.upd.banner", { values: { version: upd.info?.version ?? "" } }));
   const isPt = $derived($locale === "pt-PT");
   const dark = $derived(app.theme === "dark" || (app.theme === "system" && matchMedia("(prefers-color-scheme: dark)").matches));
 </script>
@@ -70,5 +73,12 @@
     {#if app.screen === "rec"}<Record />{:else if app.screen === "ses"}<Sessions />{:else if app.screen === "ask"}<AskAi />{:else}<Settings bind:tab={app.settingsTab} />{/if}
   </main>
 </div>
+{#if upd.phase === "ready" && !upd.dismissed && app.screen !== "set"}
+  <div class="banner" role="status" data-testid="update-banner" style="position:fixed;right:12px;bottom:12px;z-index:30">
+    <span>{bannerText}</span>
+    <button type="button" class="btn sm primary" data-testid="update-banner-open" onclick={() => (app.screen = "set")}>{$_("set.upd.bannergo")}</button>
+    <button type="button" class="btn sm" data-testid="update-banner-later" onclick={() => (upd.dismissed = true)}>{$_("set.upd.bannerlater")}</button>
+  </div>
+{/if}
 {#if permWelcome.open}<PermWelcome />{/if}
 {#if whatsNew.open}<WhatsNew />{/if}

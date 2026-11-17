@@ -29,6 +29,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"
 rusqlite = { version = "0.32", features = ["bundled"] }
 png = "0.17"
 sha2 = "0.10"
+# default-features=false: tinh nang `rustls-tls` mac dinh keo them provider `ring` vao rustls, cung `aws_lc_rs` ma rlt-soniox/rlt-ai dung,
+# rustls khong tu chon duoc provider (panic o lan TLS dau). TLS cho updater di qua reqwest `rustls` (aws-lc-rs) da co o rlt-ai.
+tauri-plugin-updater = { version = "2", default-features = false, features = ["zip", "system-proxy"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 screencapturekit = "=11.1.2"

@@ -261,6 +261,7 @@ pub fn plugins(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![lifecycle::MINIMIZED_FLAG])))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .on_window_event(|window, event| {
             crate::crashlog::guard("window_event", || {
                 if let WindowEvent::CloseRequested { api, .. } = event {
@@ -381,6 +382,11 @@ fn err_text(app: &AppHandle, e: &ShortcutError) -> String {
 }
 
 // ---- Lệnh (chỉ cửa sổ `main` được cấp; xem capabilities/main.json) -------------------------------------
+
+/// Đang ghi âm hay không (cập nhật không được cài giữa phiên, AC-33.1).
+pub fn is_recording(app: &AppHandle) -> bool {
+    state(app).recording.load(Ordering::SeqCst)
+}
 
 #[tauri::command]
 pub fn shell_set_recording(app: AppHandle, recording: bool) {
