@@ -87,6 +87,7 @@ jobs:
         if: runner.os == 'macOS'
         env:
           RLT_SIGN_IDENTITY: ${{ steps.cert.outputs.identity }}
+          VERSION: ${{ needs.check.outputs.version }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
@@ -94,7 +95,7 @@ jobs:
           cargo tauri build --target "${{ matrix.target }}" --bundles app
           APP="$(ls -d target/${{ matrix.target }}/release/bundle/macos/*.app | head -n1)"
           scripts/sign-local.sh "$APP"
-          scripts/pack-updater-mac.sh "$APP" dist-release
+          scripts/pack-updater-mac.sh "$APP" dist-release "$VERSION"
           # Ten tep on dinh theo nen tang de latest.json tro dung.
           mv dist-release/*.app.tar.gz "dist-release/RLT-${{ matrix.key }}.app.tar.gz"
           mv dist-release/*.app.tar.gz.sig "dist-release/RLT-${{ matrix.key }}.app.tar.gz.sig"
@@ -142,6 +143,8 @@ jobs:
         run: |
           set -euo pipefail
           ls -l assets
+          # Moi .sig phai mang version:<VERSION> trong trusted comment (requireSignedVersion=true), ca mac va windows.
+          node scripts/check-sig-version.mjs "$VERSION" assets/*.sig
           args=()
           for k in darwin-aarch64 darwin-x86_64; do
             [ -f "assets/RLT-$k.app.tar.gz.sig" ] && args+=(--platform "$k=assets/RLT-$k.app.tar.gz.sig=$BASE/RLT-$k.app.tar.gz")

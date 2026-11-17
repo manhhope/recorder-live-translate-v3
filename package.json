@@ -12,7 +12,7 @@
     "test:unit": "node --test src/lib/transcript-prefs.test.ts src/lib/live.test.ts src/lib/export-dir.test.ts src/lib/ci-config.test.ts src/lib/usage-swr.test.ts src/lib/whats-new.test.ts src/lib/perm-welcome.test.ts src/lib/session-meta.test.ts src/lib/platform.test.ts src/lib/ipc.test.ts src/lib/update.test.ts",
     "check:caps": "node scripts/check-capabilities.mjs",
     "release": "node scripts/bump-version.mjs",
-    "test:release": "node --test scripts/bump-version.test.mjs"
+    "test:release": "node --test scripts/bump-version.test.mjs scripts/check-sig-version.test.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
