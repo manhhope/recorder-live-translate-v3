@@ -142,4 +142,141 @@ MIT: 51, ISC: 13, Apache-2.0: 8, BSD-3-Clause: 2, MPL-2.0: 2, Apache-2.0 OR MIT:
 
   `MPL-2.0` là `lightningcss` và `lightningcss-darwin-arm64` (công cụ build của vite, không đóng gói vào app; cùng lưu ý MPL như trên). `UNLICENSED: 1` là chính gói gốc `recorder-live-translate-v3`: license-checker gán nhãn này cho gói `private: true`, dù `package.json` đã có `"license": "MIT"`; chạy với `--excludePrivatePackages` thì không còn gói nào ngoài danh sách chấp nhận được. Không có lỗi hay cảnh báo của công cụ ngoài các cảnh báo `npm warn deprecated` của chính license-checker.
 - Giới hạn: cả hai công cụ chỉ đọc trường license khai báo trong metadata, không quét nội dung file giấy phép của từng gói.
-- Không merge, không tag. Trạng thái CI của commit này ghi ở phần cuối báo cáo giao việc.
+- Không merge, không tag.
+
+### 9.1 Trạng thái CI của commit MIT (`cca45aa`)
+
+Lệnh `gh pr checks 9` (lần chạy gắn với `cca45aa`, run 44269297590):
+
+```
+rust	pass	5m15s	https://github.com/manhhope/recorder-live-translate-v3/actions/runs/44269297590/job/134681572520
+web	pass	2m31s	https://github.com/manhhope/recorder-live-translate-v3/actions/runs/44269297590/job/134681572915
+windows	pass	9m56s	https://github.com/manhhope/recorder-live-translate-v3/actions/runs/44269297590/job/134681572932
+```
+
+Cả ba job xanh. Commit báo cáo này chỉ đổi `docs/readme-bao-cao.md` và sẽ chạy CI lại; kết quả xem ở `gh pr checks 9` hoặc tab Checks của PR #9.
+
+### 9.2 Diff thật của commit MIT (`git diff 24acceb cca45aa -- LICENSE Cargo.toml package.json README.md README.vi.md`)
+
+```diff
+diff --git a/Cargo.toml b/Cargo.toml
+index 1f51424..18f3b02 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -5,7 +5,7 @@ members = ["crates/rlt-core", "crates/rlt-platform", "crates/rlt-store", "crates
+ [workspace.package]
+ version = "3.0.4"
+ edition = "2021"
+-license = "UNLICENSED"
++license = "MIT"
+ 
+ [workspace.dependencies]
+ rlt-core = { path = "crates/rlt-core" }
+diff --git a/LICENSE b/LICENSE
+new file mode 100644
+index 0000000..dca855f
+--- /dev/null
++++ b/LICENSE
+@@ -0,0 +1,21 @@
++MIT License
++
++Copyright (c) 2026 manhhope
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
+diff --git a/README.md b/README.md
+index a227276..148b164 100644
+--- a/README.md
++++ b/README.md
+@@ -7,6 +7,7 @@ Live speech transcription and translation for meetings and videos, on your Mac o
+ [![CI](https://github.com/manhhope/recorder-live-translate-v3/actions/workflows/ci.yml/badge.svg)](https://github.com/manhhope/recorder-live-translate-v3/actions/workflows/ci.yml)
+ [![Latest release](https://img.shields.io/github/v/release/manhhope/recorder-live-translate-releases?label=release)](https://github.com/manhhope/recorder-live-translate-releases/releases/latest)
+ ![Platforms: macOS and Windows](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
++[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+ 
+ ![Record screen while a session is running](docs/anh/m3-giao-dien/record-en.png)
+ 
+@@ -190,4 +191,4 @@ Follow [docs/phat-hanh.md](docs/phat-hanh.md): the developer opens a PR named `r
+ 
+ ## License
+ 
+-TBD. No licence has been chosen yet, so by default all rights are reserved.
++MIT, see [LICENSE](LICENSE).
+diff --git a/README.vi.md b/README.vi.md
+index 31cfa2e..7b43503 100644
+--- a/README.vi.md
++++ b/README.vi.md
+@@ -7,6 +7,7 @@ Chép lời và dịch trực tiếp giọng nói trong cuộc họp và video,
+ [![CI](https://github.com/manhhope/recorder-live-translate-v3/actions/workflows/ci.yml/badge.svg)](https://github.com/manhhope/recorder-live-translate-v3/actions/workflows/ci.yml)
+ [![Bản phát hành mới nhất](https://img.shields.io/github/v/release/manhhope/recorder-live-translate-releases?label=release)](https://github.com/manhhope/recorder-live-translate-releases/releases/latest)
+ ![Nền tảng: macOS và Windows](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
++[![Giấy phép: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+ 
+ ![Màn hình Ghi khi đang chạy một phiên (giao diện tiếng Anh)](docs/anh/m3-giao-dien/record-en.png)
+ 
+@@ -192,4 +193,4 @@ Theo [docs/phat-hanh.md](docs/phat-hanh.md): developer mở PR có tên `release
+ 
+ ## Giấy phép
+ 
+-TBD. Chưa chọn giấy phép, nên mặc định mọi quyền được bảo lưu.
++MIT, xem [LICENSE](LICENSE).
+diff --git a/package.json b/package.json
+index 798a241..964c7e6 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,7 @@
+ {
+   "name": "recorder-live-translate-v3",
+   "private": true,
++  "license": "MIT",
+   "version": "3.0.4",
+   "type": "module",
+   "scripts": {
+```
+
+### 9.3 Output nguyên văn của `cargo license --all-features` (cargo-license 0.7.0)
+
+```
+(Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0) AND (Apache-2.0 OR ISC) AND Apache-2.0 AND BSD-3-Clause AND ISC AND MIT (1): aws-lc-sys
+(Apache-2.0 OR ISC) AND ISC (1): aws-lc-rs
+(Apache-2.0 OR MIT) AND Unicode-3.0 (1): unicode-ident
+0BSD OR Apache-2.0 OR MIT (1): adler2
+Apache-2.0 (4): cpal, gethostname, sync_wrapper, tao
+Apache-2.0 AND ISC (1): ring
+Apache-2.0 AND MIT (1): dpi
+Apache-2.0 OR Apache-2.0 WITH LLVM-exception OR MIT (5): linux-raw-sys, rustix, wasi, wasip2, wit-bindgen
+Apache-2.0 OR BSD-2-Clause OR MIT (3): mach2, zerocopy, zerocopy-derive
+Apache-2.0 OR BSD-3-Clause OR MIT (2): num_enum, num_enum_derive
+Apache-2.0 OR CC0-1.0 OR MIT-0 (2): constant_time_eq, dunce
+Apache-2.0 OR ISC OR MIT (3): hyper-rustls, rustls, rustls-native-certs
+Apache-2.0 OR LGPL-2.1-or-later OR MIT (2): r-efi, r-efi
+Apache-2.0 OR MIT (357): ahash, alsa, android_system_properties, anyhow, apple-cf, apple-metal, async-broadcast, async-channel, async-executor, async-io, async-lock, async-process, async-recursion, async-signal, async-task, async-trait, atomic-waker, autocfg, base64, base64, bit-set, bit-set, bit-vec, bit-vec, bitflags, bitflags, block-buffer, blocking, bs58, bumpalo, camino, cargo-platform, cargo_toml, cc, cesu8, cfg-expr, cfg-if, chacha20, chrono, cmake, concurrent-queue, const-random, const-random-macro, cookie, core-foundation, core-foundation, core-foundation-sys, core-graphics, core-graphics-types, coreaudio-rs, cpufeatures, cpufeatures, crc32fast, crossbeam-channel, crossbeam-utils, crypto-common, ctor, dasp_sample, dbus, deranged, digest, dirs, dirs, dirs-sys, displaydoc, dlv-list, doom-fish-utils, dtoa, dyn-clone, embed_plist, enumflags2, enumflags2_derive, equivalent, erased-serde, errno, event-listener, event-listener-strategy, fallible-iterator, fallible-streaming-iterator, fastrand, fdeflate, field-offset, filetime, find-msvc-tools, flate2, fnv, foreign-types, foreign-types-macros, foreign-types-shared, form_urlencoded, futures-channel, futures-core, futures-executor, futures-io, futures-lite, futures-macro, futures-sink, futures-task, futures-util, getrandom, getrandom, getrandom, glob, global-hotkey, hashbrown, hashbrown, hashbrown, hashlink, heck, heck, hermit-abi, hex, html5ever, html5ever, http, httparse, iana-time-zone, iana-time-zone-haiku, ident_case, idna, idna_adapter, indexmap, indexmap, ipnet, itoa, jni, jni, jni-macros, jni-sys, jni-sys, jni-sys-macros, jobserver, js-sys, json-patch, jsonptr, keyboard-types, keyboard-types, keyring, libappindicator, libappindicator-sys, libc, libdbus-sys, link-section, lock_api, log, markup5ever, markup5ever, mime, muda, ndk, ndk-context, ndk-sys, num-conv, num-derive, num-integer, num-traits, once_cell, openssl-probe, ordered-stream, osakit, parking, parking_lot, parking_lot_core, percent-encoding, pin-project-lite, piper, pkg-config, png, png, polling, portable-atomic, portable-atomic-util, powerfmt, ppv-lite86, proc-macro-crate, proc-macro-crate, proc-macro-crate, proc-macro-error, proc-macro-error-attr, proc-macro2, quinn, quinn-proto, quinn-udp, quote, rand, rand, rand_chacha, rand_core, rand_core, rand_pcg, ref-cast, ref-cast-impl, regex, regex-automata, regex-syntax, reqwest, rustc-hash, rustc_version, rustls-pki-types, rustls-platform-verifier, rustls-platform-verifier-android, rustversion, scopeguard, screencapturekit, security-framework, security-framework, security-framework-sys, semver, serde, serde-untagged, serde_core, serde_derive, serde_derive_internals, serde_json, serde_repr, serde_spanned, serde_spanned, serde_with, serde_with_macros, serialize-to-javascript, serialize-to-javascript-impl, servo_arc, servo_arc, sha1, sha2, shlex, signal-hook-registry, simd_cesu8, simdutf8, siphasher, smallvec, socket2, softbuffer, stable_deref_trait, string_cache, string_cache, string_cache_codegen, string_cache_codegen, swift-rs, syn, syn, syn, system-configuration, system-configuration-sys, system-deps, tao-macros, tar, tauri, tauri-build, tauri-codegen, tauri-macros, tauri-plugin, tauri-plugin-autostart, tauri-plugin-deep-link, tauri-plugin-dialog, tauri-plugin-fs, tauri-plugin-global-shortcut, tauri-plugin-single-instance, tauri-plugin-updater, tauri-runtime, tauri-runtime-wry, tauri-utils, tempfile, tendril, thiserror, thiserror, thiserror-impl, thiserror-impl, time, time-core, time-macros, tokio-rustls, toml, toml, toml_datetime, toml_datetime, toml_edit, toml_edit, toml_edit, toml_parser, toml_writer, tray-icon, tungstenite, typed-path, typeid, typenum, unicode-segmentation, url, utf8_iter, utf_types, uuid, vcpkg, version_check, wasm-bindgen, wasm-bindgen-futures, wasm-bindgen-macro, wasm-bindgen-macro-support, wasm-bindgen-shared, wasm-streams, web-sys, web-time, web_atoms, web_atoms, winapi, winapi-i686-pc-windows-gnu, winapi-x86_64-pc-windows-gnu, window-vibrancy, windows, windows-collections, windows-core, windows-future, windows-implement, windows-interface, windows-link, windows-numerics, windows-registry, windows-result, windows-strings, windows-sys, windows-sys, windows-sys, windows-sys, windows-sys, windows-targets, windows-targets, windows-targets, windows-threading, windows-version, windows_aarch64_gnullvm, windows_aarch64_gnullvm, windows_aarch64_gnullvm, windows_aarch64_msvc, windows_aarch64_msvc, windows_aarch64_msvc, windows_i686_gnu, windows_i686_gnu, windows_i686_gnu, windows_i686_gnullvm, windows_i686_gnullvm, windows_i686_msvc, windows_i686_msvc, windows_i686_msvc, windows_x86_64_gnu, windows_x86_64_gnu, windows_x86_64_gnu, windows_x86_64_gnullvm, windows_x86_64_gnullvm, windows_x86_64_gnullvm, windows_x86_64_msvc, windows_x86_64_msvc, windows_x86_64_msvc, wry, x11rb, x11rb-protocol, xattr, zeroize, zeroize_derive
+Apache-2.0 OR MIT OR Zlib (31): bytemuck, dispatch2, lru-slab, miniz_oxide, miniz_oxide, objc2-app-kit, objc2-audio-toolbox, objc2-avf-audio, objc2-cloud-kit, objc2-core-audio, objc2-core-audio-types, objc2-core-data, objc2-core-foundation, objc2-core-graphics, objc2-core-image, objc2-core-location, objc2-core-text, objc2-core-video, objc2-exception-helper, objc2-io-surface, objc2-osa-kit, objc2-quartz-core, objc2-security, objc2-service-management, objc2-ui-kit, objc2-user-notifications, objc2-web-kit, raw-window-handle, static_vcruntime, tinyvec, xkeysym
+Apache-2.0 WITH LLVM-exception (1): target-lexicon
+BSD-3-Clause (3): alloc-no-stdlib, alloc-stdlib, subtle
+BSD-3-Clause AND MIT (1): brotli
+BSD-3-Clause OR MIT (1): brotli-decompressor
+CC0-1.0 (1): tiny-keccak
+CDLA-Permissive-2.0 (3): webpki-root-certs, webpki-roots, webpki-roots
+ISC (3): libloading, rustls-webpki, untrusted
+MIT (145): alsa-sys, atk, atk-sys, auto-launch, block2, bytes, cairo-rs, cairo-sys-rs, cargo_metadata, cfb, cfg_aliases, combine, crunchy, darling, darling_core, darling_macro, data-encoding, derive_more, derive_more-impl, dlopen2, dlopen2_derive, dom_query, dom_query, embed-resource, endi, fs_extra, gdk, gdk-pixbuf, gdk-pixbuf-sys, gdk-sys, gdkwayland-sys, gdkx11, gdkx11-sys, generic-array, gio, gio-sys, glib, glib-macros, glib-sys, gobject-sys, gtk, gtk-sys, gtk3-macros, http-body, http-body-util, hyper, hyper-util, ico, infer, javascriptcore-rs, javascriptcore-rs-sys, libredox, libsqlite3-sys, memoffset, minisign-verify, mio, new_debug_unreachable, nix, nix, objc2, objc2-encode, objc2-foundation, ordered-multimap, os_info, pango, pango-sys, phf, phf, phf_codegen, phf_codegen, phf_generator, phf_generator, phf_macros, phf_macros, phf_shared, phf_shared, plist, precomputed-hash, quick-xml, redox_syscall, redox_users, rfd, rlt-ai, rlt-app, rlt-core, rlt-features, rlt-platform, rlt-quick, rlt-secrets, rlt-segment, rlt-soniox, rlt-store, rusqlite, rust-ini, schannel, schemars, schemars, schemars, schemars_derive, simd-adler32, slab, smappservice-rs, soup3, soup3-sys, strsim, synstructure, tauri-winres, tokio, tokio-macros, tokio-tungstenite, tokio-util, tower, tower-http, tower-layer, tower-service, tracing, tracing-attributes, tracing-core, try-lock, uds_windows, urlpattern, version-compare, vswhom, vswhom-sys, want, wasapi, webkit2gtk, webkit2gtk-sys, webview2-com, webview2-com-macros, webview2-com-sys, winnow, winnow, winreg, x11, x11-dl, zbus, zbus_macros, zbus_names, zcheapstr, zip, zmij, zvariant, zvariant_derive, zvariant_utils
+MIT OR Unlicense (11): aho-corasick, byteorder, jiff, jiff-core, jiff-static, jiff-tzdb, jiff-tzdb-platform, memchr, same-file, walkdir, winapi-util
+MPL-2.0 (7): cssparser, cssparser, cssparser-macros, dtoa-short, option-ext, selectors, selectors
+Unicode-3.0 (18): icu_collections, icu_locale_core, icu_normalizer, icu_normalizer_data, icu_properties, icu_properties_data, icu_provider, litemap, potential_utf, tinystr, writeable, yoke, yoke-derive, zerofrom, zerofrom-derive, zerotrie, zerovec, zerovec-derive
+Zlib (2): foldhash, zlib-rs
+```
