@@ -101,7 +101,9 @@ Render cục bộ bằng `marked@12` (không gửi nội dung đi đâu ngoài t
 
 ## 6. PR và CI
 
-PR_VA_CI_O_DAY
+- PR: https://github.com/manhhope/recorder-live-translate-v3/pull/9 (nhánh `docs/readme` vào `main`, chờ chủ duyệt, không merge).
+- CI: **CHƯA XANH, đang chạy** tại lúc viết báo cáo. Ba job `rust`, `web`, `windows` đều ở trạng thái `pending` (run 44253200459). CI mất khoảng 15 đến 19 phút; chủ xem kết quả ở tab Checks của PR.
+- Lưu ý nền: lần chạy CI gần nhất trên `main` (run 44138574592, sau merge PR #8) có `rust` và `windows` thành công, nhưng `web` bị `cancelled`, nên kết luận chung là failure. Đó là tình trạng có sẵn trước PR này; PR chỉ đổi file tài liệu nên không thể làm hỏng build, nhưng nếu `web` lại bị hủy thì cần chạy lại job đó.
 
 ## 7. Điểm chưa chắc, cần chủ xác nhận
 
