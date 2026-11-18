@@ -102,13 +102,8 @@ Render cục bộ bằng `marked@12` (không gửi nội dung đi đâu ngoài t
 ## 6. PR và CI
 
 - PR: https://github.com/manhhope/recorder-live-translate-v3/pull/9 (nhánh `docs/readme` vào `main`, chờ chủ duyệt, không merge).
-- CI: **XANH** (kiểm lúc 2026-11-18, run 44253233116, head a12e5d5). Output `gh pr checks 9`:
-
-```
-rust	pass	7m6s
-web	pass	2m19s
-windows	pass	9m33s
-```
+- CI: lần chạy trên head a12e5d5 (run 44253233116) **xanh cả ba job**: `rust` pass 7m6s, `web` pass 2m19s, `windows` pass 9m33s (output `gh pr checks 9`).
+- Lần chạy tiếp theo (run 44254482676, sau commit báo cáo này) `rust` và `web` pass, còn `windows` fail ở hai test `paginates_with_cursor_same_sort_and_sends_schema_params` và `network_failure_is_network_error` trong `crates/rlt-features/tests/soniox_usage.rs`. Hai test này chạy xanh ở run trước với cùng mã nguồn, và PR không đổi code, nên đây là test chập chờn có sẵn (nghi dùng chung cổng máy chủ giả), không do tài liệu. Token của worker không có quyền rerun, nên chủ bấm "Re-run failed jobs" nếu muốn nền xanh hoàn toàn. Kết quả lần chạy mới nhất ghi ở đầu báo cáo cuối cùng của task.
 - Lưu ý nền: lần chạy CI gần nhất trên `main` (run 44138574592, sau merge PR #8) có `rust` và `windows` thành công, nhưng `web` bị `cancelled`, nên kết luận chung là failure. Đó là tình trạng có sẵn trước PR này; PR chỉ đổi file tài liệu nên không thể làm hỏng build, nhưng nếu `web` lại bị hủy thì cần chạy lại job đó.
 
 ## 7. Điểm chưa chắc, cần chủ xác nhận
