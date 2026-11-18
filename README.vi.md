@@ -7,6 +7,7 @@ Chép lời và dịch trực tiếp giọng nói trong cuộc họp và video, 
 [![CI](https://github.com/manhhope/recorder-live-translate-v3/actions/workflows/ci.yml/badge.svg)](https://github.com/manhhope/recorder-live-translate-v3/actions/workflows/ci.yml)
 [![Bản phát hành mới nhất](https://img.shields.io/github/v/release/manhhope/recorder-live-translate-releases?label=release)](https://github.com/manhhope/recorder-live-translate-releases/releases/latest)
 ![Nền tảng: macOS và Windows](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
+[![Giấy phép: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ![Màn hình Ghi khi đang chạy một phiên (giao diện tiếng Anh)](docs/anh/m3-giao-dien/record-en.png)
 
@@ -192,4 +193,4 @@ Theo [docs/phat-hanh.md](docs/phat-hanh.md): developer mở PR có tên `release
 
 ## Giấy phép
 
-TBD. Chưa chọn giấy phép, nên mặc định mọi quyền được bảo lưu.
+MIT, xem [LICENSE](LICENSE).

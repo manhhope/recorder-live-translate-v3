@@ -7,6 +7,7 @@ Live speech transcription and translation for meetings and videos, on your Mac o
 [![CI](https://github.com/manhhope/recorder-live-translate-v3/actions/workflows/ci.yml/badge.svg)](https://github.com/manhhope/recorder-live-translate-v3/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/manhhope/recorder-live-translate-releases?label=release)](https://github.com/manhhope/recorder-live-translate-releases/releases/latest)
 ![Platforms: macOS and Windows](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ![Record screen while a session is running](docs/anh/m3-giao-dien/record-en.png)
 
@@ -190,4 +191,4 @@ Follow [docs/phat-hanh.md](docs/phat-hanh.md): the developer opens a PR named `r
 
 ## License
 
-TBD. No licence has been chosen yet, so by default all rights are reserved.
+MIT, see [LICENSE](LICENSE).

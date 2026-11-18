@@ -3,7 +3,7 @@
 ## 1. Phạm vi và diff
 
 - Nhánh `docs/readme` cắt từ `origin/main` (aa63879) trong worktree sạch `projects/rlt-readme`. Không tag, không merge, không đụng code.
-- File thay đổi: `README.md` (viết lại, tiếng Anh), `README.vi.md` (mới, tiếng Việt), `docs/readme-bao-cao.md` (file này). Không có file LICENSE mới.
+- File thay đổi: `README.md` (viết lại, tiếng Anh), `README.vi.md` (mới, tiếng Việt), `docs/readme-bao-cao.md` (file này). Giấy phép MIT được thêm ở bước sau (mục 9).
 - Hai README liên kết qua lại ở dòng thứ ba (`[English](README.md) | [Tiếng Việt](README.vi.md)`).
 - Giả định ngôn ngữ: README.md tiếng Anh vì app có giao diện en và pt-PT. Chủ có thể đổi.
 
@@ -119,8 +119,27 @@ Render cục bộ bằng `marked@12` (không gửi nội dung đi đâu ngoài t
 9. **Kết nối "Javis"** (tab Javis and Drive connection, `set.javis.*`) tồn tại trong giao diện nhưng tôi không đối chiếu được bản chất của nó trong code của app, nên README không nhắc.
 10. **Giả định ngôn ngữ:** README.md tiếng Anh, README.vi.md tiếng Việt, theo giả định trong giao việc.
 
-## 8. Giấy phép: TBD (chủ quyết)
+## 8. Giấy phép: đã chốt MIT
 
-- `gh repo view` trả `licenseInfo: null`, repo đang Public và không có file LICENSE.
-- README ghi "TBD" ở cả hai ngôn ngữ, kèm câu "mặc định mọi quyền được bảo lưu". Tôi không thêm file LICENSE.
-- Chủ cần chọn: giữ độc quyền (không giấy phép), hoặc giấy phép mã nguồn mở (MIT, Apache-2.0, GPL...). Lưu ý các phụ thuộc (Tauri, Svelte...) và việc repo công khai mà không có giấy phép thì người khác không được phép dùng lại mã theo luật mặc định.
+Mục này thay cho bản cũ "TBD (chủ quyết)". Chủ đã chọn MIT; chi tiết ở mục 9.
+
+## 9. Giấy phép MIT (thêm sau, cùng PR #9)
+
+- **Chủ bản quyền ghi trong LICENSE: `manhhope`, năm 2026** (dòng `Copyright (c) 2026 manhhope`, lấy theo tên tài khoản GitHub). Nếu muốn tên pháp lý hoặc tên khác, chủ sửa một dòng này trong `LICENSE`.
+- Thay đổi: thêm `LICENSE` (văn bản MIT chuẩn); `README.md` và `README.vi.md` thay "TBD" bằng mục License / Giấy phép "MIT, see LICENSE" và thêm badge giấy phép MIT dưới hàng badge nền tảng; `Cargo.toml` workspace đổi `license = "UNLICENSED"` thành `"MIT"`; `package.json` thêm `"license": "MIT"`.
+- Tính nhất quán: cả 9 crate trong `crates/*` và `src-tauri` đều có `license.workspace = true`, nên cùng kế thừa MIT từ `[workspace.package]`. Lệch trước đó: workspace là `UNLICENSED` và `package.json` không có trường license; đã sửa cả hai.
+- Kiểm giấy phép phụ thuộc Rust, lệnh `cargo license --all-features --tsv` (cargo-license 0.7.0, cài mới bằng `cargo install cargo-license`; không có cargo-deny trên máy). Thống kê theo biểu thức giấy phép (nhóm chính): `Apache-2.0 OR MIT` 357, `MIT` 145, `Apache-2.0 OR MIT OR Zlib` 31, `Unicode-3.0` 18, `MIT OR Unlicense` 11, `MPL-2.0` 7, `Apache-2.0` 4, `ISC` 3, `CDLA-Permissive-2.0` 3, `BSD-3-Clause` 3, còn lại là các tổ hợp OR/AND của MIT, Apache-2.0, BSD, ISC, Zlib, CC0-1.0, 0BSD. Không có giấy phép trống hay `UNLICENSED`, không có GPL/AGPL đứng riêng.
+- Các mục cần để ý (không có cái nào chặn MIT, nhưng nêu để chủ biết):
+  - `MPL-2.0` (7 gói: `cssparser` x2, `cssparser-macros`, `dtoa-short`, `selectors` x2, `option-ext`): copyleft theo từng file; dùng làm thư viện không sửa thì không buộc app phải đổi giấy phép, nhưng nếu sửa mã nguồn của chính các gói đó thì phần sửa phải mở theo MPL-2.0. Bản phát hành cần giữ thông báo giấy phép của chúng.
+  - `Apache-2.0 OR LGPL-2.1-or-later OR MIT` (`r-efi` x2): có lựa chọn MIT nên chọn MIT, không bị LGPL ràng buộc.
+  - `CDLA-Permissive-2.0` (`webpki-roots`, `webpki-root-certs`): dữ liệu chứng chỉ gốc Mozilla, giấy phép cho phép, tương thích.
+  - Nhắc: MIT và Apache-2.0 buộc giữ thông báo bản quyền khi phân phối bản nhị phân; repo chưa có file tổng hợp thông báo bên thứ ba (đề xuất riêng, không làm trong task này).
+- Kiểm phụ thuộc npm: `npm ci --ignore-scripts` rồi `npx license-checker --summary`:
+
+```
+MIT: 51, ISC: 13, Apache-2.0: 8, BSD-3-Clause: 2, MPL-2.0: 2, Apache-2.0 OR MIT: 1, UNLICENSED: 1, 0BSD: 1
+```
+
+  `MPL-2.0` là `lightningcss` và `lightningcss-darwin-arm64` (công cụ build của vite, không đóng gói vào app; cùng lưu ý MPL như trên). `UNLICENSED: 1` là chính gói gốc `recorder-live-translate-v3`: license-checker gán nhãn này cho gói `private: true`, dù `package.json` đã có `"license": "MIT"`; chạy với `--excludePrivatePackages` thì không còn gói nào ngoài danh sách chấp nhận được. Không có lỗi hay cảnh báo của công cụ ngoài các cảnh báo `npm warn deprecated` của chính license-checker.
+- Giới hạn: cả hai công cụ chỉ đọc trường license khai báo trong metadata, không quét nội dung file giấy phép của từng gói.
+- Không merge, không tag. Trạng thái CI của commit này ghi ở phần cuối báo cáo giao việc.
