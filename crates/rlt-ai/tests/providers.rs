@@ -198,7 +198,7 @@ async fn stream_toi_dan_truoc_khi_ket_thuc() {
 
 #[tokio::test]
 async fn loi_401_ca_ba_nha_cung_cap() {
-    for kind in ProviderKind::ALL {
+    for kind in ProviderKind::ALL.into_iter().filter(|k| !k.is_cli()) {
         let f = fake(vec![Reply::Status(401, "{\"error\":\"bad\"}".into())]).await;
         let key = kind.needs_key().then_some(KEY);
         let (r, d) = run(kind, &f.url, key, 5000).await;
@@ -209,7 +209,7 @@ async fn loi_401_ca_ba_nha_cung_cap() {
 
 #[tokio::test]
 async fn loi_429_ca_ba_nha_cung_cap() {
-    for kind in ProviderKind::ALL {
+    for kind in ProviderKind::ALL.into_iter().filter(|k| !k.is_cli()) {
         let f = fake(vec![Reply::Status(429, "{}".into())]).await;
         let key = kind.needs_key().then_some(KEY);
         let (r, _) = run(kind, &f.url, key, 5000).await;
@@ -221,7 +221,7 @@ async fn loi_429_ca_ba_nha_cung_cap() {
 
 #[tokio::test]
 async fn timeout_ca_ba_nha_cung_cap() {
-    for kind in ProviderKind::ALL {
+    for kind in ProviderKind::ALL.into_iter().filter(|k| !k.is_cli()) {
         let f = fake(vec![Reply::Hang]).await;
         let key = kind.needs_key().then_some(KEY);
         let t = std::time::Instant::now();

@@ -1061,3 +1061,126 @@ VALUES (12, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), '3.0.0-dev', NULL, 'US-57: nh
 
 PRAGMA user_version = 12;
 -- @@MIGRATION 12 END
+
+-- @@MIGRATION 13 BEGIN
+-- US-58: hai nhà cung cấp 'claude_cli' và 'codex_cli' (đăng nhập CLI có sẵn, dự phòng cạnh khóa API) cho Hỏi AI.
+-- Dựng lại ba bảng để đổi CHECK như migration 12. KHÔNG có cột token: app không đọc, không lưu token của CLI.
+-- Cột ai_provider_settings.base_url của hai kind này giữ "Đường dẫn CLI" do người dùng nhập (trống = tự dò).
+CREATE TABLE ai_conversations_new (
+    ai_conversation_id  INTEGER NOT NULL PRIMARY KEY,
+    session_id          TEXT    NOT NULL
+                        REFERENCES sessions (session_id) ON DELETE CASCADE,  -- AC-46.8: xóa phiên xóa chat
+    provider            TEXT    NOT NULL                         -- AC-46.6: Gemini, OpenAI, Ollama; 'javis' chỉ để nhập chat cũ của v2
+                        CHECK (provider IN ('gemini', 'openai', 'ollama', 'compat', 'javis', 'claude_cli', 'codex_cli')),
+    model_name          TEXT,                                    -- model của cuộc chat, cố định lúc tạo (AC-47.2)
+    title               TEXT
+                        CHECK (title IS NULL OR length(title) <= 200),
+    conversation_ref    TEXT                                     -- mã 8 ký tự cho nhánh Javis (ADR-12); NULL ở nhánh BYOK
+                        CHECK (conversation_ref IS NULL OR length(conversation_ref) = 8),
+    created_at          TEXT    NOT NULL,
+    updated_at          TEXT    NOT NULL
+);
+INSERT INTO ai_conversations_new SELECT * FROM ai_conversations;
+DROP TABLE ai_conversations;
+ALTER TABLE ai_conversations_new RENAME TO ai_conversations;
+CREATE INDEX idx_ai_conversations_session_updated ON ai_conversations (session_id, updated_at DESC);
+CREATE UNIQUE INDEX uq_ai_conversations_conversation_ref ON ai_conversations (conversation_ref)
+    WHERE conversation_ref IS NOT NULL;
+
+CREATE TABLE settings_new (
+    settings_id         INTEGER NOT NULL PRIMARY KEY CHECK (settings_id = 1),
+    -- Giao diện (US-49)
+    ui_language         TEXT    NOT NULL DEFAULT 'pt-PT'
+                        CHECK (ui_language IN ('pt-PT', 'en')),
+    -- Màn Ghi (US-44, US-28): lựa chọn cho phiên kế tiếp, khóa khi đang ghi
+    record_target_lang  TEXT    NOT NULL DEFAULT 'pt-PT'
+                        CHECK (length(record_target_lang) BETWEEN 2 AND 12),
+    record_listen_langs TEXT    NOT NULL DEFAULT '["en"]'        -- '[]' = Tự nhận
+                        CHECK (json_valid(record_listen_langs) AND json_type(record_listen_langs) = 'array'
+                               AND json_array_length(record_listen_langs) <= 60),
+    audio_source_mode   TEXT    NOT NULL DEFAULT 'mixed'
+                        CHECK (audio_source_mode IN ('mixed', 'system_only', 'mic_only')),
+    render_device_id    TEXT,
+    render_device_name  TEXT,
+    capture_device_id   TEXT,
+    capture_device_name TEXT,
+    -- Quick Translate (AC-44.5, AC-31.5): nguồn và đích LƯU ĐỘC LẬP với màn Ghi
+    quick_source_lang   TEXT                                     -- NULL = Tự nhận
+                        CHECK (quick_source_lang IS NULL OR length(quick_source_lang) BETWEEN 2 AND 12),
+    quick_target_lang   TEXT    NOT NULL DEFAULT 'pt-PT'
+                        CHECK (length(quick_target_lang) BETWEEN 2 AND 12),
+    -- Ngắt đoạn (US-21)
+    segment_pause_seconds        INTEGER NOT NULL DEFAULT 10
+                        CHECK (typeof(segment_pause_seconds) = 'integer' AND segment_pause_seconds BETWEEN 1 AND 30),
+    segment_max_duration_seconds INTEGER NOT NULL DEFAULT 60
+                        CHECK (typeof(segment_max_duration_seconds) = 'integer'
+                               AND segment_max_duration_seconds BETWEEN 20 AND 120
+                               AND segment_max_duration_seconds % 5 = 0),
+    segment_max_words            INTEGER NOT NULL DEFAULT 70
+                        CHECK (typeof(segment_max_words) = 'integer'
+                               AND segment_max_words BETWEEN 30 AND 120 AND segment_max_words % 5 = 0),
+    segment_merge_mode           TEXT    NOT NULL DEFAULT 'sentence'
+                        CHECK (segment_merge_mode IN ('sentence', 'pause', 'none')),
+    show_provisional_translation INTEGER NOT NULL DEFAULT 1 CHECK (show_provisional_translation IN (0, 1)),
+    retranslate_paragraph_enabled INTEGER NOT NULL DEFAULT 0 CHECK (retranslate_paragraph_enabled IN (0, 1)),
+    -- Ghi âm (US-22)
+    audio_recording_default       INTEGER NOT NULL DEFAULT 0 CHECK (audio_recording_default IN (0, 1)),
+    audio_recording_consent_at    TEXT,
+    audio_storage_limit_bytes     INTEGER NOT NULL DEFAULT 524288000      -- 500 MB (chốt 2026-11-09)
+                        CHECK (typeof(audio_storage_limit_bytes) = 'integer' AND audio_storage_limit_bytes > 0),
+    -- Chi phí (US-32, AC-24.9, AC-32.5): chỉ cảnh báo, không chặn
+    cost_cap_usd_cents_per_hour   INTEGER NOT NULL DEFAULT 100
+                        CHECK (typeof(cost_cap_usd_cents_per_hour) = 'integer'
+                               AND cost_cap_usd_cents_per_hour BETWEEN 5 AND 500
+                               AND cost_cap_usd_cents_per_hour % 5 = 0),
+    cost_cap_usd_cents_per_day    INTEGER                        -- NULL = tắt (mặc định, AC-32.5)
+                        CHECK (cost_cap_usd_cents_per_day IS NULL OR cost_cap_usd_cents_per_day > 0),
+    -- Đồng ý gửi dữ liệu tới Soniox (AC-09.1) và Hỏi AI
+    consent_version     TEXT,
+    consent_accepted_at TEXT,
+    -- Drive (US-10): id thư mục và email KHÔNG phải bí mật nhưng là PII
+    sync_enabled        INTEGER NOT NULL DEFAULT 1 CHECK (sync_enabled IN (0, 1)),
+    drive_folder_id     TEXT,
+    drive_account_email TEXT,                                    -- [NHẠY CẢM - PII] xóa khi Ngắt kết nối
+    -- Hỏi AI (US-47)
+    ai_default_provider TEXT                                     -- NULL = "Chưa cấu hình" (AC-47.2)
+                        CHECK (ai_default_provider IS NULL OR ai_default_provider IN ('gemini', 'openai', 'ollama', 'compat', 'claude_cli', 'codex_cli')),
+    ai_context_max_chars INTEGER NOT NULL DEFAULT 60000
+                        CHECK (typeof(ai_context_max_chars) = 'integer' AND ai_context_max_chars BETWEEN 2000 AND 200000),
+    ai_context_max_turns INTEGER NOT NULL DEFAULT 10
+                        CHECK (typeof(ai_context_max_turns) = 'integer' AND ai_context_max_turns BETWEEN 0 AND 20),
+    -- Ứng dụng desktop (US-33, US-51, US-54)
+    auto_update_enabled INTEGER NOT NULL DEFAULT 1 CHECK (auto_update_enabled IN (0, 1)),    -- AC-33.1 (cần xác nhận)
+    launch_at_login     INTEGER NOT NULL DEFAULT 0 CHECK (launch_at_login IN (0, 1)),        -- AC-51.1; trạng thái THẬT lấy từ hệ điều hành (AC-51.5)
+    keep_awake_while_recording INTEGER NOT NULL DEFAULT 1 CHECK (keep_awake_while_recording IN (0, 1)),  -- AC-54.5
+    created_at          TEXT    NOT NULL,
+    updated_at          TEXT    NOT NULL,
+    CHECK ((consent_version IS NULL) = (consent_accepted_at IS NULL))
+);
+INSERT INTO settings_new SELECT * FROM settings;
+DROP TABLE settings;
+ALTER TABLE settings_new RENAME TO settings;
+
+CREATE TABLE ai_provider_settings_new (
+    provider            TEXT    NOT NULL PRIMARY KEY
+                        CHECK (provider IN ('gemini', 'openai', 'ollama', 'compat', 'claude_cli', 'codex_cli')),
+    model_name          TEXT,                                    -- NULL = dùng model mặc định trong mã
+    base_url            TEXT                                     -- dùng cho Ollama và endpoint tương thích OpenAI (URL do người dùng nhập); không phải bí mật
+                        CHECK (base_url IS NULL OR length(base_url) <= 500),
+    consent_version     TEXT,                                    -- AC-46.9: đồng ý gửi dữ liệu tới nhà cung cấp này
+    consent_accepted_at TEXT,
+    updated_at          TEXT    NOT NULL,
+    CHECK ((consent_version IS NULL) = (consent_accepted_at IS NULL))
+);
+INSERT INTO ai_provider_settings_new SELECT * FROM ai_provider_settings;
+DROP TABLE ai_provider_settings;
+ALTER TABLE ai_provider_settings_new RENAME TO ai_provider_settings;
+INSERT INTO ai_provider_settings (provider, base_url, updated_at) VALUES
+    ('claude_cli', NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    ('codex_cli', NULL, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
+
+INSERT INTO schema_migrations (version, applied_at, app_version, backup_file, note)
+VALUES (13, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), '3.0.0-dev', NULL, 'US-58: nhà cung cấp claude_cli, codex_cli cho Hỏi AI');
+
+PRAGMA user_version = 13;
+-- @@MIGRATION 13 END

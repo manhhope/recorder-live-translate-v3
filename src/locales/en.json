@@ -863,5 +863,22 @@
   "pw.dontshow": "Don't show again",
   "pw.review": "Review permissions",
   "pw.err": "Could not read the permission state.",
-  "pw.close": "Close"
+  "pw.close": "Close",
+  "ai.provider.claudecli": "Claude (CLI login)",
+  "set.cli.title": "Claude through your own login (fallback)",
+  "set.cli.path": "Path to the claude program",
+  "set.cli.path.hint": "Leave empty to find it automatically. A full path, for example /opt/homebrew/bin/claude.",
+  "set.cli.path.bad": "Enter a full path, without line breaks.",
+  "set.cli.need": "Needs the Claude CLI installed and signed in on this computer. This app never reads your sign-in token. It starts the program with all its tools switched off, in an empty temporary folder.",
+  "set.cli.risk": "Risk: the provider's terms may not allow driving its CLI from another app. Your account could be limited. Prefer an API key when you can.",
+  "ask.cli.risk": "Uses your own Claude CLI login. Check the provider's terms.",
+  "ai.consent.cli.title": "Claude (CLI login) will receive the transcript content",
+  "ai.consent.cli.body": "The transcript content is sent to Claude through the CLI signed in on this computer. The app never reads your sign-in token. The provider's terms may not allow using the CLI from another app, so your account could be limited. Until you agree, nothing is sent.",
+  "ai.consent.cli.check": "I understand the risk to my account and want to continue",
+  "ai.err.cli.notinstalled": "The Claude CLI was not found. Install it, or enter its full path in Settings.",
+  "ai.err.cli.notloggedin": "The Claude CLI is not signed in. Sign in once in a terminal, then try again.",
+  "ai.err.cli.expired": "The Claude CLI sign-in has expired. Sign in again in a terminal, then try again.",
+  "ai.err.cli.quota": "Your Claude plan limit is used up. Try again later.",
+  "ai.err.cli.timeout": "The Claude CLI took too long and was stopped. Please try again.",
+  "ai.err.cli.unknown": "The Claude CLI stopped with an error. Check that it works in a terminal, then try again."
 }

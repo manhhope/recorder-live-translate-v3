@@ -17,7 +17,7 @@ fn line(seq: i64, src: &str, tr: Option<&str>) -> NewCaptionLine {
 #[test]
 fn migration_ap_dung_dung_mot_lan_va_bang_ton_tai() {
     let s = Store::open_in_memory().unwrap();
-    assert_eq!(s.user_version().unwrap(), 12);
+    assert_eq!(s.user_version().unwrap(), 13);
     let n: i64 = s
         .conn()
         .query_row(
@@ -28,7 +28,7 @@ fn migration_ap_dung_dung_mot_lan_va_bang_ton_tai() {
         .unwrap();
     assert_eq!(n, 5);
     let m = migrations(SCHEMA_SQL).unwrap();
-    assert_eq!(m.iter().map(|x| x.0).collect::<Vec<_>>(), [10, 11, 12]);
+    assert_eq!(m.iter().map(|x| x.0).collect::<Vec<_>>(), [10, 11, 12, 13]);
 }
 
 fn repo_root() -> std::path::PathBuf {
@@ -79,13 +79,13 @@ fn file_db_bat_wal_va_foreign_keys_va_mo_lai_khong_chay_lai_migration() {
             .unwrap();
     }
     let s = Store::open(&path).unwrap();
-    assert_eq!(s.user_version().unwrap(), 12);
+    assert_eq!(s.user_version().unwrap(), 13);
     assert!(s.get_session(SID).unwrap().is_some());
     let n: i64 = s
         .conn()
         .query_row("SELECT count(*) FROM schema_migrations", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(n, 3, "moi migration (10, 11, 12) ghi dung mot dong, mo lai khong chay lai");
+    assert_eq!(n, 4, "moi migration (10, 11, 12, 13) ghi dung mot dong, mo lai khong chay lai");
     std::fs::remove_dir_all(dir).ok();
 }
 
@@ -420,7 +420,7 @@ fn nang_cap_tu_v11_len_v12_giu_nguyen_chat_cu_va_cho_phep_compat() {
         .unwrap();
     }
     let s = Store::open(&path).unwrap();
-    assert_eq!(s.user_version().unwrap(), 12);
+    assert_eq!(s.user_version().unwrap(), 13);
     let c = s.conn();
     let n = |sql: &str| c.query_row(sql, [], |r| r.get::<_, i64>(0)).unwrap();
     assert_eq!(n("SELECT count(*) FROM ai_conversations WHERE provider = 'ollama'"), 1, "chat cu con nguyen");
@@ -447,4 +447,16 @@ fn auto_update_enabled_mac_dinh_bat_va_ghi_duoc() {
     assert!(!s.auto_update_enabled().unwrap());
     s.set_auto_update_enabled(true).unwrap();
     assert!(s.auto_update_enabled().unwrap());
+}
+
+#[test]
+fn migration_13_cho_phep_claude_cli_va_codex_cli_va_giu_du_lieu_cu() {
+    let s = Store::open_in_memory().unwrap();
+    let c = s.conn();
+    let n = |sql: &str| c.query_row(sql, [], |r| r.get::<_, i64>(0)).unwrap();
+    assert_eq!(n("SELECT count(*) FROM ai_provider_settings WHERE provider IN ('claude_cli','codex_cli') AND consent_version IS NULL"), 2);
+    assert_eq!(n("SELECT count(*) FROM ai_provider_settings"), 6, "4 nha cung cap cu con nguyen + 2 moi");
+    c.execute("UPDATE settings SET ai_default_provider = 'claude_cli'", []).unwrap();
+    c.execute("UPDATE settings SET ai_default_provider = 'khac'", []).unwrap_err();
+    assert_eq!(n("SELECT count(*) FROM pragma_foreign_key_check"), 0);
 }

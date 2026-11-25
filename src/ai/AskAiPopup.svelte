@@ -28,6 +28,7 @@
   let busy = $state(false);
   let showList = $state(false);
   let errCode = $state<string | null>(null);
+  let riskAck = $state(false);
   let scroller: HTMLElement | undefined = $state();
 
   const cur = $derived(settings?.providers.find(p => p.provider === provider) ?? null);
@@ -38,17 +39,19 @@
   const lastFailed = $derived(msgs.length > 0 && msgs[msgs.length - 1].role === "assistant" && msgs[msgs.length - 1].status === "failed" ? msgs[msgs.length - 1] : null);
 
   const pname = $derived(provider ? $_(api.providerLabelKey(provider)) : "");
-  const consentTitle = $derived($_("ai.consent.title", { values: { provider: pname } }));
-  const consentBody = $derived($_("ai.consent.body", { values: { provider: pname } }));
+  const cli = $derived(api.isCli(provider));
+  const consentTitle = $derived(cli ? $_("ai.consent.cli.title") : $_("ai.consent.title", { values: { provider: pname } }));
+  const consentBody = $derived(cli ? $_("ai.consent.cli.body") : $_("ai.consent.body", { values: { provider: pname } }));
   function optLabel(p: api.ProviderSettings): string {
     const n = $_(api.providerLabelKey(p.provider));
+    if (api.isCli(p.provider)) return "⚠ " + n;
     if (p.provider === "compat") return p.model_name.trim() ? n : n + " · " + $_("ask.model.nomodel");
     return p.has_key ? n : n + " · " + $_("ask.model.nokey");
   }
 
   async function reload() {
     settings = await api.getSettings();
-    if (!provider) provider = settings.default_provider ?? settings.providers.find(p => p.has_key)?.provider ?? null;
+    if (!provider) provider = settings.default_provider ?? settings.providers.find(p => p.has_key && !api.isCli(p.provider))?.provider ?? null;
     convs = await api.listConversations(sessionId);
     if (convId === null && convs.length) await open(convs[0].conversation_id);
   }
@@ -106,8 +109,9 @@
     msgs = []; errCode = null;
   }
   async function agree() {
-    if (!provider) return;
+    if (!provider || (cli && !riskAck)) return;
     await api.acceptConsent(provider);
+    riskAck = false;
     await reload();
   }
   function onKey(e: KeyboardEvent) {
@@ -155,6 +159,8 @@
     </ul>
   {/if}
 
+  {#if cli}<p class="hint risk" data-testid="cli-risk"><Icon name="warn" /> {$_("ask.cli.risk")}</p>{/if}
+
   {#if settings && !ready}
     <div class="banner" role="status">
       <div><b>{$_("ask.nocfg.title")}</b><div class="hint">{$_("ask.nocfg.hint")}</div></div>
@@ -163,8 +169,9 @@
   {:else if needConsent && provider}
     <div class="banner" role="alertdialog" aria-label={consentTitle}>
       <div><b>{consentTitle}</b>
-        <div class="hint">{consentBody}</div></div>
-      <button type="button" class="btn sm primary" onclick={agree}>{$_("ask.consent.ok")}</button>
+        <div class="hint">{consentBody}</div>
+        {#if cli}<label class="hint ack"><input type="checkbox" bind:checked={riskAck} />{$_("ai.consent.cli.check")}</label>{/if}</div>
+      <button type="button" class="btn sm primary" disabled={cli && !riskAck} onclick={agree}>{$_("ask.consent.ok")}</button>
     </div>
   {/if}
 
@@ -222,5 +229,7 @@
   .err{color:var(--rlt-rec);font-size:12px;margin-top:4px}
   .chips,.row{display:flex;gap:6px;align-items:flex-end;flex-wrap:wrap}
   .row .ta{flex:1;min-height:40px;resize:none}
+  .risk{display:flex;gap:6px;align-items:center;margin:0}
+  .ack{display:flex;gap:6px;align-items:center;margin-top:6px}
   .banner{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:8px 10px;border:1px solid var(--rlt-warn);border-radius:var(--rlt-rb)}
 </style>

@@ -69,7 +69,7 @@ export function installTauriMock(seed: MockSeed): void {
     aiKeys: { ...seed.aiKeys },
     ai: {
       default_provider: null, context_max_chars: 60000, context_max_turns: 10,
-      models: { gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "" } as Record<string, string>,
+      models: { gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "", claude_cli: "" } as Record<string, string>,
       compatUrl: "http://localhost:1234/v1",
       compatModels: ["qwen2.5-7b-instruct", "llama-3.1-8b"] as string[],
       chips: { summary: null, explain: null, action_items: null },
@@ -115,8 +115,8 @@ export function installTauriMock(seed: MockSeed): void {
     default_provider: state.ai.default_provider,
     context_max_chars: state.ai.context_max_chars,
     context_max_turns: state.ai.context_max_turns,
-    providers: (["gemini", "openai", "ollama", "compat"] as const).map(p => ({
-      provider: p, model_name: state.ai.models[p], has_key: p === "ollama" ? false : !!(state.aiKeys as any)[p],
+    providers: (["gemini", "openai", "ollama", "compat", "claude_cli"] as const).map(p => ({
+      provider: p, model_name: state.ai.models[p], has_key: p === "claude_cli" ? true : p === "ollama" ? false : !!(state.aiKeys as any)[p],
       base_url: p === "ollama" ? "http://localhost:11434" : p === "compat" ? state.ai.compatUrl : null,
       // Loopback (LM Studio tren may nay) coi nhu da dong y (AC-57.10); dia chi khac can dong y.
       consented: p === "compat" ? (!!state.aiConsent[p] || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(state.ai.compatUrl)) : !!state.aiConsent[p],
