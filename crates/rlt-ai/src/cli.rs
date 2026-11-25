@@ -675,9 +675,6 @@ impl LlmProvider for CliProvider {
         cancel: &CancelFlag,
         on_delta: &mut (dyn for<'x> FnMut(&'x str) + Send),
     ) -> Result<Usage> {
-        if !self.kind.enabled() {
-            return Err(AiError::NotConfigured);
-        }
         let prompt = compose_prompt(req)?;
         if prompt.chars().count() > TRANSCRIPT_HARD_CAP + 50_000 {
             return Err(AiError::InvalidInput("prompt_too_long".into()));
@@ -830,9 +827,11 @@ mod tests {
     }
 
     #[test]
-    fn codex_tat_mac_dinh() {
-        assert!(!ProviderKind::CodexCli.enabled());
-        assert!(ProviderKind::ClaudeCli.enabled());
+    fn codex_la_nha_cung_cap_cli_hien_trong_cai_dat() {
+        assert!(ProviderKind::CodexCli.is_cli());
+        assert!(ProviderKind::ALL.contains(&ProviderKind::CodexCli));
+        assert_eq!(CliKind::of(ProviderKind::CodexCli), Some(CliKind::Codex));
+        assert_eq!(CliKind::of(ProviderKind::ClaudeCli), Some(CliKind::Claude));
     }
 
     #[cfg(unix)]

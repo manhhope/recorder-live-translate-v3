@@ -880,5 +880,19 @@
   "ai.err.cli.expired": "A sessão da CLI do Claude expirou. Inicie sessão novamente num terminal e tente novamente.",
   "ai.err.cli.quota": "O limite do seu plano Claude foi atingido. Tente mais tarde.",
   "ai.err.cli.timeout": "A CLI do Claude demorou demasiado e foi interrompida. Tente novamente.",
-  "ai.err.cli.unknown": "A CLI do Claude terminou com um erro. Verifique se funciona num terminal e tente novamente."
+  "ai.err.cli.unknown": "A CLI do Claude terminou com um erro. Verifique se funciona num terminal e tente novamente.",
+  "ai.provider.codexcli": "ChatGPT / Codex (login da CLI)",
+  "set.cli.title.codex": "ChatGPT com o seu próprio login do Codex (alternativa)",
+  "set.cli.path.codex": "Caminho do programa codex",
+  "set.cli.path.hint.codex": "Deixe vazio para procurar automaticamente. Um caminho completo, por exemplo /opt/homebrew/bin/codex.",
+  "set.cli.need.codex": "Requer a CLI do Codex instalada e com sessão iniciada neste computador. A aplicação nunca lê o seu token de sessão. Inicia o programa só em leitura, numa pasta temporária vazia. Ainda não verificado com uma CLI do Codex real.",
+  "ask.cli.risk.codex": "Usa o seu próprio login da CLI do Codex. Consulte os termos do fornecedor.",
+  "ai.consent.cli.title.codex": "O ChatGPT / Codex (login da CLI) vai receber o conteúdo da ata",
+  "ai.consent.cli.body.codex": "O conteúdo da ata é enviado ao ChatGPT através da CLI do Codex com sessão iniciada neste computador. A aplicação nunca lê o seu token de sessão. Os termos do fornecedor podem não permitir usar a CLI a partir de outra aplicação, pelo que a sua conta pode ser limitada. Até concordar, nada é enviado.",
+  "ai.err.cli.notinstalled.codex": "A CLI do Codex não foi encontrada. Instale-a ou indique o caminho completo nas Definições.",
+  "ai.err.cli.notloggedin.codex": "A CLI do Codex não tem sessão iniciada. Execute codex login uma vez num terminal e tente novamente.",
+  "ai.err.cli.expired.codex": "A sessão da CLI do Codex expirou. Inicie sessão novamente num terminal e tente novamente.",
+  "ai.err.cli.quota.codex": "O limite do seu plano ChatGPT foi atingido. Tente mais tarde.",
+  "ai.err.cli.timeout.codex": "A CLI do Codex demorou demasiado e foi interrompida. Tente novamente.",
+  "ai.err.cli.unknown.codex": "A CLI do Codex terminou com um erro. Verifique se funciona num terminal e tente novamente."
 }

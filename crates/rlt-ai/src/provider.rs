@@ -21,15 +21,10 @@ pub enum ProviderKind {
     /// Dang nhap san co cua CLI `claude` (phuong an DU PHONG canh khoa API, US-58). App khong doc token.
     #[serde(rename = "claude_cli")]
     ClaudeCli,
-    /// Dang nhap san co cua CLI `codex` (US-58). Chua kiem chung voi CLI that: xem `CODEX_ENABLED`.
+    /// Dang nhap san co cua CLI `codex` (US-58). Hien trong cai dat; ten co `codex exec` chua kiem chung voi CLI that (cho spike cua chu).
     #[serde(rename = "codex_cli")]
     CodexCli,
 }
-
-/// Cong tinh nang cua nha cung cap ChatGPT (`codex exec`). Ten co sandbox cua Codex CHUA kiem bang chay that
-/// (AC-60.2, spec-ai-dang-nhap-cli.md): de `false` cho toi khi chu chay spike. Tat thi nha cung cap khong hien o
-/// giao dien va khong the hoi.
-pub const CODEX_ENABLED: bool = false;
 
 impl ProviderKind {
     pub const ALL: [ProviderKind; 6] = [
@@ -40,11 +35,6 @@ impl ProviderKind {
         ProviderKind::ClaudeCli,
         ProviderKind::CodexCli,
     ];
-
-    /// Nha cung cap dang bat (xem `CODEX_ENABLED`).
-    pub fn enabled(self) -> bool {
-        self != ProviderKind::CodexCli || CODEX_ENABLED
-    }
 
     /// Chay qua binary CLI cua nguoi dung thay vi HTTP.
     pub fn is_cli(self) -> bool {

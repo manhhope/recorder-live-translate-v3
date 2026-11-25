@@ -94,10 +94,6 @@ pub fn load(st: &Store, has_key: impl Fn(ProviderKind) -> bool) -> Result<AiSett
     )?;
     let mut providers = Vec::new();
     for kind in ProviderKind::ALL {
-        // Codex tat cho toi khi spike xac minh co (AC-60.2): khong hien trong cai dat.
-        if !kind.enabled() {
-            continue;
-        }
         let (model, url, consent): (Option<String>, Option<String>, Option<String>) = st.conn().query_row(
             "SELECT model_name, base_url, consent_version FROM ai_provider_settings WHERE provider = ?1",
             [kind.as_str()],
@@ -152,13 +148,7 @@ pub fn save(st: &Store, input: &AiSettingsInput) -> Result<()> {
     if !(0..=20).contains(&input.context_max_turns) {
         return Err(AiError::InvalidInput("context_max_turns_out_of_range".into()));
     }
-    if input.default_provider.is_some_and(|k| !k.enabled()) {
-        return Err(AiError::InvalidInput("provider_disabled".into()));
-    }
     for p in &input.providers {
-        if !p.provider.enabled() {
-            return Err(AiError::InvalidInput("provider_disabled".into()));
-        }
         if let Some(u) = p.base_url.as_deref().filter(|u| !u.is_empty()) {
             let ok = match p.provider {
                 ProviderKind::ClaudeCli | ProviderKind::CodexCli => crate::cli::validate_path_override(u).is_ok(),

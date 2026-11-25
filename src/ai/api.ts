@@ -2,7 +2,7 @@
 // `setApiKey` chi gui khoa di, khong lay lai. Moi DTO chi co `has_key`.
 import { Channel, invoke } from "@tauri-apps/api/core";
 
-export type Provider = "gemini" | "openai" | "ollama" | "compat" | "claude_cli";
+export type Provider = "gemini" | "openai" | "ollama" | "compat" | "claude_cli" | "codex_cli";
 export type ChipKind = "summary" | "explain" | "action_items";
 
 export interface ProviderSettings { provider: Provider; model_name: string; base_url: string | null; has_key: boolean; consented: boolean }
@@ -26,10 +26,10 @@ export interface StreamUpdate { assistant_message_id: number; text: string }
 export interface AskOutcome { conversation_id: number; user_message_id: number; assistant_message_id: number; status: "completed" | "failed"; error_code: string | null; text: string }
 export interface AskParams { session_id: string; conversation_id: number | null; text: string | null; chip: ChipKind | null; provider: Provider | null; ui_lang: string }
 
-// Codex bi tat cho toi khi spike xac minh co dong lenh (AC-60.2): backend khong tra ra, nen khong co o day.
-export const PROVIDERS: Provider[] = ["gemini", "openai", "ollama", "compat", "claude_cli"];
+export const PROVIDERS: Provider[] = ["gemini", "openai", "ollama", "compat", "claude_cli", "codex_cli"];
+export const CLI_PROVIDERS: Provider[] = ["claude_cli", "codex_cli"];
 // Nha cung cap chay qua CLI da dang nhap: khong co khoa, gui ban ghi ra dich vu cua nha cung cap CLI (US-58..US-62).
-export const isCli = (p: Provider | null | undefined): boolean => p === "claude_cli";
+export const isCli = (p: Provider | null | undefined): boolean => p === "claude_cli" || p === "codex_cli";
 export const COMPAT_DEFAULT_URL = "http://localhost:1234/v1";
 
 // Kiem URL nhu phia Rust (`rlt_ai::compat::validate_base_url`, AC-57.1): http/https, khong user:pw, query, fragment, khoang trang.
@@ -91,6 +91,12 @@ const ERR_KEY: Record<string, string> = {
   cli_timeout: "ai.err.cli.timeout",
   cli_unknown: "ai.err.cli.unknown",
 };
-export const errKey = (code: string | null | undefined, provider?: Provider | null): string =>
-  code === "provider_unreachable" && provider === "compat" ? "ai.err.unreachable.compat" : (code && ERR_KEY[code]) || "ai.err.generic";
+// Loi cua CLI: ban Codex co chuoi rieng (".codex"), de thong bao goi dung ten chuong trinh.
+export const errKey = (code: string | null | undefined, provider?: Provider | null): string => {
+  if (code === "provider_unreachable" && provider === "compat") return "ai.err.unreachable.compat";
+  const k = (code && ERR_KEY[code]) || "ai.err.generic";
+  return provider === "codex_cli" && k.startsWith("ai.err.cli.") ? k + ".codex" : k;
+};
 export const providerLabelKey = (p: Provider) => `ai.provider.${p.replace("_", "")}`;
+// Chuoi giao dien cua CLI theo nha cung cap: "claude_cli" -> "...cli", "codex_cli" -> "...cli.codex".
+export const cliKey = (base: string, p: Provider | null | undefined) => (p === "codex_cli" ? `${base}.codex` : base);

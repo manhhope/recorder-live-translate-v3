@@ -22,7 +22,7 @@
   let models = $state<Record<string, string>>({});
   let ollamaUrl = $state("");
   let compatUrl = $state("");
-  let cliPath = $state("");
+  let cliPaths = $state<Record<string, string>>({ claude_cli: "", codex_cli: "" });
   let compatModels = $state<string[]>([]);
   let compatList = $state<"idle" | "running" | "ok" | "manual">("idle");
   let chars = $state(60000);
@@ -38,9 +38,10 @@
 
   const hasKey = (p: Provider) => s?.providers.find(x => x.provider === p)?.has_key ?? false;
   // Endpoint tuong thich khong co model mac dinh gia (AC-57.5): ten model do nguoi dung nhap hoac chon.
-  const defModel = (p: Provider) => ({ gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "", claude_cli: "" })[p];
+  const defModel = (p: Provider) => ({ gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "", claude_cli: "", codex_cli: "" })[p];
   // Duong dan CLI nhu phia Rust (`rlt_ai::cli::validate_path_override`): rong la tu do; con lai la duong dan tuyet doi, khong xuong dong.
-  const cliPathOk = $derived((() => { const t = cliPath.trim(); return !t || (t.length <= 500 && !/[\u0000-\u001f\u007f]/.test(t) && (t.startsWith("/") || /^[A-Za-z]:[\\/]/.test(t))); })());
+  const pathOk = (raw: string) => { const t = raw.trim(); return !t || (t.length <= 500 && !/[\u0000-\u001f\u007f]/.test(t) && (t.startsWith("/") || /^[A-Za-z]:[\\/]/.test(t))); };
+  const cliPathOk = $derived(api.CLI_PROVIDERS.every(p => pathOk(cliPaths[p] ?? "")));
   const compatUrlOk = $derived(api.validCompatUrl(compatUrl));
   const compatModelOk = $derived(!!models.compat?.trim());
   const compatHint = $derived(
@@ -55,7 +56,7 @@
     for (const p of v.providers) models[p.provider] = p.model_name;
     ollamaUrl = v.providers.find(p => p.provider === "ollama")?.base_url ?? "";
     compatUrl = v.providers.find(p => p.provider === "compat")?.base_url ?? api.COMPAT_DEFAULT_URL;
-    cliPath = v.providers.find(p => p.provider === "claude_cli")?.base_url ?? "";
+    for (const p of api.CLI_PROVIDERS) cliPaths[p] = v.providers.find(x => x.provider === p)?.base_url ?? "";
     for (const c of v.chip_prompts) prompts[c.chip] = c.prompt ?? defPrompt(c.chip);
   }
   async function refresh() { load(await withTimeout(api.getSettings())); }
@@ -87,7 +88,7 @@
       providers: api.PROVIDERS.map(p => ({
         provider: p,
         model_name: models[p]?.trim() && models[p].trim() !== defModel(p) ? models[p].trim() : null,
-        base_url: p === "ollama" ? (ollamaUrl.trim() || null) : p === "compat" ? (compatUrl.trim() || null) : p === "claude_cli" ? (cliPath.trim() || null) : null,
+        base_url: p === "ollama" ? (ollamaUrl.trim() || null) : p === "compat" ? (compatUrl.trim() || null) : api.isCli(p) ? (cliPaths[p]?.trim() || null) : null,
       })),
       chip_prompts: CHIPS.map(c => ({ chip: c.kind, prompt: prompts[c.kind]?.trim() && prompts[c.kind].trim() !== defPrompt(c.kind) ? prompts[c.kind].trim() : null })),
     };
@@ -102,7 +103,7 @@
     for (const p of api.PROVIDERS) models[p] = defModel(p);
     ollamaUrl = "http://localhost:11434";
     compatUrl = api.COMPAT_DEFAULT_URL; compatModels = []; compatList = "idle";
-    cliPath = "";
+    for (const p of api.CLI_PROVIDERS) cliPaths[p] = "";
     for (const c of CHIPS) prompts[c.kind] = defPrompt(c.kind);
   }
   const testText = (p: Provider) => {
@@ -200,18 +201,20 @@
     <p class="hint">{$_("set.compat.privacy")}</p>
   </div>
 
-  <div class="card" style="margin-top:14px" data-testid="cli-card">
-    <h4><Icon name="warn" /> {$_("set.cli.title")}</h4>
-    <div class="rw"><b>{$_("set.cli.path")}</b>
-      <div class="rr"><label class="fld {cliPathOk ? '' : 'err'}"><input aria-label={$_("set.cli.path")} aria-invalid={!cliPathOk} autocomplete="off" spellcheck="false" bind:value={cliPath} /></label></div></div>
-    <p class="hint" role={cliPathOk ? undefined : "alert"}>{cliPathOk ? $_("set.cli.path.hint") : $_("set.cli.path.bad")}</p>
+  {#each api.CLI_PROVIDERS as p (p)}
+  <div class="card" style="margin-top:14px" data-testid="cli-card-{p}">
+    <h4><Icon name="warn" /> {$_(api.cliKey("set.cli.title", p))}</h4>
+    <div class="rw"><b>{$_(api.cliKey("set.cli.path", p))}</b>
+      <div class="rr"><label class="fld {pathOk(cliPaths[p] ?? '') ? '' : 'err'}"><input aria-label={$_(api.cliKey("set.cli.path", p))} aria-invalid={!pathOk(cliPaths[p] ?? "")} autocomplete="off" spellcheck="false" bind:value={cliPaths[p]} /></label></div></div>
+    <p class="hint" role={pathOk(cliPaths[p] ?? "") ? undefined : "alert"}>{pathOk(cliPaths[p] ?? "") ? $_(api.cliKey("set.cli.path.hint", p)) : $_("set.cli.path.bad")}</p>
     <div class="rr" style="padding-top:6px">
-      <button type="button" class="btn sm" disabled={!cliPathOk || test.claude_cli === "running"} onclick={() => runTest("claude_cli")}>{$_("set.test")}</button>
-      <span class="hint" role="status">{testText("claude_cli")}</span>
+      <button type="button" class="btn sm" disabled={!pathOk(cliPaths[p] ?? "") || test[p] === "running"} onclick={() => runTest(p)}>{$_("set.test")}</button>
+      <span class="hint" role="status">{testText(p)}</span>
     </div>
-    <p class="hint">{$_("set.cli.need")}</p>
-    <p class="hint" data-testid="cli-risk">{$_("set.cli.risk")}</p>
+    <p class="hint">{$_(api.cliKey("set.cli.need", p))}</p>
+    <p class="hint" data-testid="cli-risk-{p}">{$_("set.cli.risk")}</p>
   </div>
+  {/each}
 
   <div class="card" style="margin-top:14px">
     <h4>{$_("set.ollama.local")}</h4>

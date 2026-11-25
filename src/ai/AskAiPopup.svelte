@@ -40,8 +40,8 @@
 
   const pname = $derived(provider ? $_(api.providerLabelKey(provider)) : "");
   const cli = $derived(api.isCli(provider));
-  const consentTitle = $derived(cli ? $_("ai.consent.cli.title") : $_("ai.consent.title", { values: { provider: pname } }));
-  const consentBody = $derived(cli ? $_("ai.consent.cli.body") : $_("ai.consent.body", { values: { provider: pname } }));
+  const consentTitle = $derived(cli ? $_(api.cliKey("ai.consent.cli.title", provider)) : $_("ai.consent.title", { values: { provider: pname } }));
+  const consentBody = $derived(cli ? $_(api.cliKey("ai.consent.cli.body", provider)) : $_("ai.consent.body", { values: { provider: pname } }));
   function optLabel(p: api.ProviderSettings): string {
     const n = $_(api.providerLabelKey(p.provider));
     if (api.isCli(p.provider)) return "⚠ " + n;
@@ -159,7 +159,7 @@
     </ul>
   {/if}
 
-  {#if cli}<p class="hint risk" data-testid="cli-risk"><Icon name="warn" /> {$_("ask.cli.risk")}</p>{/if}
+  {#if cli}<p class="hint risk" data-testid="cli-risk"><Icon name="warn" /> {$_(api.cliKey("ask.cli.risk", provider))}</p>{/if}
 
   {#if settings && !ready}
     <div class="banner" role="status">

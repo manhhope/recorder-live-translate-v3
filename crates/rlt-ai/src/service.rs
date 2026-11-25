@@ -254,9 +254,6 @@ impl AiService {
     /// Thu ket noi (US-47): gui mot cau rat ngan, bo ket qua.
     pub async fn test_connection(&self, kind: ProviderKind) -> Result<()> {
         if let Some(cli) = crate::cli::CliKind::of(kind) {
-            if !kind.enabled() {
-                return Err(AiError::NotConfigured);
-            }
             // Chi kiem cai dat va dang nhap bang ma thoat; khong gui cau hoi nao.
             let s = self.get_settings()?;
             let path = s.providers.iter().find(|p| p.provider == kind).and_then(|p| p.base_url.clone());
