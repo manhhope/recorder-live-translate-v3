@@ -7,15 +7,18 @@
 
   const mark = $derived(level === "clip" ? "!" : level === "none" ? "×" : "");
   const stateKey = $derived(on ? level : "idle");
+  const shortName = $derived($_(kind === "sys" ? "src.label.sys" : "src.label.mic"));
+  const aria = $derived(shortName + ": " + $_("src.state." + stateKey));
   const tip = $derived(
     $_("cfg.audio.group") + ": " + $_(kind === "sys" ? "src.name.sys" : "src.name.mic") + $_("src.tip.on") + " " +
     $_("src.state." + stateKey) + $_("src.tip.toggle"),
   );
 </script>
 
-<button type="button" class="srcb tipr s-{stateKey} {on ? 'on' : ''}" aria-pressed={on} aria-label={tip} data-tip={tip}
+<button type="button" class="srcb tipr s-{stateKey} {on ? 'on' : ''}" aria-pressed={on} aria-label={aria} data-tip={tip}
   onclick={() => (on = !on)}>
   <Icon name={kind === "sys" ? "display" : "mic"} />
+  <span class="sl" aria-hidden="true">{shortName}</span>
   <span class="mt" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
   <span class="mk" aria-hidden="true">{mark}</span>
 </button>

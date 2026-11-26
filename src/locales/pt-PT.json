@@ -339,7 +339,6 @@
   "tool.new": "Nova sessão",
   "tool.start": "Iniciar",
   "tool.stop": "Parar",
-  "ui.lang.aria": "Mudar o idioma da interface entre English e português (PT)",
   "ui.lang.btn": "Idioma da interface: português (clique para English)",
   "viewer.close": "Fechar (Esc)",
   "viewer.esc": "Esc para fechar",
@@ -994,5 +993,11 @@
   "set.install.copyfail": "Não foi possível copiar automaticamente. Selecione este comando e copie-o manualmente:",
   "set.install.openfail": "Não foi possível abrir o navegador. Abra você mesmo esta página: {url}",
   "rec.perm.todo": "Abra as Definições do Sistema, ative o Recorder Live Translate e clique em Iniciar novamente.",
-  "rec.perm.todo.win": "Abra as Definições, ative o acesso ao microfone para as aplicações de ambiente de trabalho e clique em Iniciar novamente."
+  "rec.perm.todo.win": "Abra as Definições, ative o acesso ao microfone para as aplicações de ambiente de trabalho e clique em Iniciar novamente.",
+  "src.label.sys": "Áudio do sistema",
+  "src.label.mic": "Microfone",
+  "ui.lang.to.en": "Mudar o idioma para inglês",
+  "ui.lang.to.pt": "Mudar o idioma para português",
+  "theme.to.light": "Mudar para o modo claro",
+  "theme.to.dark": "Mudar para o modo escuro"
 }

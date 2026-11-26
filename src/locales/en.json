@@ -339,7 +339,6 @@
   "tool.new": "New session",
   "tool.start": "Start",
   "tool.stop": "Stop",
-  "ui.lang.aria": "Switch the interface language between English and Português (PT)",
   "ui.lang.btn": "UI language: English (click for Português)",
   "viewer.close": "Close (Esc)",
   "viewer.esc": "Esc to close",
@@ -994,5 +993,11 @@
   "set.install.copyfail": "Could not copy automatically. Select this command and copy it by hand:",
   "set.install.openfail": "Could not open the browser. Open this page yourself: {url}",
   "rec.perm.todo": "Open System Settings, switch Recorder Live Translate on, then click Start again.",
-  "rec.perm.todo.win": "Open Settings, switch on microphone access for desktop apps, then click Start again."
+  "rec.perm.todo.win": "Open Settings, switch on microphone access for desktop apps, then click Start again.",
+  "src.label.sys": "System audio",
+  "src.label.mic": "Microphone",
+  "ui.lang.to.en": "Switch language to English",
+  "ui.lang.to.pt": "Switch language to Português",
+  "theme.to.light": "Switch to light mode",
+  "theme.to.dark": "Switch to dark mode"
 }
