@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ai-login-open"
+description = "Enables the ai_login_open command without any pre-configured scope."
+commands.allow = ["ai_login_open"]
+
+[[permission]]
+identifier = "deny-ai-login-open"
+description = "Denies the ai_login_open command without any pre-configured scope."
+commands.deny = ["ai_login_open"]

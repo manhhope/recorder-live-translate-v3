@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ai-login-poll"
+description = "Enables the ai_login_poll command without any pre-configured scope."
+commands.allow = ["ai_login_poll"]
+
+[[permission]]
+identifier = "deny-ai-login-poll"
+description = "Denies the ai_login_poll command without any pre-configured scope."
+commands.deny = ["ai_login_poll"]

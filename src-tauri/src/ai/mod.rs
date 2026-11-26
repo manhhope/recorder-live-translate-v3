@@ -31,6 +31,11 @@ pub const AI_COMMANDS: &[&str] = &[
     "ai_summarize",
     "ai_clear_history",
     "ai_delete_conversation",
+    "ai_login_start",
+    "ai_login_code",
+    "ai_login_poll",
+    "ai_login_cancel",
+    "ai_login_open",
 ];
 
 /// Kho khoa dung chung toan app: MOT cache duy nhat boc Keychain (macOS) / Credential Manager (Windows) nen moi khoa chi hoi Keychain toi da
@@ -51,11 +56,13 @@ pub fn secret_store() -> Arc<dyn rlt_secrets::SecretStore> {
 pub struct AiState {
     pub svc: Arc<AiService>,
     cancel: Mutex<Option<CancelFlag>>,
+    /// Dang nhap CLI ngay trong app (3.0.6): mot phien cung luc. Khong giu token, link hay ma ngoai bo nho.
+    login: rlt_ai::login::LoginManager,
 }
 
 impl AiState {
     pub fn new(svc: AiService) -> Self {
-        Self { svc: Arc::new(svc), cancel: Mutex::new(None) }
+        Self { svc: Arc::new(svc), cancel: Mutex::new(None), login: rlt_ai::login::LoginManager::new() }
     }
 
     fn begin(&self) -> CancelFlag {
@@ -196,4 +203,47 @@ mod tests {
         let src = include_str!("mod.rs");
         assert!(!src.contains(&["expo", "se()"].concat()), "mod.rs khong duoc doc gia tri khoa");
     }
+}
+
+// ---------- Dang nhap CLI trong app (3.0.6) ----------
+// Loi tra ra chi la ma ngan. Khong co lenh nao tra token; `ai_login_poll` tra link/ma thiet bi de HIEN cho nguoi dung
+// (khong ghi log). `ai_login_open` mo link dang giu trong bo nho, giao dien khong gui URL.
+
+fn login_kind(p: ProviderKind) -> Result<rlt_ai::cli::CliKind, String> {
+    match p {
+        ProviderKind::ClaudeCli => Ok(rlt_ai::cli::CliKind::Claude),
+        ProviderKind::CodexCli if p.is_enabled() => Ok(rlt_ai::cli::CliKind::Codex),
+        _ => Err(rlt_ai::login::LoginError::Unsupported.code().to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn ai_login_start(s: State<'_, AiState>, provider: ProviderKind) -> Result<(), String> {
+    let kind = login_kind(provider)?;
+    let path = code(s.svc.get_settings())?.providers.into_iter().find(|p| p.provider == provider).and_then(|p| p.base_url);
+    s.login.start(kind, path.as_deref()).map_err(|e| e.code().to_string())
+}
+
+/// Ma nguoi dung dan vao (Claude). Chi ghi vao stdin cua CLI; khong luu, khong log.
+#[tauri::command]
+pub async fn ai_login_code(s: State<'_, AiState>, value: String) -> Result<(), String> {
+    s.login.submit_code(&value).map_err(|e| e.code().to_string())
+}
+
+#[tauri::command]
+pub async fn ai_login_poll(s: State<'_, AiState>) -> Result<Option<rlt_ai::login::LoginSnapshot>, String> {
+    Ok(s.login.snapshot())
+}
+
+#[tauri::command]
+pub async fn ai_login_cancel(s: State<'_, AiState>) -> Result<(), String> {
+    s.login.cancel();
+    Ok(())
+}
+
+/// Mo link dang cho trong trinh duyet mac dinh. Khong nhan URL tu giao dien.
+#[tauri::command]
+pub async fn ai_login_open(s: State<'_, AiState>) -> Result<(), String> {
+    let url = s.login.url().ok_or_else(|| rlt_ai::login::LoginError::NotRunning.code().to_string())?;
+    if rlt_platform::opener::open_uri(&url) { Ok(()) } else { Err("open_failed".into()) }
 }
