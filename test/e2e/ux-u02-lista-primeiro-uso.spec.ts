@@ -12,8 +12,10 @@ for (const loc of ["en", "pt-PT"] as const) {
     await expect(page.getByTestId("cl-go")).toBeDisabled();
     await page.getByTestId("cl-key").getByRole("button", { name: rlt.t("cl.key.add") }).click();
     await expect(page.getByRole("dialog", { name: rlt.t("rec.key.title") })).toBeVisible();
-    // rodape: texto da chave curto e com title (nao cortado sem explicacao)
-    await expect(page.locator(".foot .fs")).toHaveAttribute("title", rlt.t("rec.key.missing"));
+    // o texto da chave em falta ja nao fica cortado no rodape: aparece inteiro na lista
+    await expect(page.locator(".foot .fs")).toHaveCount(0);
+    const w = await page.getByTestId("cl-key").locator("span").evaluate(e => ({ s: e.scrollWidth, c: e.clientWidth }));
+    expect(w.s).toBeLessThanOrEqual(w.c + 1);
   });
 
   test(`U-02 tudo pronto: botao primario ativo e inicia a gravacao como antes ${loc}`, async ({ page, rlt }) => {

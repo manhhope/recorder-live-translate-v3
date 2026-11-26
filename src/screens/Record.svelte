@@ -283,7 +283,7 @@
   <div class="empty" data-testid="rec-empty"><Icon name="mic" /><b>{$_("rec.empty.title")}</b><span>{$_(!mode ? "rec.empty.nosrc" : "rec.empty.hint")}</span>
     {#if loaded}
       <ol class="cl" data-testid="checklist" aria-label={$_("cl.title")}>
-        <li class={hasKey ? "done" : ""} data-testid="cl-key"><Icon name={hasKey ? "check" : "dot"} /><span>{$_("cl.key")}: {hasKey ? $_("cl.key.ok") : ""}</span>
+        <li class={hasKey ? "done" : ""} data-testid="cl-key"><Icon name={hasKey ? "check" : "dot"} /><span>{hasKey ? $_("cl.key") + ": " + $_("cl.key.ok") : $_("rec.key.missing")}</span>
           {#if !hasKey}<button type="button" class="btn sm" onclick={() => (askKey = true)}>{$_("cl.key.add")}</button>{/if}</li>
         <li class={permsOk ? "done" : ""} data-testid="cl-perm"><Icon name={permsOk ? "check" : "dot"} /><span>{$_("cl.perm")}: {permsOk ? $_("cl.perm.ok") : ""}</span>
           {#if !permsOk && permWelcome.loaded}<button type="button" class="btn sm" onclick={() => openPermWelcome()}>{$_("pw.review")}</button>{/if}</li>
@@ -297,6 +297,5 @@
 
 <div class="foot">
   <span class="sb {state === 'recording' && !status ? 'ok' : ''}"><Icon name={active ? "mic" : "dot"} /><b>{$_(statusKey)}</b></span>
-  {#if !hasKey && loaded}<span class="fs" title={$_("rec.key.missing")}>{$_("rec.key.missing")}</span>{/if}
   <TranscriptPrefs bind:prefs={tp} bind:view={app.view} {dark} />
 </div>
