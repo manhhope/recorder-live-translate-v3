@@ -18,6 +18,7 @@ pub mod provider;
 pub mod sanitize;
 pub mod service;
 pub mod settings;
+pub mod summary;
 
 pub use error::{AiError, Result};
 pub use provider::complete_text;

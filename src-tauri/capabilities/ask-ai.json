@@ -16,6 +16,8 @@
     "allow-ai-ask",
     "allow-ai-retry",
     "allow-ai-cancel",
+    "allow-ai-summary-plan",
+    "allow-ai-summarize",
     "allow-ai-clear-history",
     "allow-ai-delete-conversation"
   ]

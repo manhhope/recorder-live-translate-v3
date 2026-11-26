@@ -36,6 +36,8 @@ pub const APP_COMMANDS: &[&str] = &[
     "ai_ask",
     "ai_retry",
     "ai_cancel",
+    "ai_summary_plan",
+    "ai_summarize",
     "ai_clear_history",
     "ai_delete_conversation",
     "shell_set_recording",

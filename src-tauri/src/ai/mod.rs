@@ -6,6 +6,7 @@
 use rlt_ai::{
     AiService, AiSettings, AiSettingsInput, AskOutcome, AskParams, CancelFlag, StreamUpdate,
 };
+use rlt_ai::summary::{SummaryOutcome, SummaryPlan, SummaryProgress};
 use rlt_ai::history::{Conversation, Message};
 use rlt_ai::ProviderKind;
 use std::sync::{Arc, Mutex};
@@ -26,6 +27,8 @@ pub const AI_COMMANDS: &[&str] = &[
     "ai_ask",
     "ai_retry",
     "ai_cancel",
+    "ai_summary_plan",
+    "ai_summarize",
     "ai_clear_history",
     "ai_delete_conversation",
 ];
@@ -146,6 +149,30 @@ pub fn ai_cancel(s: State<'_, AiState>) {
     if let Some(f) = s.cancel.lock().unwrap_or_else(|e| e.into_inner()).as_ref() {
         f.cancel();
     }
+}
+
+/// Uoc tinh truoc khi tom tat (so ky tu, so luot goi, co bi cat khong). Khong goi nha cung cap.
+#[tauri::command]
+pub async fn ai_summary_plan(s: State<'_, AiState>, session_id: String, translate: bool) -> Result<SummaryPlan, String> {
+    code(s.svc.summary_plan(&session_id, translate))
+}
+
+/// Tom tat (US-63) va tuy chon dich tom tat (US-64). Huy bang `ai_cancel`.
+#[tauri::command]
+pub async fn ai_summarize(
+    s: State<'_, AiState>,
+    session_id: String,
+    provider: Option<ProviderKind>,
+    ui_lang: String,
+    translate_to: Option<String>,
+    on_progress: Channel<SummaryProgress>,
+) -> Result<SummaryOutcome, String> {
+    let svc = s.svc.clone();
+    let cancel = s.begin();
+    let mut sink = move |p: SummaryProgress| {
+        let _ = on_progress.send(p);
+    };
+    code(svc.summarize(&session_id, provider, &ui_lang, translate_to.as_deref(), &cancel, &mut sink).await)
 }
 
 #[tauri::command]

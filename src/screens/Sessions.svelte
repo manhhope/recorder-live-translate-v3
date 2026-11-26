@@ -24,6 +24,7 @@
   let renaming = $state<string | null>(null);
   let confirmDel = $state<string | null>(null);
   let askOpen = $state(false);
+  let summaryOpen = $state(false);
   let exportOpen = $state(false);
 
   const loc = $derived(($locale as "en" | "pt-PT") ?? currentLocale());
@@ -122,7 +123,8 @@
     </div>
     <div class="tr2">
       <button type="button" class="btn sm" aria-expanded={exportOpen} onclick={() => (exportOpen = !exportOpen)}><Icon name="download" />{$_("exp.open")}</button>
-      <button type="button" class="btn sm" aria-pressed={askOpen} onclick={() => (askOpen = !askOpen)}><Icon name="sparkle" />{$_("nav.askai")}</button>
+      <button type="button" class="btn sm" onclick={() => { askOpen = true; summaryOpen = true; }}><Icon name="list" />{$_("ses.summarize")}</button>
+      <button type="button" class="btn sm" aria-pressed={askOpen} onclick={() => { askOpen = !askOpen; summaryOpen = false; }}><Icon name="sparkle" />{$_("nav.askai")}</button>
       <button type="button" class="btn sm" onclick={sync}><Icon name="refresh" />{$_("ses.drive.sync")}</button>
     </div>
   </div>
@@ -139,7 +141,7 @@
   {#if askOpen}
     <div class="askdock">
       {#key d.session.sessionId}
-        <AskAiPopup sessionId={d.session.sessionId} onOpenSettings={openAiSettings} onClose={() => (askOpen = false)} />
+        <AskAiPopup sessionId={d.session.sessionId} bind:summary={summaryOpen} onOpenSettings={openAiSettings} onClose={() => { askOpen = false; summaryOpen = false; }} />
       {/key}
     </div>
   {/if}

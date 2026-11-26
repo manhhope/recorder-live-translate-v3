@@ -8,6 +8,7 @@ use crate::history::{self, Conversation, Message, UserTurn};
 use crate::provider::*;
 use crate::sanitize::sanitize_model_output;
 use crate::settings::{self, AiSettings, AiSettingsInput, Chip};
+use crate::summary::{self, SummaryOutcome, SummaryPlan, SummaryProgress, SUMMARY_CHUNK_CHARS, SUMMARY_INPUT_CAP};
 use rlt_secrets::{SecretKind, SecretStore, SecretValue};
 use rlt_store::Store;
 use serde::{Deserialize, Serialize};
@@ -282,6 +283,52 @@ impl AiService {
         let cfg = ProviderConfig::new(self.base_url_for(kind, ps.base_url), key).with_timeout(self.endpoints.timeout);
         let http = crate::http::build_client(cfg.timeout)?;
         crate::compat::list_models(&http, &cfg, &CancelFlag::new()).await
+    }
+
+
+    // ---------- tom tat cuoc ghi (US-63, US-64) ----------
+
+    /// Ban ghi (da cat o tran 200.000 ky tu, giu phan moi nhat), ke hoach va cac khuc.
+    fn summary_inputs(&self, session_id: &str, translate: bool) -> Result<(SummaryPlan, Vec<String>)> {
+        let st = self.db();
+        if st.get_session(session_id)?.is_none() {
+            return Err(AiError::InvalidInput("session_not_found".into()));
+        }
+        let full = build_context(&st, session_id, usize::MAX)?;
+        let total = full.text.chars().count();
+        let ctx = if total > SUMMARY_INPUT_CAP { build_context(&st, session_id, SUMMARY_INPUT_CAP)? } else { full };
+        if ctx.text.trim().is_empty() {
+            return Err(AiError::InvalidInput("empty_transcript".into()));
+        }
+        Ok(summary::plan_for(total, &ctx.text, translate, SUMMARY_CHUNK_CHARS))
+    }
+
+    /// Uoc tinh truoc khi chay: so ky tu, so luot goi, co bi cat khong. Khong goi nha cung cap, khong ghi gi.
+    pub fn summary_plan(&self, session_id: &str, translate: bool) -> Result<SummaryPlan> {
+        Ok(self.summary_inputs(session_id, translate)?.0)
+    }
+
+    /// Tom tat bang nha cung cap da chon (can da dong y, nhu `ask`). `translate_to` la "en" hoac "pt-PT" (US-64).
+    /// Khong ghi vao lich su chat; ket qua chi tra ve cho giao dien.
+    pub async fn summarize(
+        &self,
+        session_id: &str,
+        provider: Option<ProviderKind>,
+        ui_lang: &str,
+        translate_to: Option<&str>,
+        cancel: &CancelFlag,
+        progress: &mut (dyn FnMut(SummaryProgress) + Send),
+    ) -> Result<SummaryOutcome> {
+        let translate_to = match translate_to {
+            None => None,
+            Some("en") => Some("en"),
+            Some("pt-PT") => Some("pt-PT"),
+            Some(_) => return Err(AiError::InvalidInput("bad_target_lang".into())),
+        };
+        let kind = self.resolve_provider(provider)?;
+        let (prov, model) = self.provider_for(kind)?;
+        let (plan, chunks) = self.summary_inputs(session_id, translate_to.is_some())?;
+        Ok(summary::run(prov.as_ref(), &summary::RunOpts { model: &model, ui_lang, translate_to }, plan, &chunks, cancel, progress).await)
     }
 
     // ---------- chat ----------
