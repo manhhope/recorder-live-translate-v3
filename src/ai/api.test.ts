@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { CLI_PROVIDERS, PROVIDERS, canLogin, cliKey, enabledProviders, errKey, isCli, loginActive, loginErrKey, providerLabelKey } from "./api.ts";
+import { CLI_PROVIDERS, PROVIDERS, canLogin, cliKey, cliStatusKey, enabledProviders, errKey, isCli, loginActive, loginErrKey, providerLabelKey, signInPrimary } from "./api.ts";
 
 const load = (l: string) => JSON.parse(readFileSync(new URL(`../locales/${l}.json`, import.meta.url), "utf8")) as Record<string, string>;
 
@@ -31,17 +31,38 @@ test("moi chuoi CLI cua Codex co du trong en va pt-PT", () => {
   for (const l of ["en", "pt-PT"]) { const m = load(l); for (const k of keys) assert.ok(m[k], `${l}: ${k}`); }
 });
 
-test("Codex TAT mac dinh: giao dien chi liet ke nha cung cap ma backend tra ve, Claude van co", () => {
-  const backend = { providers: (["gemini", "openai", "ollama", "compat", "claude_cli"] as const).map(provider => ({ provider })) };
-  assert.ok(!enabledProviders(PROVIDERS, backend).includes("codex_cli"));
-  assert.ok(!enabledProviders(CLI_PROVIDERS, backend).includes("codex_cli"));
-  assert.deepEqual(enabledProviders(CLI_PROVIDERS, backend), ["claude_cli"]);
-  assert.deepEqual(enabledProviders(CLI_PROVIDERS, null), ["claude_cli", "antigravity_cli"]);
-  // Chua co du lieu backend: van khong lo Codex.
-  assert.ok(!enabledProviders(PROVIDERS, null).includes("codex_cli"));
-  // Spike (build co `codex-cli`): backend tra ve Codex thi moi hien.
-  const spike = { providers: [...backend.providers, { provider: "codex_cli" as const }] };
-  assert.deepEqual(enabledProviders(CLI_PROVIDERS, spike), ["claude_cli", "codex_cli"]);
+test("Codex BAT mac dinh (3.0.6): giao dien liet ke dung nha cung cap backend tra ve", () => {
+  const all = { providers: PROVIDERS.map(provider => ({ provider })) };
+  assert.deepEqual(enabledProviders(CLI_PROVIDERS, all), ["claude_cli", "codex_cli", "antigravity_cli"]);
+  // Chua co du lieu backend: hien du (ban mac dinh bat Codex).
+  assert.deepEqual(enabledProviders(CLI_PROVIDERS, null), ["claude_cli", "codex_cli", "antigravity_cli"]);
+  // Build tat co (`--no-default-features`): backend khong tra Codex thi khong hien.
+  const off = { providers: (["gemini", "openai", "ollama", "compat", "claude_cli", "antigravity_cli"] as const).map(provider => ({ provider })) };
+  assert.deepEqual(enabledProviders(CLI_PROVIDERS, off), ["claude_cli", "antigravity_cli"]);
+});
+
+test("tu do CLI: Sign in la nut chinh khi da cai ma chua dang nhap; agy khong co nut", () => {
+  const info = (status: "ready" | "not_installed" | "not_logged_in" | "unknown") => ({ path: "/x/claude", version: "1", status });
+  assert.ok(signInPrimary("claude_cli", info("not_logged_in")));
+  assert.ok(signInPrimary("codex_cli", info("unknown")));
+  assert.ok(!signInPrimary("claude_cli", info("ready")));
+  assert.ok(!signInPrimary("claude_cli", info("not_installed")));
+  assert.ok(!signInPrimary("claude_cli", null));
+  assert.ok(!signInPrimary("antigravity_cli", info("not_logged_in")));
+  assert.equal(cliStatusKey("not_logged_in"), "set.cli.st.notloggedin");
+});
+
+test("moi chuoi moi cua man tu do va dang nhap co du trong en va pt-PT, khong co tieng Viet", () => {
+  const keys = [
+    ...["checking", "ready", "not_installed", "not_logged_in", "unknown"].map(k => cliStatusKey(k as "ready")),
+    "set.cli.found", "set.cli.recheck", "set.cli.adv", "set.login.copycode", "set.login.opendevice", "set.login.verify",
+    ...CLI_PROVIDERS.flatMap(p => ["set.cli.install", "set.cli.notloggedin.help"].map(k => cliKey(k, p))),
+  ];
+  const vi = /[\u0103\u0111\u01a1\u01b0\u1ea0-\u1ef9]/i;
+  for (const l of ["en", "pt-PT"]) {
+    const m = load(l);
+    for (const k of keys) { assert.ok(m[k], `${l}: ${k}`); assert.ok(!vi.test(m[k]), `${l}: ${k} co chu tieng Viet`); }
+  }
 });
 
 test("Antigravity (agy): chuoi rieng .agy, co du trong en va pt-PT, khong co nut dang nhap", () => {

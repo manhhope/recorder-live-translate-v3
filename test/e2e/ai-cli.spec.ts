@@ -27,15 +27,34 @@ for (const loc of ["en", "pt-PT"] as const) {
       await expect(page.getByTestId("cli-risk")).toBeVisible();
     });
 
-    test("Codex TAT mac dinh: khong co the Codex trong cai dat va khong co trong o chon mac dinh, Claude van co", async ({ page, rlt }) => {
+    test("Codex BAT mac dinh (3.0.6): co the Codex trong cai dat va trong o chon mac dinh, canh Claude", async ({ page, rlt }) => {
       await rlt.open({ locale: loc });
       await rlt.nav("nav.settings").click();
       await page.getByRole("navigation", { name: rlt.t("nav.settings") }).getByRole("button", { name: rlt.t("set.tab.translate") }).click();
       await expect(page.getByTestId("cli-card-claude_cli")).toBeVisible();
-      await expect(page.getByTestId("cli-card-codex_cli")).toHaveCount(0);
+      await expect(page.getByTestId("cli-card-codex_cli")).toBeVisible();
       const sel = page.getByRole("combobox", { name: rlt.t("ask.model.pick") }).first();
       await expect(sel.locator("option", { hasText: rlt.t("ai.provider.claudecli") })).toHaveCount(1);
-      await expect(sel.locator("option", { hasText: rlt.t("ai.provider.codexcli") })).toHaveCount(0);
+      await expect(sel.locator("option", { hasText: rlt.t("ai.provider.codexcli") })).toHaveCount(1);
+    });
+
+    test("tu do CLI khi mo tab: hien duong dan, phien ban, trang thai; o duong dan nam trong muc Nang cao dang dong", async ({ page, rlt }) => {
+      await rlt.open({ locale: loc });
+      await rlt.nav("nav.settings").click();
+      await page.getByRole("navigation", { name: rlt.t("nav.settings") }).getByRole("button", { name: rlt.t("set.tab.translate") }).click();
+      const c = page.getByTestId("cli-card-claude_cli");
+      await expect(c.getByTestId("cli-st-claude_cli")).toHaveText(rlt.t("set.cli.st.notloggedin"));
+      await expect(c.getByTestId("cli-found-claude_cli")).toContainText("/opt/homebrew/bin/claude");
+      await expect(c.getByTestId("cli-found-claude_cli")).toContainText("2.1.332");
+      await expect(c.getByRole("button", { name: rlt.t("set.login.btn"), exact: true })).toBeVisible();
+      await expect(c.getByTestId("cli-help-claude_cli")).toHaveText(rlt.t("set.cli.notloggedin.help"));
+      // O duong dan: co trong muc Nang cao nhung dang dong.
+      await expect(c.getByTestId("cli-adv-claude_cli")).not.toHaveAttribute("open", "");
+      await expect(c.getByLabel(rlt.t("set.cli.path"))).toBeHidden();
+      await c.getByText(rlt.t("set.cli.adv")).click();
+      await expect(c.getByLabel(rlt.t("set.cli.path"))).toBeVisible();
+      expect((await rlt.calls("ai_cli_status")).length).toBeGreaterThanOrEqual(3);
+      await page.screenshot({ path: `test/e2e/screenshots/ai-cli-detect-${loc}.png`, fullPage: true });
     });
 
     test("cai dat: the Claude CLI co ghi chu rui ro, duong dan tuong doi bi chan Luu, thu ket noi chay", async ({ page, rlt }) => {
@@ -44,6 +63,7 @@ for (const loc of ["en", "pt-PT"] as const) {
       await page.getByRole("navigation", { name: rlt.t("nav.settings") }).getByRole("button", { name: rlt.t("set.tab.translate") }).click();
       const c = page.getByTestId("cli-card-claude_cli");
       await expect(c.getByTestId("cli-risk-claude_cli")).toHaveText(rlt.t("set.cli.risk"));
+      await c.getByText(rlt.t("set.cli.adv")).click();
       const path = c.getByLabel(rlt.t("set.cli.path"));
       const save = page.getByRole("button", { name: rlt.t("ai.settings.save"), exact: true });
       await path.fill("claude");
@@ -61,7 +81,7 @@ for (const loc of ["en", "pt-PT"] as const) {
       await rlt.nav("nav.settings").click();
       await page.getByRole("navigation", { name: rlt.t("nav.settings") }).getByRole("button", { name: rlt.t("set.tab.translate") }).click();
       const c = page.getByTestId("cli-card-claude_cli");
-      await c.getByRole("button", { name: rlt.t("set.login.btn") }).click();
+      await c.getByRole("button", { name: rlt.t("set.login.btn"), exact: true }).click();
       await expect(c.getByTestId("login-url")).toHaveText("https://claude.ai/oauth/authorize?fake=1");
       await c.getByRole("button", { name: rlt.t("set.login.open") }).click();
       expect((await rlt.calls("ai_login_open")).length).toBe(1);
@@ -70,17 +90,39 @@ for (const loc of ["en", "pt-PT"] as const) {
       await expect(c.getByText(rlt.t("set.login.cancelled"))).toBeVisible();
       expect((await rlt.calls("ai_login_cancel")).length).toBe(1);
       // Lam lai va dan ma gia.
-      await c.getByRole("button", { name: rlt.t("set.login.btn") }).click();
+      await c.getByRole("button", { name: rlt.t("set.login.btn"), exact: true }).click();
+      await page.screenshot({ path: `test/e2e/screenshots/ai-cli-claude-link-${loc}.png`, fullPage: true });
       const box = c.getByLabel(rlt.t("set.login.code"));
       await expect(box).toHaveAttribute("type", "password");
       await box.fill("FAKE-CODE-0000");
-      await c.getByRole("button", { name: rlt.t("set.login.send") }).click();
+      await c.getByRole("button", { name: rlt.t("set.login.verify") }).click();
       await expect(c.getByText(rlt.t("set.login.done"))).toBeVisible();
       expect((await rlt.calls("ai_login_code")).length).toBe(1);
       await expect(page.getByText("FAKE-CODE-0000")).toHaveCount(0);
+      // Xong thi tu kiem lai: chuyen sang San sang, nut Sign in khong con la nut chinh.
+      await expect(c.getByTestId("cli-st-claude_cli")).toHaveText(rlt.t("set.cli.st.ready"));
+      await expect(c.getByRole("button", { name: rlt.t("set.login.btn"), exact: true })).toHaveCount(0);
     });
 
-    test("the Antigravity (agy) co mat, khong co nut dang nhap trong app, co ghi chu dang nhap o terminal", async ({ page, rlt }) => {
+    test("dang nhap Codex trong app: ma 9 ky tu chu to co nut chep, link trang thiet bi co nut mo, roi Da dang nhap", async ({ page, rlt }) => {
+      await rlt.open({ locale: loc });
+      await rlt.nav("nav.settings").click();
+      await page.getByRole("navigation", { name: rlt.t("nav.settings") }).getByRole("button", { name: rlt.t("set.tab.translate") }).click();
+      const c = page.getByTestId("cli-card-codex_cli");
+      await expect(c.getByTestId("cli-found-codex_cli")).toContainText("codex-cli 0.166.0");
+      await c.getByRole("button", { name: rlt.t("set.login.btn"), exact: true }).click();
+      await expect(c.getByTestId("login-device-code")).toHaveText("ABCD-12345");
+      await expect(c.getByRole("button", { name: rlt.t("set.login.copycode") })).toBeVisible();
+      await expect(c.getByTestId("login-url")).toHaveText("https://auth.openai.com/codex/device");
+      await expect(c.getByLabel(rlt.t("set.login.code"))).toHaveCount(0);
+      await page.screenshot({ path: `test/e2e/screenshots/ai-cli-codex-code-${loc}.png`, fullPage: true });
+      await c.getByRole("button", { name: rlt.t("set.login.opendevice") }).click();
+      expect((await rlt.calls("ai_login_open")).length).toBe(1);
+      await expect(c.getByText(rlt.t("set.login.done"))).toBeVisible({ timeout: 10_000 });
+      await expect(c.getByTestId("cli-st-codex_cli")).toHaveText(rlt.t("set.cli.st.ready"));
+    });
+
+    test("the Antigravity (agy): chua cai thi hien huong dan cai, khong co nut dang nhap trong app, co ghi chu dang nhap o terminal", async ({ page, rlt }) => {
       await rlt.open({ locale: loc });
       await rlt.nav("nav.settings").click();
       await page.getByRole("navigation", { name: rlt.t("nav.settings") }).getByRole("button", { name: rlt.t("set.tab.translate") }).click();
@@ -89,6 +131,9 @@ for (const loc of ["en", "pt-PT"] as const) {
       await expect(c.getByRole("button", { name: rlt.t("set.login.btn") })).toHaveCount(0);
       await expect(c.getByTestId("agy-signin-note")).toHaveText(rlt.t("set.cli.signin.agy"));
       await expect(c.getByTestId("cli-risk-antigravity_cli")).toHaveText(rlt.t("set.cli.risk"));
+      await expect(c.getByTestId("cli-st-antigravity_cli")).toHaveText(rlt.t("set.cli.st.notinstalled"));
+      await expect(c.getByTestId("cli-install-antigravity_cli")).toHaveText(rlt.t("set.cli.install.agy"));
+      await c.getByText(rlt.t("set.cli.adv")).click();
       await c.getByRole("button", { name: rlt.t("set.test") }).click();
       await expect(c.getByRole("status").filter({ hasText: rlt.t("ai.test.ok") })).toBeVisible();
     });
