@@ -1,0 +1,43 @@
+name: win-test-build
+
+# Ban cai Windows THU, khong phat hanh: khong tag, khong Release, khong ky, khong dang len repo releases.
+# Chi build NSIS tu commit co dinh va upload artifact.
+on:
+  push:
+    branches: ["test/win-build-*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: a141eeb71ca6874d1f25068a95c4cbf07197bdac
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: cargo install tauri-cli --version "^2" --locked
+      - name: Build NSIS (khong ky goi cap nhat)
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          cargo tauri build --target x86_64-pc-windows-msvc --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
+          mkdir -p out
+          cp target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe out/
+          ls -l out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win-test-a141eeb
+          path: out/*-setup.exe
+          if-no-files-found: error
+          retention-days: 7
