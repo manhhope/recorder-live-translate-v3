@@ -293,9 +293,10 @@
     <p class="hint">{$_("set.compat.privacy")}</p>
   </div>
 
+  {#if cliProvs.length}<p class="hint risk" data-testid="cli-risk" style="margin-top:14px"><Icon name="warn" /> {$_("set.cli.risk")}</p>{/if}
   {#each cliProvs as p (p)}
-  <div class="card" style="margin-top:14px" data-testid="cli-card-{p}">
-    <h4><Icon name="warn" /> {$_(api.cliKey("set.cli.title", p))}</h4>
+  <div class="card" style="margin-top:8px" data-testid="cli-card-{p}">
+    <h4>{$_(api.cliKey("set.cli.title", p))}</h4>
     <div class="rw" data-testid="cli-status-{p}">
       <div>
         <span class="bd {info(p)?.status === 'ready' ? 'ok' : ''}" role="status" data-testid="cli-st-{p}">{$_(stKey(p))}</span>
@@ -319,7 +320,7 @@
         {/if}
         <button type="button" class="btn sm" data-testid="install-copy-{p}" onclick={() => copyAndOpen(p)}>{$_("set.install.copyopen")}</button>
       </div>
-      {#if instInfo[p].npm_missing}<p class="hint" role="alert" data-testid="install-nonpm-{p}">{$_("set.install.nonpm")}</p>{/if}
+      {#if instInfo[p].npm_missing}<p class="hint errbox" role="alert" data-testid="install-nonpm-{p}">{$_("set.install.nonpm")}</p>{/if}
       {#if confirmFor === p}
       <div class="hint" role="alertdialog" aria-label={$_("set.install.confirm.title")} data-testid="install-confirm-{p}">
         <p><b>{$_("set.install.confirm.title")}</b></p>
@@ -333,7 +334,7 @@
       {/if}
       {/if}
       {#if instFor === p && (inst || instErr)}
-      <div class="hint" role="status" data-testid="install-state-{p}">
+      <div class="hint {instErr || inst?.phase === 'failed' ? 'errbox' : ''}" role="status" data-testid="install-state-{p}">
         {#if instErr}<span role="alert">{$_(api.installErrKey(instErr))}</span>
         {:else if inst?.phase === "running"}{$_("set.install.running")}
           <div class="rr" style="padding-top:6px"><button type="button" class="btn sm" data-testid="install-cancel-{p}" onclick={cancelInstall}>{$_("set.install.cancel")}</button></div>
@@ -407,7 +408,6 @@
     </details>
     {#if !pathOk(cliPaths[p] ?? "")}<p class="hint" role="alert">{$_("set.cli.path.bad")}</p>{/if}
     <p class="hint">{$_(api.cliKey("set.cli.need", p))}</p>
-    <p class="hint" data-testid="cli-risk-{p}">{$_("set.cli.risk")}</p>
   </div>
   {/each}
 

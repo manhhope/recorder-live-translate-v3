@@ -62,7 +62,7 @@ for (const loc of ["en", "pt-PT"] as const) {
       await rlt.nav("nav.settings").click();
       await page.getByRole("navigation", { name: rlt.t("nav.settings") }).getByRole("button", { name: rlt.t("set.tab.translate") }).click();
       const c = page.getByTestId("cli-card-claude_cli");
-      await expect(c.getByTestId("cli-risk-claude_cli")).toHaveText(rlt.t("set.cli.risk"));
+      await expect(page.getByTestId("cli-risk")).toHaveText(rlt.t("set.cli.risk"));
       await c.getByText(rlt.t("set.cli.adv")).click();
       const path = c.getByLabel(rlt.t("set.cli.path"));
       const save = page.getByRole("button", { name: rlt.t("ai.settings.save"), exact: true });
@@ -130,7 +130,7 @@ for (const loc of ["en", "pt-PT"] as const) {
       await expect(c).toBeVisible();
       await expect(c.getByRole("button", { name: rlt.t("set.login.btn") })).toHaveCount(0);
       await expect(c.getByTestId("agy-signin-note")).toHaveText(rlt.t("set.cli.signin.agy"));
-      await expect(c.getByTestId("cli-risk-antigravity_cli")).toHaveText(rlt.t("set.cli.risk"));
+      await expect(page.getByTestId("cli-risk")).toHaveText(rlt.t("set.cli.risk"));
       await expect(c.getByTestId("cli-st-antigravity_cli")).toHaveText(rlt.t("set.cli.st.notinstalled"));
       await expect(c.getByTestId("cli-install-antigravity_cli")).toHaveText(rlt.t("set.cli.install.agy"));
       await c.getByText(rlt.t("set.cli.adv")).click();
