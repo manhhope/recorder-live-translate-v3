@@ -2,6 +2,7 @@ use super::*;
 use crate::cli::CliKind;
 
 // Moi URL/ma trong file nay la GIA (khong phai link dang nhap that cua ai).
+#[cfg(unix)]
 const FAKE_URL: &str = "https://claude.ai/oauth/authorize?fake=1";
 
 #[test]
