@@ -11,6 +11,7 @@ pub mod compat;
 pub mod error;
 pub mod gemini;
 pub mod history;
+pub mod install;
 pub mod login;
 mod http;
 pub mod ollama;

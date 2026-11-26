@@ -37,6 +37,11 @@ pub const AI_COMMANDS: &[&str] = &[
     "ai_login_cancel",
     "ai_login_open",
     "ai_cli_status",
+    "ai_install_info",
+    "ai_install_start",
+    "ai_install_poll",
+    "ai_install_cancel",
+    "ai_install_open_page",
 ];
 
 /// Kho khoa dung chung toan app: MOT cache duy nhat boc Keychain (macOS) / Credential Manager (Windows) nen moi khoa chi hoi Keychain toi da
@@ -59,16 +64,19 @@ pub struct AiState {
     cancel: Mutex<Option<CancelFlag>>,
     /// Dang nhap CLI ngay trong app (3.0.6): mot phien cung luc. Khong giu token, link hay ma ngoai bo nho.
     login: rlt_ai::login::LoginManager,
+    /// Cai CLI ngay trong app (3.0.6): mot phien cung luc, lenh cai la hang so trong `rlt_ai::install`.
+    install: rlt_ai::install::InstallManager,
 }
 
 impl AiState {
     /// App thoat (RV M1): huy va giet ngay tien trinh dang nhap CLI con chay, dong bo.
     pub fn shutdown_login(&self) {
         self.login.shutdown();
+        self.install.shutdown();
     }
 
     pub fn new(svc: AiService) -> Self {
-        Self { svc: Arc::new(svc), cancel: Mutex::new(None), login: rlt_ai::login::LoginManager::new() }
+        Self { svc: Arc::new(svc), cancel: Mutex::new(None), login: rlt_ai::login::LoginManager::new(), install: rlt_ai::install::InstallManager::new() }
     }
 
     fn begin(&self) -> CancelFlag {
@@ -269,4 +277,38 @@ pub async fn ai_login_cancel(s: State<'_, AiState>) -> Result<(), String> {
 pub async fn ai_login_open(s: State<'_, AiState>) -> Result<(), String> {
     let url = s.login.url().ok_or_else(|| rlt_ai::login::LoginError::NotRunning.code().to_string())?;
     if rlt_platform::opener::open_uri(&url) { Ok(()) } else { Err("open_failed".into()) }
+}
+
+// ---------- Cai CLI trong app (3.0.6) ----------
+// Giao dien chi gui TEN nha cung cap. Lenh cai, trang cai va thu muc chay deu la hang so ben `rlt_ai::install`;
+// khong co lenh nao nhan chuoi lenh hay URL tu giao dien.
+
+/// Lenh de hien trong hop xac nhan / chep, trang cai, co nut "Cai giup" hay khong.
+#[tauri::command]
+pub async fn ai_install_info(provider: ProviderKind) -> Result<rlt_ai::install::InstallInfo, String> {
+    Ok(rlt_ai::install::info(cli_kind(provider)?))
+}
+
+/// Bat dau cai (chi Codex va agy; Claude tra `install_unsupported`). Giao dien da hoi dong y truoc khi goi.
+#[tauri::command]
+pub async fn ai_install_start(s: State<'_, AiState>, provider: ProviderKind) -> Result<(), String> {
+    s.install.start(cli_kind(provider)?).map_err(|e| e.code().to_string())
+}
+
+#[tauri::command]
+pub async fn ai_install_poll(s: State<'_, AiState>) -> Result<Option<rlt_ai::install::InstallSnapshot>, String> {
+    Ok(s.install.snapshot())
+}
+
+#[tauri::command]
+pub async fn ai_install_cancel(s: State<'_, AiState>) -> Result<(), String> {
+    s.install.cancel();
+    Ok(())
+}
+
+/// Mo trang cai (hang so theo nha cung cap) trong trinh duyet mac dinh.
+#[tauri::command]
+pub async fn ai_install_open_page(provider: ProviderKind) -> Result<(), String> {
+    let url = rlt_ai::install::page_url(cli_kind(provider)?);
+    if rlt_platform::opener::open_uri(url) { Ok(()) } else { Err("open_failed".into()) }
 }

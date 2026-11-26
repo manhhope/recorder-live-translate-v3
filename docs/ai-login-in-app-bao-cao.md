@@ -64,3 +64,37 @@ App không đọc và không lưu token, không chạm `~/.claude`, `~/.codex` h
 
 ### Chủ cần làm
 Cài bản exe thử trong `builds/windows/` (SHA-256 ghi kèm), thử đăng nhập thật Claude, Codex và agy, rồi duyệt và merge PR #14. Chưa merge, chưa tag, chưa phát hành.
+
+## Cài CLI ngay trong app khi tab Hỏi AI không tìm thấy CLI (2026-11-26, chủ duyệt 18:14)
+
+**CHƯA KIỂM VỚI MÁY THẬT.** Mọi test dùng runner giả và lớp Tauri giả. Chưa có lần cài thật nào trên Windows hay macOS.
+
+### Đã làm
+- Thẻ CLI ở trạng thái "Not installed" có thêm nút theo từng CLI:
+  - **Codex và agy**: hai nút. "Install for me" (Cài giúp) mở hộp xác nhận ghi ĐÚNG lệnh sẽ chạy và câu "tải một chương trình từ internet và chạy trên máy này"; chỉ khi bấm "Agree and install" mới chạy. Chạy xong tự Re-check; hiện "đang cài", vài dòng cuối của đầu ra, lỗi rõ, nút Cancel. Nút thứ hai "Copy command and open install page" chép lệnh vào clipboard rồi mở trang cài bằng trình duyệt mặc định.
+  - **Claude**: CHỈ nút "Copy command and open install page" (trang `https://claude.com/claude-code`). Không có nút cài giúp, backend cũng từ chối (`install_unsupported`).
+- Lệnh (hằng số trong `crates/rlt-ai/src/install.rs`):
+  - Codex: `npm install -g @openai/codex`. Chạy trực tiếp `npm` (không qua shell). Không tìm thấy npm thì nút Cài giúp bị tắt, hiện thông báo rõ, vẫn có nút chép lệnh.
+  - agy macOS/Linux: `curl -fsSL https://antigravity.google/cli/install.sh | bash` (chạy qua `/bin/sh -c` với đúng chuỗi hằng số). agy Windows: `irm https://antigravity.google/cli/install.ps1 | iex` (chạy qua `powershell.exe -NoProfile -NonInteractive -Command` với đúng chuỗi hằng số).
+  - Claude (chỉ để chép, không chạy): `curl -fsSL https://claude.ai/install.sh | bash`, Windows `irm https://claude.ai/install.ps1 | iex`.
+- Trang cài: Codex `https://github.com/openai/codex`, agy `https://antigravity.google/cli`, Claude `https://claude.com/claude-code`. Cả ba trả HTTP 200 khi kiểm ngày 2026-11-26.
+
+### An toàn
+- Giao diện chỉ gửi TÊN nhà cung cấp (enum). Năm lệnh Tauri mới: `ai_install_info`, `ai_install_start`, `ai_install_poll`, `ai_install_cancel`, `ai_install_open_page`. Không lệnh nào nhận chuỗi lệnh hay URL từ giao diện; `Runner` chỉ dựng được từ `runner_for` (hằng số). Có test kiểm đúng từng lệnh và từng đối số.
+- Không nối chuỗi người dùng vào lệnh. Một phiên một lúc, hạn tối đa 10 phút (quá hạn thì giết cả cây tiến trình), nút Cancel giết cả cây, thoát app (`RunEvent::Exit`) giết ngay, rời tab giữa chừng thì hủy.
+- Đầu ra chỉ giữ 6 dòng cuối trong bộ nhớ (bỏ mã màu và ký tự điều khiển, tối đa 160 ký tự mỗi dòng), không ghi log, không lưu. Không có token nào đi qua. Biến môi trường khóa API bị gỡ như mọi lệnh CLI khác (`base_command`).
+- Chuỗi giao diện mới (21 khóa `set.install.*`) chỉ en và pt-PT. `scan:i18n` 0 chuỗi cứng, `test:i18n` 12/12.
+
+### Kiểm
+Xem mục "Kiểm lần cài CLI" ở cuối file này (số liệu ghi sau khi chạy xong).
+
+### Chưa kiểm với máy thật (chủ cần thử)
+- Cài thật Codex (`npm`) và agy trên Windows và macOS; xem sau khi cài xong app có tự tìm thấy chương trình không (npm cài vào thư mục toàn cục nằm ngoài danh sách dò thì thẻ vẫn "Not installed" và app báo "Installer finished but the program was not found").
+- `powershell.exe` chạy được dòng `irm ... | iex` trong tiến trình nền không có cửa sổ (chính sách thực thi của máy có thể chặn).
+- Script cài của agy trên macOS thật: có thể hỏi mật khẩu hay xác nhận bằng bàn phím mà app không trả lời được (stdin đóng); khi đó sẽ hết hạn 10 phút hoặc bấm Cancel.
+- Nút chép lệnh trong WebView2 và WKWebView (`navigator.clipboard.writeText` cần thao tác bấm của người dùng, đã đặt chép ngay trong lần bấm). Nếu chép thất bại, app vẫn mở trang và hiện lệnh để tự chọn chép.
+- Lệnh `https://claude.ai/install.sh` và `.ps1` của Claude lấy từ tài liệu công khai, chỉ kiểm được rằng URL trả 200 và chuyển tới `downloads.claude.ai`, chưa chạy thử.
+- Bản exe Windows thử chưa chạy trên Windows (build ở macOS qua CI).
+
+### Chủ cần làm
+Cài thử thật trên Windows và macOS (Codex, agy), bấm thử nút của Claude, rồi duyệt và tự merge PR #14 và quyết định phát hành 3.0.6.

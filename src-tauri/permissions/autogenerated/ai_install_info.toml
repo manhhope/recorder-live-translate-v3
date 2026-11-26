@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ai-install-info"
+description = "Enables the ai_install_info command without any pre-configured scope."
+commands.allow = ["ai_install_info"]
+
+[[permission]]
+identifier = "deny-ai-install-info"
+description = "Denies the ai_install_info command without any pre-configured scope."
+commands.deny = ["ai_install_info"]

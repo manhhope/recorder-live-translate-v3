@@ -128,13 +128,51 @@
   async function recheck(p: Provider) {
     cli[p] = "checking";
     try { cli[p] = await api.cliStatus(p); } catch { cli[p] = { path: null, version: null, status: "unknown" }; }
+    if (info(p)?.status === "not_installed") { try { instInfo[p] = await api.installInfo(p); } catch { /* khong co lenh cai de hien */ } }
+  }
+  // Cai CLI trong app. Lenh/trang cai la hang so o backend; day chi hoi dong y, hien tien trinh va goi lai kiem tra.
+  let instInfo = $state<Partial<Record<Provider, api.InstallInfo>>>({});
+  let confirmFor = $state<Provider | null>(null);
+  let inst = $state<api.InstallSnapshot | null>(null);
+  let instFor = $state<Provider | null>(null);
+  let instErr = $state<string | null>(null);
+  let instNote = $state<{ p: Provider; key: string; command?: string; url?: string } | null>(null);
+  let instTimer: ReturnType<typeof setInterval> | null = null;
+  const instBusy = $derived(api.installActive(inst));
+  function stopInstPoll() { if (instTimer) { clearInterval(instTimer); instTimer = null; } }
+  async function pollInstall() {
+    try {
+      inst = await api.installPoll();
+      if (!api.installActive(inst)) {
+        stopInstPoll();
+        if (inst?.phase === "done" && instFor) {
+          const p = instFor; await recheck(p);
+          if (info(p)?.status === "not_installed") instNote = { p, key: "set.install.notfound" };
+        }
+      }
+    } catch { stopInstPoll(); }
+  }
+  async function runInstall(p: Provider) {
+    confirmFor = null; instErr = null; instNote = null; instFor = p; inst = null;
+    try { await api.installStart(p); } catch (e) { instErr = String(e); return; }
+    await pollInstall(); stopInstPoll(); if (api.installActive(inst)) instTimer = setInterval(pollInstall, 1000);
+  }
+  const noteText = (n: { key: string; url?: string }) => $_(n.key, { values: { url: n.url ?? "" } });
+  async function cancelInstall() { try { await api.installCancel(); } catch { /* da dung */ } await pollInstall(); }
+  async function copyAndOpen(p: Provider) {
+    const cmd = instInfo[p]?.command; instNote = null;
+    if (!cmd) return;
+    let ok = true;
+    try { await navigator.clipboard.writeText(cmd); } catch { ok = false; }
+    try { await api.installOpenPage(p); instNote = { p, key: ok ? "set.install.copied" : "set.install.copyfail", command: cmd }; }
+    catch { instNote = { p, key: "set.install.openfail", command: cmd, url: instInfo[p]?.page }; }
   }
   async function recheckSaved(p: Provider) { try { await persist(); } catch { /* van kiem theo cai dat cu */ } await recheck(p); }
   const info = (p: Provider): api.CliInfo | null => { const v = cli[p]; return v && v !== "checking" ? v : null; };
   const foundText = (p: Provider) => $_("set.cli.found", { values: { path: info(p)?.path ?? "", version: info(p)?.version ?? "" } });
   const stKey = (p: Provider) => { const v = cli[p]; return api.cliStatusKey(!v || v === "checking" ? "checking" : v.status); };
   // M1: roi tab giua chung dang nhap thi huy, de khong con tien trinh CLI chay ngam.
-  onDestroy(() => { stopPoll(); if (busy) void api.loginCancel().catch(() => {}); });
+  onDestroy(() => { stopPoll(); stopInstPoll(); if (instBusy) void api.installCancel().catch(() => {}); if (busy) void api.loginCancel().catch(() => {}); });
   async function persist() {
     const input: api.AiSettingsInput = {
       default_provider: defaultProvider,
@@ -274,6 +312,40 @@
     </div>
     {#if info(p)?.status === "not_installed"}
       <p class="hint" data-testid="cli-install-{p}">{$_(api.cliKey("set.cli.install", p))}</p>
+      {#if instInfo[p]}
+      <div class="rr" style="padding:6px 0" data-testid="install-btns-{p}">
+        {#if api.canInstallHere(p)}
+          <button type="button" class="btn sm primary" data-testid="install-run-{p}" disabled={!instInfo[p].can_run || instBusy || confirmFor === p} onclick={() => { confirmFor = p; instNote = null; }}>{$_("set.install.run")}</button>
+        {/if}
+        <button type="button" class="btn sm" data-testid="install-copy-{p}" onclick={() => copyAndOpen(p)}>{$_("set.install.copyopen")}</button>
+      </div>
+      {#if instInfo[p].npm_missing}<p class="hint" role="alert" data-testid="install-nonpm-{p}">{$_("set.install.nonpm")}</p>{/if}
+      {#if confirmFor === p}
+      <div class="hint" role="alertdialog" aria-label={$_("set.install.confirm.title")} data-testid="install-confirm-{p}">
+        <p><b>{$_("set.install.confirm.title")}</b></p>
+        <p>{$_("set.install.confirm.body")}</p>
+        <code class="mono" style="word-break:break-all" data-testid="install-confirm-cmd-{p}">{instInfo[p].command}</code>
+        <div class="rr" style="padding-top:6px">
+          <button type="button" class="btn sm primary" data-testid="install-confirm-ok-{p}" onclick={() => runInstall(p)}>{$_("set.install.confirm.ok")}</button>
+          <button type="button" class="btn sm" data-testid="install-confirm-no-{p}" onclick={() => (confirmFor = null)}>{$_("set.install.confirm.no")}</button>
+        </div>
+      </div>
+      {/if}
+      {/if}
+      {#if instFor === p && (inst || instErr)}
+      <div class="hint" role="status" data-testid="install-state-{p}">
+        {#if instErr}<span role="alert">{$_(api.installErrKey(instErr))}</span>
+        {:else if inst?.phase === "running"}{$_("set.install.running")}
+          <div class="rr" style="padding-top:6px"><button type="button" class="btn sm" data-testid="install-cancel-{p}" onclick={cancelInstall}>{$_("set.install.cancel")}</button></div>
+        {:else if inst?.phase === "done"}{$_("set.install.done")}
+        {:else if inst?.phase === "cancelled"}{$_("set.install.cancelled")}
+        {:else if inst?.phase === "failed"}<span role="alert">{$_(api.installErrKey(inst.error))}</span>{/if}
+        {#if inst?.tail.length}<pre class="mono" style="white-space:pre-wrap;margin:4px 0 0" data-testid="install-tail-{p}">{inst.tail.join("\n")}</pre>{/if}
+      </div>
+      {/if}
+      {#if instNote?.p === p}
+      <p class="hint" role="status" data-testid="install-note-{p}">{noteText(instNote)}{#if instNote.command && instNote.key !== "set.install.openfail"}<br /><code class="mono" style="word-break:break-all" data-testid="install-note-cmd-{p}">{instNote.command}</code>{/if}</p>
+      {/if}
     {:else if info(p)?.status === "not_logged_in" || info(p)?.status === "unknown"}
       <p class="hint" data-testid="cli-help-{p}">{$_(api.cliKey("set.cli.notloggedin.help", p))}</p>
     {/if}

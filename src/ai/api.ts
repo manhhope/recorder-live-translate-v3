@@ -144,3 +144,21 @@ export const loginErrKey = (code: string | null | undefined, provider?: Provider
   const k = (code && LOGIN_ERR[code]) || "set.login.err.unknown";
   return k.startsWith("ai.err.cli.") ? k + cliSuffix(provider) : k;
 };
+
+// Cai CLI trong app (3.0.6). Giao dien chi gui TEN nha cung cap; lenh cai, trang cai la hang so o backend
+// (`rlt_ai::install`). Claude khong co nut cai giup (`can_run` luon false): chi chep lenh va mo trang cai.
+export interface InstallInfo { command: string; page: string; can_run: boolean; npm_missing: boolean }
+export type InstallPhase = "running" | "done" | "failed" | "cancelled";
+export interface InstallSnapshot { phase: InstallPhase; error: string | null; tail: string[]; remaining_secs: number }
+export const installInfo = (provider: Provider) => invoke<InstallInfo>("ai_install_info", { provider });
+export const installStart = (provider: Provider) => invoke<void>("ai_install_start", { provider });
+export const installPoll = () => invoke<InstallSnapshot | null>("ai_install_poll");
+export const installCancel = () => invoke<void>("ai_install_cancel");
+export const installOpenPage = (provider: Provider) => invoke<void>("ai_install_open_page", { provider });
+export const canInstallHere = (p: Provider): boolean => p === "codex_cli" || p === "antigravity_cli";
+export const installActive = (s: InstallSnapshot | null): boolean => s?.phase === "running";
+const INSTALL_ERR: Record<string, string> = {
+  install_failed: "set.install.err.failed", install_timeout: "set.install.err.timeout", install_npm_missing: "set.install.nonpm",
+  install_spawn_failed: "set.install.err.spawn", install_already_running: "set.install.err.busy",
+};
+export const installErrKey = (code: string | null | undefined): string => (code && INSTALL_ERR[code]) || "set.install.err.unknown";

@@ -139,3 +139,127 @@ for (const loc of ["en", "pt-PT"] as const) {
     });
   });
 }
+
+// Cai CLI ngay trong app (3.0.6). Moi lan cai o day la GIA (tauri-mock.ts): khong chay npm/curl/irm that, khong cai gi.
+const CMD = {
+  codex_cli: "npm install -g @openai/codex",
+  antigravity_cli: "curl -fsSL https://antigravity.google/cli/install.sh | bash",
+  claude_cli: "curl -fsSL https://claude.ai/install.sh | bash",
+} as const;
+const NOT_INSTALLED = { path: null, version: null, status: "not_installed" };
+const missing = { claude_cli: NOT_INSTALLED, codex_cli: NOT_INSTALLED, antigravity_cli: NOT_INSTALLED };
+
+async function openAiSettings(page: Page, rlt: Rlt, over: Record<string, unknown> = {}) {
+  await rlt.open({ cli: missing, ...over } as never);
+  await rlt.nav("nav.settings").click();
+  await page.getByRole("navigation", { name: rlt.t("nav.settings") }).getByRole("button", { name: rlt.t("set.tab.translate") }).click();
+}
+
+for (const loc of ["en", "pt-PT"] as const) {
+  test.describe(`Cai CLI trong app (${loc})`, () => {
+    test("3 trang thai nut: Codex va agy co Cai giup + Chep lenh; Claude CHI co Chep lenh", async ({ page, rlt }) => {
+      await openAiSettings(page, rlt, { locale: loc });
+      for (const p of ["codex_cli", "antigravity_cli"] as const) {
+        const c = page.getByTestId(`cli-card-${p}`);
+        await expect(c.getByTestId(`install-run-${p}`)).toHaveText(rlt.t("set.install.run"));
+        await expect(c.getByTestId(`install-run-${p}`)).toBeEnabled();
+        await expect(c.getByTestId(`install-copy-${p}`)).toHaveText(rlt.t("set.install.copyopen"));
+      }
+      const cl = page.getByTestId("cli-card-claude_cli");
+      await expect(cl.getByTestId("install-copy-claude_cli")).toHaveText(rlt.t("set.install.copyopen"));
+      await expect(cl.getByTestId("install-run-claude_cli")).toHaveCount(0);
+      await expect(cl.getByRole("button", { name: rlt.t("set.install.run") })).toHaveCount(0);
+      await page.screenshot({ path: `test/e2e/screenshots/ai-cli-install-buttons-${loc}.png`, fullPage: true });
+    });
+
+    test("da cai thi KHONG co nut cai", async ({ page, rlt }) => {
+      await openAiSettings(page, rlt, { locale: loc, cli: { codex_cli: { path: "/x/codex", version: "codex-cli 1", status: "ready" } } });
+      await expect(page.getByTestId("cli-card-codex_cli").getByTestId("install-run-codex_cli")).toHaveCount(0);
+      await expect(page.getByTestId("cli-card-codex_cli").getByTestId("install-copy-codex_cli")).toHaveCount(0);
+    });
+
+    test("Cai giup Codex: hop xac nhan hien DUNG lenh; Khong phai bam thi khong chay; dong y thi chay, xong tu Re-check", async ({ page, rlt }) => {
+      await openAiSettings(page, rlt, { locale: loc });
+      const c = page.getByTestId("cli-card-codex_cli");
+      await c.getByTestId("install-run-codex_cli").click();
+      const box = c.getByTestId("install-confirm-codex_cli");
+      await expect(box).toBeVisible();
+      await expect(box.getByText(rlt.t("set.install.confirm.body"))).toBeVisible();
+      await expect(box.getByTestId("install-confirm-cmd-codex_cli")).toHaveText(CMD.codex_cli);
+      await page.screenshot({ path: `test/e2e/screenshots/ai-cli-install-confirm-${loc}.png`, fullPage: true });
+      // Chua dong y: khong co lenh cai nao duoc goi.
+      expect((await rlt.calls("ai_install_start")).length).toBe(0);
+      await box.getByTestId("install-confirm-no-codex_cli").click();
+      await expect(box).toHaveCount(0);
+      expect((await rlt.calls("ai_install_start")).length).toBe(0);
+      // Dong y.
+      await c.getByTestId("install-run-codex_cli").click();
+      await c.getByTestId("install-confirm-ok-codex_cli").click();
+      const calls = await rlt.calls("ai_install_start");
+      expect(calls.length).toBe(1);
+      expect(calls[0].args).toEqual({ provider: "codex_cli" });
+      await expect(c.getByTestId("install-state-codex_cli")).toBeVisible();
+      await expect(c.getByTestId("install-state-codex_cli").getByText(rlt.t("set.install.running"))).toBeVisible();
+      await expect(c.getByTestId("install-tail-codex_cli")).toContainText("fake: downloading");
+      await page.screenshot({ path: `test/e2e/screenshots/ai-cli-install-running-${loc}.png`, fullPage: true });
+      // Xong: tu Re-check, thanh "Not signed in" va het nut cai.
+      await expect(c.getByTestId("cli-st-codex_cli")).toHaveText(rlt.t("set.cli.st.notloggedin"), { timeout: 10_000 });
+      await expect(c.getByTestId("install-run-codex_cli")).toHaveCount(0);
+      await expect(c.getByTestId("cli-found-codex_cli")).toContainText("/fake/bin/codex_cli");
+    });
+
+    test("Cai giup agy: hop xac nhan hien lenh curl; dong y thi goi dung nha cung cap", async ({ page, rlt }) => {
+      await openAiSettings(page, rlt, { locale: loc });
+      const c = page.getByTestId("cli-card-antigravity_cli");
+      await c.getByTestId("install-run-antigravity_cli").click();
+      await expect(c.getByTestId("install-confirm-cmd-antigravity_cli")).toHaveText(CMD.antigravity_cli);
+      await c.getByTestId("install-confirm-ok-antigravity_cli").click();
+      expect((await rlt.calls("ai_install_start")).map(x => x.args)).toEqual([{ provider: "antigravity_cli" }]);
+      await expect(c.getByTestId("cli-st-antigravity_cli")).toHaveText(rlt.t("set.cli.st.notloggedin"), { timeout: 10_000 });
+    });
+
+    test("Huy khi dang cai", async ({ page, rlt }) => {
+      await openAiSettings(page, rlt, { locale: loc, installSteps: 1000 });
+      const c = page.getByTestId("cli-card-codex_cli");
+      await c.getByTestId("install-run-codex_cli").click();
+      await c.getByTestId("install-confirm-ok-codex_cli").click();
+      await c.getByTestId("install-cancel-codex_cli").click();
+      await expect(c.getByTestId("install-state-codex_cli").getByText(rlt.t("set.install.cancelled"))).toBeVisible();
+      expect((await rlt.calls("ai_install_cancel")).length).toBe(1);
+      await expect(c.getByTestId("cli-st-codex_cli")).toHaveText(rlt.t("set.cli.st.notinstalled"));
+    });
+
+    test("Cai loi: bao loi ro va hien dong cuoi cua dau ra; con nut thu lai", async ({ page, rlt }) => {
+      await openAiSettings(page, rlt, { locale: loc, installFail: true });
+      const c = page.getByTestId("cli-card-codex_cli");
+      await c.getByTestId("install-run-codex_cli").click();
+      await c.getByTestId("install-confirm-ok-codex_cli").click();
+      await expect(c.getByRole("alert").filter({ hasText: rlt.t("set.install.err.failed") })).toBeVisible({ timeout: 10_000 });
+      await expect(c.getByTestId("install-tail-codex_cli")).toHaveText("fake: EACCES permission denied");
+      await expect(c.getByTestId("install-run-codex_cli")).toBeEnabled();
+      await page.screenshot({ path: `test/e2e/screenshots/ai-cli-install-failed-${loc}.png`, fullPage: true });
+    });
+
+    test("Codex khong co npm: bao ro, nut Cai giup tat, van chep lenh duoc", async ({ page, rlt }) => {
+      await openAiSettings(page, rlt, { locale: loc, installNpmMissing: true });
+      const c = page.getByTestId("cli-card-codex_cli");
+      await expect(c.getByTestId("install-nonpm-codex_cli")).toHaveText(rlt.t("set.install.nonpm"));
+      await expect(c.getByTestId("install-run-codex_cli")).toBeDisabled();
+      await expect(c.getByTestId("install-copy-codex_cli")).toBeEnabled();
+    });
+
+    test("Chep lenh va mo trang cai: clipboard co dung lenh, trang mo qua lenh co dinh (khong gui URL)", async ({ page, rlt }) => {
+      await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+      await openAiSettings(page, rlt, { locale: loc });
+      for (const p of ["claude_cli", "codex_cli", "antigravity_cli"] as const) {
+        const c = page.getByTestId(`cli-card-${p}`);
+        await c.getByTestId(`install-copy-${p}`).click();
+        await expect(c.getByTestId(`install-note-cmd-${p}`)).toHaveText(CMD[p]);
+        expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(CMD[p]);
+      }
+      const pages = await rlt.calls("ai_install_open_page");
+      expect(pages.map(x => x.args)).toEqual([{ provider: "claude_cli" }, { provider: "codex_cli" }, { provider: "antigravity_cli" }]);
+      expect((await rlt.calls("ai_install_start")).length).toBe(0);
+    });
+  });
+}

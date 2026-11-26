@@ -24,6 +24,12 @@ export interface MockSeed {
   captures?: Record<string, unknown[]>;
   // So anh docx khong doc duoc ma session_export bao ve (mac dinh 0: khong canh bao).
   exportMissing?: number;
+  // Trang thai CLI gia ban dau (ai_cli_status), gop de len mac dinh; va cac cong tac cua cai CLI gia (KHONG cai that):
+  // installNpmMissing = may khong co npm; installFail = lan cai gia thoat loi; installSteps = so lan poll truoc khi xong.
+  cli?: Record<string, { path: string | null; version: string | null; status: string }>;
+  installNpmMissing?: boolean;
+  installFail?: boolean;
+  installSteps?: number;
   // Usage Logs (stale-while-revalidate). cached = ban Soniox da luu (lenh usage_week_cached); live = so Soniox ma
   // usage_week_source tra ve; liveFail = ly do du phong cuc bo (vd "network") thay cho live; hold = giu usage_week_source
   // cho den khi test goi __rlt.releaseUsage(). Moi thoi diem la epoch giay. Mac dinh: khong cache, nguon tra du phong "no_key".
@@ -83,7 +89,12 @@ export function installTauriMock(seed: MockSeed): void {
       claude_cli: { path: "/opt/homebrew/bin/claude", version: "2.1.332 (Claude Code)", status: "not_logged_in" },
       codex_cli: { path: "/opt/homebrew/bin/codex", version: "codex-cli 0.166.0", status: "not_logged_in" },
       antigravity_cli: { path: null, version: null, status: "not_installed" },
+      ...(seed.cli ?? {}),
     } as Record<string, { path: string | null; version: string | null; status: string }>,
+    // Cai CLI gia: chi ghi nhan lenh goi, khong chay gi. Lenh/trang cai la hang so, giong backend that.
+    install: null as null | { provider: string; phase: string; error: string | null; tail: string[]; remaining_secs: number },
+    installCalls: [] as string[],
+    installPolls: 0,
     usageCleared: false,
     aiConsent: {} as Record<string, boolean>,
     convs: [] as any[],
@@ -352,6 +363,30 @@ export function installTauriMock(seed: MockSeed): void {
     },
     ai_login_cancel: () => { state.loginCalls.push("cancel"); if (state.login) state.login.phase = "cancelled"; },
     ai_login_open: () => { state.loginCalls.push("open"); },
+    ai_install_info: (a) => {
+      const agy = a.provider === "antigravity_cli";
+      return {
+        command: a.provider === "codex_cli" ? "npm install -g @openai/codex" : agy ? "curl -fsSL https://antigravity.google/cli/install.sh | bash" : "curl -fsSL https://claude.ai/install.sh | bash",
+        page: a.provider === "codex_cli" ? "https://github.com/openai/codex" : agy ? "https://antigravity.google/cli" : "https://claude.com/claude-code",
+        can_run: a.provider !== "claude_cli" && !(a.provider === "codex_cli" && seed.installNpmMissing),
+        npm_missing: a.provider === "codex_cli" && !!seed.installNpmMissing,
+      };
+    },
+    ai_install_start: (a) => {
+      if (a.provider === "claude_cli") throw "install_unsupported";
+      state.installCalls.push("start:" + a.provider); state.installPolls = 0;
+      state.install = { provider: a.provider, phase: "running", error: null, tail: ["fake: downloading"], remaining_secs: 600 };
+    },
+    ai_install_poll: () => {
+      const i = state.install;
+      if (i && i.phase === "running" && ++state.installPolls > (seed.installSteps ?? 2)) {
+        if (seed.installFail) { i.phase = "failed"; i.error = "install_failed"; i.tail = ["fake: EACCES permission denied"]; }
+        else { i.phase = "done"; i.tail = ["fake: done"]; state.cli[i.provider] = { path: "/fake/bin/" + i.provider, version: "fake 1.0", status: "not_logged_in" }; }
+      }
+      return i ? { phase: i.phase, error: i.error, tail: i.tail, remaining_secs: i.remaining_secs } : null;
+    },
+    ai_install_cancel: () => { state.installCalls.push("cancel"); if (state.install?.phase === "running") state.install.phase = "cancelled"; },
+    ai_install_open_page: (a) => { state.installCalls.push("page:" + a.provider); },
     ai_list_models: () => clone(state.ai.compatModels),
     "plugin:event|listen": (a) => { const id = state.listeners.length + 1; state.listeners.push({ event: a.event, id, cb: a.handler }); return id; },
     "plugin:window|start_dragging": () => undefined,
