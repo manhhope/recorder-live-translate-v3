@@ -230,6 +230,10 @@ pub fn claude_args() -> Vec<String> {
         "1",
         "--no-session-persistence",
         "--strict-mcp-config",
+        "--setting-sources",
+        "",
+        "--permission-mode",
+        "dontAsk",
         "--disallowedTools",
         "Bash,Edit,Write,Read,Glob,Grep,WebFetch,WebSearch,Task,NotebookEdit",
     ]
@@ -707,6 +711,11 @@ mod tests {
         assert_eq!(a[j + 1], "1");
         assert!(a.contains(&"--no-session-persistence".to_string()));
         assert!(a.contains(&"-p".to_string()));
+        // AC-60.4: khong nap hook/skill/CLAUDE.md cua may nguoi dung, va tu choi moi quyen.
+        let s = a.iter().position(|x| x == "--setting-sources").unwrap();
+        assert_eq!(a[s + 1], "", "--setting-sources phai di kem chuoi rong");
+        let m = a.iter().position(|x| x == "--permission-mode").unwrap();
+        assert_eq!(a[m + 1], "dontAsk");
         assert!(!a.iter().any(|x| x == "--allowedTools" || x == "--allowed-tools"), "khong dung danh sach cho phep rong");
         // Noi dung nguoi dung khong bao gio nam trong doi so.
         assert!(!claude_args().concat().contains("transcript"));
