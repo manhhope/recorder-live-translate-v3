@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { keysFor, micState, screenState, boolState, missingRequired, shouldAutoShow, takeReminders, permOfStartError, remindOnStart, loadOff, saveOff, OFF_KEY, type PermStates, type PermKey } from "./perm-welcome.ts";
+import { keysFor, micState, screenState, boolState, missingRequired, shouldAutoShow, takeReminders, permOfStartError, remindOnStart, paneForStartError, loadOff, saveOff, OFF_KEY, type PermStates, type PermKey } from "./perm-welcome.ts";
 
 const S = (mic: PermStates["mic"], screen: PermStates["screen"], ax: PermStates["ax"] = "allowed"): PermStates => ({ mic, screen, ax });
 const mem = () => { const m = new Map<string, string>(); return { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) }; };

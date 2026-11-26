@@ -11,7 +11,9 @@
   import { app, fmtClock, openAsk, type Level } from "../lib/app.svelte.ts";
   import { AUTO } from "../lib/langs.ts";
   import * as api from "../lib/api.ts";
-  import { openPermWelcome, remindMissingOnStart } from "../lib/perm-welcome.svelte.ts";
+  import { openPermWelcome, remindMissingOnStart, openPane } from "../lib/perm-welcome.svelte.ts";
+  import { paneForStartError } from "../lib/perm-welcome.ts";
+  import { isWindows } from "../lib/platform.ts";
   import type { LineDto, StatusCode } from "../lib/api.ts";
   import { Follow } from "../lib/follow.svelte.ts";
   import { rec, resetForNewSession, openChannel, sync } from "../lib/rec.svelte.ts";
@@ -60,6 +62,7 @@
     status ? STATUS_KEY[status] : state === "paused" ? "status.paused" : state === "stopping" ? "status.stopping"
       : state === "recording" ? (level > 0.03 ? "status.listening" : "status.silent") : "status.ready",
   );
+  const permPane = $derived(errCode ? paneForStartError(errCode, isWindows()) : null);
   const errKey = (c: string) => api.errKeyOf(c, k => $_(k) !== k);
 
   onMount(() => {
@@ -200,7 +203,13 @@
 {#if errCode}
   <div class="card" role="alert" style="margin:8px 18px"><span class="bd rec"><Icon name="warn" />{$_(errKey(errCode))}</span>
     {#if errTech}<div data-testid="err-tech" style="margin-top:6px;font-size:12px;opacity:.85;word-break:break-word">{$_("err.tech")}: {errTech}</div>{/if}
-    {#if errCode.startsWith("permission")}<button type="button" class="btn sm" data-testid="perm-review" style="margin-left:8px" onclick={() => openPermWelcome(errCode === "permission_mic" ? "mic" : "screen")}><Icon name="shield" />{$_("pw.review")}</button>{/if}</div>
+    {#if permPane}
+      <div data-testid="perm-todo" style="margin-top:6px;font-size:12px">{$_(isWindows() ? "rec.perm.todo.win" : "rec.perm.todo")}</div>
+      <div class="tl2" style="margin-top:8px">
+        <button type="button" class="btn sm primary" data-testid="perm-open-settings" onclick={() => openPane(permPane === "microphone" ? "mic" : "screen")}><Icon name="link" />{$_("set.perm.opensys")}</button>
+        <button type="button" class="btn sm" data-testid="perm-review" onclick={() => openPermWelcome(errCode === "permission_mic" ? "mic" : "screen")}><Icon name="shield" />{$_("pw.review")}</button>
+      </div>
+    {/if}</div>
 {/if}
 
 {#if askConsent}

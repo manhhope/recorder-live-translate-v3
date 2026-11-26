@@ -992,5 +992,7 @@
   "set.install.notfound": "The installer finished, but the program was not found yet. Restart the app, or set its path under Advanced, then press Re-check.",
   "set.install.copied": "Command copied and the install page opened in your browser:",
   "set.install.copyfail": "Could not copy automatically. Select this command and copy it by hand:",
-  "set.install.openfail": "Could not open the browser. Open this page yourself: {url}"
+  "set.install.openfail": "Could not open the browser. Open this page yourself: {url}",
+  "rec.perm.todo": "Open System Settings, switch Recorder Live Translate on, then click Start again.",
+  "rec.perm.todo.win": "Open Settings, switch on microphone access for desktop apps, then click Start again."
 }

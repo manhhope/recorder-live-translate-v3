@@ -992,5 +992,7 @@
   "set.install.notfound": "O instalador terminou, mas o programa ainda não foi encontrado. Reinicie a aplicação ou indique o caminho em Avançado e prima Verificar de novo.",
   "set.install.copied": "Comando copiado e página de instalação aberta no navegador:",
   "set.install.copyfail": "Não foi possível copiar automaticamente. Selecione este comando e copie-o manualmente:",
-  "set.install.openfail": "Não foi possível abrir o navegador. Abra você mesmo esta página: {url}"
+  "set.install.openfail": "Não foi possível abrir o navegador. Abra você mesmo esta página: {url}",
+  "rec.perm.todo": "Abra as Definições do Sistema, ative o Recorder Live Translate e clique em Iniciar novamente.",
+  "rec.perm.todo.win": "Abra as Definições, ative o acesso ao microfone para as aplicações de ambiente de trabalho e clique em Iniciar novamente."
 }

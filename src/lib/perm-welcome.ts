@@ -78,3 +78,13 @@ export function remindOnStart(code: string, reminded: Set<PermKey>, off: boolean
   if (!k || off) return null;
   return takeReminders(reminded, [k]).length ? k : null;
 }
+
+/**
+ * Ngan Cai dat He thong mo thang tu the loi quyen o man Ghi. Windows chi co ngan Micro (am thanh he thong khong can quyen),
+ * macOS: micro -> Micro, con lai (screen, permission chung) -> Ghi man hinh va am thanh he thong.
+ */
+export function paneForStartError(code: string, windows: boolean): "microphone" | "screen_recording" | null {
+  if (!code.startsWith("permission")) return null;
+  if (windows || code === "permission_mic") return "microphone";
+  return "screen_recording";
+}
