@@ -1,11 +1,13 @@
-// Chup anh ra soat UX (khong phai test san pham). Chay: npx playwright test test/e2e/ux-shots.spec.ts
+// Chup anh ra soat UX (khong phai test san pham, mac dinh BO QUA). Chay: UX_SHOTS=1 [UX_SHOTS_DIR=img-sau] npx playwright test test/e2e/ux-shots.spec.ts
 import { test, expect } from "./fixtures.ts";
 import type { Page } from "@playwright/test";
 import { mkdirSync, appendFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const ROOT = resolve(import.meta.dirname, "../../docs/ux-review/img");
-const LOG = resolve(import.meta.dirname, "../../docs/ux-review/shots-log.txt");
+const OUT = process.env.UX_SHOTS_DIR ?? "img";
+const ROOT = resolve(import.meta.dirname, "../../docs/ux-review", OUT);
+const LOG = resolve(import.meta.dirname, "../../docs/ux-review", `shots-log-${OUT}.txt`);
+test.skip(!process.env.UX_SHOTS, "Cong cu chup anh, chi chay khi dat UX_SHOTS=1");
 const NOT_INST = { path: null, version: null, status: "not_installed" };
 const MISSING = { claude_cli: NOT_INST, codex_cli: NOT_INST, antigravity_cli: NOT_INST };
 
