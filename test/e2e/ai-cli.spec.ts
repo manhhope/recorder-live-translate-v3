@@ -31,8 +31,8 @@ for (const loc of ["en", "pt-PT"] as const) {
       await rlt.open({ locale: loc });
       await rlt.nav("nav.settings").click();
       await page.getByRole("navigation", { name: rlt.t("nav.settings") }).getByRole("button", { name: rlt.t("set.tab.translate") }).click();
-      const c = page.getByTestId("cli-card");
-      await expect(c.getByTestId("cli-risk")).toHaveText(rlt.t("set.cli.risk"));
+      const c = page.getByTestId("cli-card-claude_cli");
+      await expect(c.getByTestId("cli-risk-claude_cli")).toHaveText(rlt.t("set.cli.risk"));
       const path = c.getByLabel(rlt.t("set.cli.path"));
       const save = page.getByRole("button", { name: rlt.t("ai.settings.save"), exact: true });
       await path.fill("claude");

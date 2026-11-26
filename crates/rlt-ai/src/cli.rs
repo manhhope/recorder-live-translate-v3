@@ -756,10 +756,12 @@ mod tests {
         assert!(is_forbidden_location(Path::new("C:\\Users\\a\\AppData\\Local\\Microsoft\\WindowsApps\\claude.exe")));
         assert!(validate_path_override("").is_ok());
         assert!(validate_path_override("claude").is_err());
-        assert!(validate_path_override("/usr/local/bin/claude").is_ok());
+        // Duong dan tuyet doi hop le theo tung he dieu hanh (tren Windows "/usr/..." khong tuyet doi).
+        let abs_ok = if cfg!(windows) { "C:\\tools\\claude.exe" } else { "/usr/local/bin/claude" };
+        assert!(validate_path_override(abs_ok).is_ok());
         assert!(validate_path_override("/a\n/b").is_err());
         assert!(find_binary(Os::Mac, CliKind::Claude, Some("relative/claude"), &env, &|_| true).is_none());
-        assert_eq!(find_binary(Os::Mac, CliKind::Claude, Some(" /opt/c/claude "), &env, &|_| true), Some(PathBuf::from("/opt/c/claude")));
+        assert_eq!(find_binary(Os::Mac, CliKind::Claude, Some(&format!(" {abs_ok} ")), &env, &|_| true), Some(PathBuf::from(abs_ok)));
     }
 
     #[test]
