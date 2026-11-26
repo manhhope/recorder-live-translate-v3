@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ai-install-open-page"
+description = "Enables the ai_install_open_page command without any pre-configured scope."
+commands.allow = ["ai_install_open_page"]
+
+[[permission]]
+identifier = "deny-ai-install-open-page"
+description = "Denies the ai_install_open_page command without any pre-configured scope."
+commands.deny = ["ai_install_open_page"]

@@ -3,7 +3,7 @@ import { test, expect } from "./fixtures.ts";
 test.describe("Doi ngon ngu giao dien en <-> pt-PT", () => {
   test("lan dau mo la pt-PT, doi sang en roi quay lai, nho lua chon sau khi tai lai", async ({ page, rlt }) => {
     await rlt.open({ locale: "pt-PT" });
-    const toggle = page.getByRole("button", { name: rlt.t("ui.lang.aria", {}, "pt-PT") });
+    const toggle = page.getByRole("button", { name: rlt.t("ui.lang.to.en", {}, "pt-PT") });
     await expect(toggle).toHaveText(/PT/);
     await expect(rlt.btn("tool.start")).toHaveText(new RegExp(rlt.t("tool.start", {}, "pt-PT")));
     await expect(page.getByText(rlt.t("rec.empty.title", {}, "pt-PT"))).toBeVisible();
@@ -12,14 +12,14 @@ test.describe("Doi ngon ngu giao dien en <-> pt-PT", () => {
 
     await toggle.click();
     await expect(page.getByText(rlt.t("rec.empty.title", {}, "en"))).toBeVisible();
-    await expect(page.getByRole("button", { name: rlt.t("ui.lang.aria", {}, "en") })).toHaveText(/EN/);
+    await expect(page.getByRole("button", { name: rlt.t("ui.lang.to.pt", {}, "en") })).toHaveText(/EN/);
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     expect(await page.evaluate(() => localStorage.getItem("rlt.ui.locale"))).toBe("en");
 
     await page.reload();
     await expect(page.getByText(rlt.t("rec.empty.title", {}, "en"))).toBeVisible();
 
-    await page.getByRole("button", { name: rlt.t("ui.lang.aria", {}, "en") }).click();
+    await page.getByRole("button", { name: rlt.t("ui.lang.to.pt", {}, "en") }).click();
     await expect(page.getByText(rlt.t("rec.empty.title", {}, "pt-PT"))).toBeVisible();
   });
 
@@ -27,9 +27,9 @@ test.describe("Doi ngon ngu giao dien en <-> pt-PT", () => {
     await rlt.open({ locale: "en" });
     const switchTo = async (to: "en" | "pt-PT") => {
       const from = to === "en" ? "pt-PT" : "en";
-      await page.getByRole("button", { name: rlt.t("ui.lang.aria", {}, from) }).click();
+      await page.getByRole("button", { name: rlt.t(from === "en" ? "ui.lang.to.pt" : "ui.lang.to.en", {}, from) }).click();
       rlt.locale = to;
-      await expect(page.getByRole("button", { name: rlt.t("ui.lang.aria", {}, to) })).toBeVisible();
+      await expect(page.getByRole("button", { name: rlt.t(to === "en" ? "ui.lang.to.pt" : "ui.lang.to.en", {}, to) })).toBeVisible();
     };
     await switchTo("pt-PT");
 

@@ -65,8 +65,8 @@
   --rlt-sel: rgba(10, 91, 196, 0.12);   /* nen chu boi chon */
   --rlt-stopbg: #C5221A;   /* nut Dung: chu trang 5,81 tren nen */
   --rlt-stopfg: #FFFFFF;
-  --rlt-focus: #0A5BC4;    /* vong focus 3 px, mo 12% */
-  --rlt-focus-ring: 0 0 0 3px rgba(10, 91, 196, 0.12);
+  --rlt-focus: #0A5BC4;    /* vong focus 3 px, dam 38% */
+  --rlt-focus-ring: 0 0 0 3px rgba(10, 91, 196, 0.38);
 
   /* ---------- Do bong ---------- */
   --rlt-sh1: 0 1px 2px rgba(0, 0, 0, 0.08);
@@ -93,8 +93,8 @@
     --rlt-sel: rgba(106, 166, 255, 0.18);
     --rlt-stopbg: #FF6B63;   /* chu #1C1C1E tren nen Dung: 6,10 */
     --rlt-stopfg: #1C1C1E;
-    --rlt-focus: #6AA6FF;    /* vong focus 3 px, mo 18% */
-    --rlt-focus-ring: 0 0 0 3px rgba(106, 166, 255, 0.18);
+    --rlt-focus: #6AA6FF;    /* vong focus 3 px, dam 42% */
+    --rlt-focus-ring: 0 0 0 3px rgba(106, 166, 255, 0.42);
     --rlt-sh1: 0 1px 2px rgba(0, 0, 0, 0.4);
     --rlt-sh2: 0 8px 24px rgba(0, 0, 0, 0.5);
   }
@@ -120,7 +120,7 @@
   --rlt-stopbg: #FF6B63;
   --rlt-stopfg: #1C1C1E;
   --rlt-focus: #6AA6FF;
-  --rlt-focus-ring: 0 0 0 3px rgba(106, 166, 255, 0.18);
+  --rlt-focus-ring: 0 0 0 3px rgba(106, 166, 255, 0.42);
   --rlt-sh1: 0 1px 2px rgba(0, 0, 0, 0.4);
   --rlt-sh2: 0 8px 24px rgba(0, 0, 0, 0.5);
 }

@@ -363,6 +363,10 @@ pub fn on_run_event(app: &AppHandle, event: &RunEvent) {
             }
         }
         RunEvent::Exit => {
+            // RV M1: tien trinh `claude auth login` / `codex login` dang cho phai chet cung app, khong mo coi.
+            if let Some(ai) = app.try_state::<crate::ai::AiState>() {
+                ai.shutdown_login();
+            }
             if let Some(st) = app.try_state::<ShellState>() {
                 st.shortcuts.lock().unwrap().release_all();
                 let _ = st.power.release();

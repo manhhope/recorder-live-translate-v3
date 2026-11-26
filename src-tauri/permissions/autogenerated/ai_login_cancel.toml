@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ai-login-cancel"
+description = "Enables the ai_login_cancel command without any pre-configured scope."
+commands.allow = ["ai_login_cancel"]
+
+[[permission]]
+identifier = "deny-ai-login-cancel"
+description = "Denies the ai_login_cancel command without any pre-configured scope."
+commands.deny = ["ai_login_cancel"]

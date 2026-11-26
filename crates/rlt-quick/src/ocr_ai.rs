@@ -66,6 +66,7 @@ pub fn consent_text(kind: ProviderKind, model: &str) -> (String, String) {
         ProviderKind::Compat => "the OpenAI-compatible endpoint in your settings",
         ProviderKind::ClaudeCli => "the Claude CLI on this computer",
         ProviderKind::CodexCli => "the Codex CLI on this computer",
+        ProviderKind::AntigravityCli => "the Antigravity CLI on this computer",
     };
     let title = "Send the captured image to an AI model? / Enviar a imagem capturada a um modelo de IA?".to_string();
     let body = format!(

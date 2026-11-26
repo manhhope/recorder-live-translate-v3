@@ -1,7 +1,7 @@
 <script lang="ts">
   // Tab "Tro ly AI" trong Cai dat (phuong an A, US-47). Khoa API chi NHAP VAO: o nhap la mat khau, bi xoa ngay sau khi
   // luu, va giao dien chi biet "da co khoa / chua co" (`has_key`). Khong co duong nao doc khoa tu Keychain ve day.
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { _, locale } from "svelte-i18n";
   import Icon from "../lib/Icon.svelte";
   import LoadError from "../lib/LoadError.svelte";
@@ -22,7 +22,7 @@
   let models = $state<Record<string, string>>({});
   let ollamaUrl = $state("");
   let compatUrl = $state("");
-  let cliPaths = $state<Record<string, string>>({ claude_cli: "", codex_cli: "" });
+  let cliPaths = $state<Record<string, string>>({ claude_cli: "", codex_cli: "", antigravity_cli: "" });
   let compatModels = $state<string[]>([]);
   let compatList = $state<"idle" | "running" | "ok" | "manual">("idle");
   let chars = $state(60000);
@@ -41,7 +41,7 @@
   const cliProvs = $derived(api.enabledProviders(api.CLI_PROVIDERS, s));
   const hasKey = (p: Provider) => s?.providers.find(x => x.provider === p)?.has_key ?? false;
   // Endpoint tuong thich khong co model mac dinh gia (AC-57.5): ten model do nguoi dung nhap hoac chon.
-  const defModel = (p: Provider) => ({ gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "", claude_cli: "", codex_cli: "" })[p];
+  const defModel = (p: Provider) => ({ gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "", claude_cli: "", codex_cli: "", antigravity_cli: "" })[p];
   // Duong dan CLI nhu phia Rust (`rlt_ai::cli::validate_path_override`): rong la tu do; con lai la duong dan tuyet doi, khong xuong dong.
   const pathOk = (raw: string) => { const t = raw.trim(); return !t || (t.length <= 500 && !/[\u0000-\u001f\u007f]/.test(t) && (t.startsWith("/") || /^[A-Za-z]:[\\/]/.test(t))); };
   const cliPathOk = $derived(cliProvs.every(p => pathOk(cliPaths[p] ?? "")));
@@ -84,6 +84,95 @@
     try { await persist(); await api.testConnection(p); test[p] = "ok"; }
     catch (e) { test[p] = String(e); }
   }
+  // Dang nhap CLI trong app. Backend giu link/ma; day chi hien, mo, chep va nhap ma dan. Khong ghi nhat ky, khong luu.
+  let login = $state<api.LoginSnapshot | null>(null);
+  let loginFor = $state<Provider | null>(null);
+  let loginErr = $state<string | null>(null);
+  let pasted = $state("");
+  let copied = $state(false);
+  let timer: ReturnType<typeof setInterval> | null = null;
+  const busy = $derived(api.loginActive(login));
+  function stopPoll() { if (timer) { clearInterval(timer); timer = null; } }
+  async function poll() {
+    try {
+      login = await api.loginPoll();
+      if (!api.loginActive(login)) {
+        stopPoll();
+        if (login?.phase === "done") { test[loginFor ?? "claude_cli"] = "idle"; if (loginFor) void recheck(loginFor); }
+      }
+    } catch { stopPoll(); }
+  }
+  async function startLogin(p: Provider) {
+    loginErr = null; pasted = ""; copied = false; loginFor = p; login = null;
+    try { await persist(); await api.loginStart(p); } catch (e) { loginErr = String(e); return; }
+    await poll(); stopPoll(); timer = setInterval(poll, 1000);
+  }
+  async function sendCode() {
+    const v = pasted.trim(); if (!v) return;
+    try { await api.loginCode(v); pasted = ""; loginErr = null; await poll(); } catch (e) { loginErr = String(e); }
+  }
+  async function cancelLogin() { try { await api.loginCancel(); } catch { /* da dung */ } await poll(); }
+  async function openLogin() { try { await api.loginOpen(); } catch (e) { loginErr = String(e); } }
+  async function copyLink() {
+    if (!login?.url) return;
+    try { await navigator.clipboard.writeText(login.url); copied = true; setTimeout(() => (copied = false), 2000); } catch { loginErr = "login_copy_failed"; }
+  }
+  async function copyDeviceCode() {
+    if (!login?.device_code) return;
+    try { await navigator.clipboard.writeText(login.device_code); codeCopied = true; setTimeout(() => (codeCopied = false), 2000); } catch { loginErr = "login_copy_failed"; }
+  }
+  let codeCopied = $state(false);
+  const remainingText = (n: number) => $_("set.login.remaining", { values: { time: `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}` } });
+  // Tu do CLI khi mo tab: duong dan, phien ban, trang thai dang nhap (theo ma thoat cua CLI, KHONG doc file token).
+  let cli = $state<Partial<Record<Provider, api.CliInfo | "checking">>>({});
+  async function recheck(p: Provider) {
+    cli[p] = "checking";
+    try { cli[p] = await api.cliStatus(p); } catch { cli[p] = { path: null, version: null, status: "unknown" }; }
+    if (info(p)?.status === "not_installed") { try { instInfo[p] = await api.installInfo(p); } catch { /* khong co lenh cai de hien */ } }
+  }
+  // Cai CLI trong app. Lenh/trang cai la hang so o backend; day chi hoi dong y, hien tien trinh va goi lai kiem tra.
+  let instInfo = $state<Partial<Record<Provider, api.InstallInfo>>>({});
+  let confirmFor = $state<Provider | null>(null);
+  let inst = $state<api.InstallSnapshot | null>(null);
+  let instFor = $state<Provider | null>(null);
+  let instErr = $state<string | null>(null);
+  let instNote = $state<{ p: Provider; key: string; command?: string; url?: string } | null>(null);
+  let instTimer: ReturnType<typeof setInterval> | null = null;
+  const instBusy = $derived(api.installActive(inst));
+  function stopInstPoll() { if (instTimer) { clearInterval(instTimer); instTimer = null; } }
+  async function pollInstall() {
+    try {
+      inst = await api.installPoll();
+      if (!api.installActive(inst)) {
+        stopInstPoll();
+        if (inst?.phase === "done" && instFor) {
+          const p = instFor; await recheck(p);
+          if (info(p)?.status === "not_installed") instNote = { p, key: "set.install.notfound" };
+        }
+      }
+    } catch { stopInstPoll(); }
+  }
+  async function runInstall(p: Provider) {
+    confirmFor = null; instErr = null; instNote = null; instFor = p; inst = null;
+    try { await api.installStart(p); } catch (e) { instErr = String(e); return; }
+    await pollInstall(); stopInstPoll(); if (api.installActive(inst)) instTimer = setInterval(pollInstall, 1000);
+  }
+  const noteText = (n: { key: string; url?: string }) => $_(n.key, { values: { url: n.url ?? "" } });
+  async function cancelInstall() { try { await api.installCancel(); } catch { /* da dung */ } await pollInstall(); }
+  async function copyAndOpen(p: Provider) {
+    const cmd = instInfo[p]?.command; instNote = null;
+    if (!cmd) return;
+    let ok = true;
+    try { await navigator.clipboard.writeText(cmd); } catch { ok = false; }
+    try { await api.installOpenPage(p); instNote = { p, key: ok ? "set.install.copied" : "set.install.copyfail", command: cmd }; }
+    catch { instNote = { p, key: "set.install.openfail", command: cmd, url: instInfo[p]?.page }; }
+  }
+  async function recheckSaved(p: Provider) { try { await persist(); } catch { /* van kiem theo cai dat cu */ } await recheck(p); }
+  const info = (p: Provider): api.CliInfo | null => { const v = cli[p]; return v && v !== "checking" ? v : null; };
+  const foundText = (p: Provider) => $_("set.cli.found", { values: { path: info(p)?.path ?? "", version: info(p)?.version ?? "" } });
+  const stKey = (p: Provider) => { const v = cli[p]; return api.cliStatusKey(!v || v === "checking" ? "checking" : v.status); };
+  // M1: roi tab giua chung dang nhap thi huy, de khong con tien trinh CLI chay ngam.
+  onDestroy(() => { stopPoll(); stopInstPoll(); if (instBusy) void api.installCancel().catch(() => {}); if (busy) void api.loginCancel().catch(() => {}); });
   async function persist() {
     const input: api.AiSettingsInput = {
       default_provider: defaultProvider,
@@ -125,7 +214,7 @@
   // Doi ngon ngu thi prompt mac dinh (chua sua) doi theo.
   $effect(() => { void $locale; if (s) for (const c of s.chip_prompts) if (c.prompt === null) prompts[c.chip] = defPrompt(c.chip); });
 
-  onMount(() => { void firstLoad(); });
+  onMount(() => { void firstLoad().then(() => { for (const p of cliProvs) void recheck(p); }); });
 </script>
 
 {#if s}
@@ -204,18 +293,121 @@
     <p class="hint">{$_("set.compat.privacy")}</p>
   </div>
 
+  {#if cliProvs.length}<p class="hint risk" data-testid="cli-risk" style="margin-top:14px"><Icon name="warn" /> {$_("set.cli.risk")}</p>{/if}
   {#each cliProvs as p (p)}
-  <div class="card" style="margin-top:14px" data-testid="cli-card-{p}">
-    <h4><Icon name="warn" /> {$_(api.cliKey("set.cli.title", p))}</h4>
-    <div class="rw"><b>{$_(api.cliKey("set.cli.path", p))}</b>
-      <div class="rr"><label class="fld {pathOk(cliPaths[p] ?? '') ? '' : 'err'}"><input aria-label={$_(api.cliKey("set.cli.path", p))} aria-invalid={!pathOk(cliPaths[p] ?? "")} autocomplete="off" spellcheck="false" bind:value={cliPaths[p]} /></label></div></div>
-    <p class="hint" role={pathOk(cliPaths[p] ?? "") ? undefined : "alert"}>{pathOk(cliPaths[p] ?? "") ? $_(api.cliKey("set.cli.path.hint", p)) : $_("set.cli.path.bad")}</p>
-    <div class="rr" style="padding-top:6px">
-      <button type="button" class="btn sm" disabled={!pathOk(cliPaths[p] ?? "") || test[p] === "running"} onclick={() => runTest(p)}>{$_("set.test")}</button>
-      <span class="hint" role="status">{testText(p)}</span>
+  <div class="card" style="margin-top:8px" data-testid="cli-card-{p}">
+    <h4>{$_(api.cliKey("set.cli.title", p))}</h4>
+    <div class="rw" data-testid="cli-status-{p}">
+      <div>
+        <span class="bd {info(p)?.status === 'ready' ? 'ok' : ''}" role="status" data-testid="cli-st-{p}">{$_(stKey(p))}</span>
+        {#if info(p)?.path}
+          <small data-testid="cli-found-{p}">{foundText(p)}</small>
+        {/if}
+      </div>
+      <div class="rr">
+        {#if api.signInPrimary(p, info(p))}
+          <button type="button" class="btn sm primary" disabled={busy} onclick={() => startLogin(p)}>{$_("set.login.btn")}</button>
+        {/if}
+        <button type="button" class="btn sm ghost" disabled={cli[p] === "checking" || (busy && loginFor === p)} onclick={() => recheckSaved(p)}><Icon name="refresh" />{$_("set.cli.recheck")}</button>
+      </div>
     </div>
+    {#if info(p)?.status === "not_installed"}
+      <p class="hint" data-testid="cli-install-{p}">{$_(api.cliKey("set.cli.install", p))}</p>
+      {#if instInfo[p]}
+      <div class="rr" style="padding:6px 0" data-testid="install-btns-{p}">
+        {#if api.canInstallHere(p)}
+          <button type="button" class="btn sm primary" data-testid="install-run-{p}" disabled={!instInfo[p].can_run || instBusy || confirmFor === p} onclick={() => { confirmFor = p; instNote = null; }}>{$_("set.install.run")}</button>
+        {/if}
+        <button type="button" class="btn sm" data-testid="install-copy-{p}" onclick={() => copyAndOpen(p)}>{$_("set.install.copyopen")}</button>
+      </div>
+      {#if instInfo[p].npm_missing}<p class="hint errbox" role="alert" data-testid="install-nonpm-{p}">{$_("set.install.nonpm")}</p>{/if}
+      {#if confirmFor === p}
+      <div class="hint" role="alertdialog" aria-label={$_("set.install.confirm.title")} data-testid="install-confirm-{p}">
+        <p><b>{$_("set.install.confirm.title")}</b></p>
+        <p>{$_("set.install.confirm.body")}</p>
+        <code class="mono" style="word-break:break-all" data-testid="install-confirm-cmd-{p}">{instInfo[p].command}</code>
+        <div class="rr" style="padding-top:6px">
+          <button type="button" class="btn sm primary" data-testid="install-confirm-ok-{p}" onclick={() => runInstall(p)}>{$_("set.install.confirm.ok")}</button>
+          <button type="button" class="btn sm" data-testid="install-confirm-no-{p}" onclick={() => (confirmFor = null)}>{$_("set.install.confirm.no")}</button>
+        </div>
+      </div>
+      {/if}
+      {/if}
+      {#if instFor === p && (inst || instErr)}
+      <div class="hint {instErr || inst?.phase === 'failed' ? 'errbox' : ''}" role="status" data-testid="install-state-{p}">
+        {#if instErr}<span role="alert">{$_(api.installErrKey(instErr))}</span>
+        {:else if inst?.phase === "running"}{$_("set.install.running")}
+          <div class="rr" style="padding-top:6px"><button type="button" class="btn sm" data-testid="install-cancel-{p}" onclick={cancelInstall}>{$_("set.install.cancel")}</button></div>
+        {:else if inst?.phase === "done"}{$_("set.install.done")}
+        {:else if inst?.phase === "cancelled"}{$_("set.install.cancelled")}
+        {:else if inst?.phase === "failed"}<span role="alert">{$_(api.installErrKey(inst.error))}</span>{/if}
+        {#if inst?.tail.length}<pre class="mono" style="white-space:pre-wrap;margin:4px 0 0" data-testid="install-tail-{p}">{inst.tail.join("\n")}</pre>{/if}
+      </div>
+      {/if}
+      {#if instNote?.p === p}
+      <p class="hint" role="status" data-testid="install-note-{p}">{noteText(instNote)}{#if instNote.command && instNote.key !== "set.install.openfail"}<br /><code class="mono" style="word-break:break-all" data-testid="install-note-cmd-{p}">{instNote.command}</code>{/if}</p>
+      {/if}
+    {:else if info(p)?.status === "not_logged_in" || info(p)?.status === "unknown"}
+      <p class="hint" data-testid="cli-help-{p}">{$_(api.cliKey("set.cli.notloggedin.help", p))}</p>
+    {/if}
+    {#if api.canLogin(p)}
+    {#if busy && loginFor === p}
+    <div class="rr" style="padding-top:6px" data-testid="login-{p}">
+      <button type="button" class="btn sm" onclick={cancelLogin}>{$_("set.login.cancel")}</button>
+    </div>
+    {:else if !api.signInPrimary(p, info(p)) && info(p)?.status === "ready"}
+    <div class="rr" style="padding-top:6px" data-testid="login-{p}">
+      <button type="button" class="btn sm ghost" disabled={busy} onclick={() => startLogin(p)}>{$_("set.login.again")}</button>
+    </div>
+    {/if}
+    {#if loginFor === p && (login || loginErr)}
+      <div class="hint" role="status" data-testid="login-state-{p}">
+        {#if loginErr}<span role="alert">{$_(api.loginErrKey(loginErr, p))}</span>
+        {:else if login?.phase === "starting"}{$_("set.login.starting")}
+        {:else if login?.phase === "done"}{$_("set.login.done")}
+        {:else if login?.phase === "cancelled"}{$_("set.login.cancelled")}
+        {:else if login?.phase === "failed"}<span role="alert">{$_(api.loginErrKey(login.error, p))}</span>
+        {:else if login?.phase === "verifying"}{$_("set.login.verifying")}
+        {:else if login}
+          {#if login.device_code}
+            <p>{$_("set.login.devicecode")}</p>
+            <div class="rr" style="padding:4px 0">
+              <b class="mono" style="font-size:1.8em;letter-spacing:0.12em" data-testid="login-device-code">{login.device_code}</b>
+              <button type="button" class="btn sm" onclick={copyDeviceCode}>{codeCopied ? $_("set.login.copied") : $_("set.login.copycode")}</button>
+            </div>
+          {/if}
+          {#if login.url}
+            <p>{$_("set.login.link")}</p>
+            <code class="mono" style="word-break:break-all" data-testid="login-url">{login.url}</code>
+            <div class="rr" style="padding-top:6px">
+              <button type="button" class="btn sm primary" onclick={openLogin}>{login.device_code ? $_("set.login.opendevice") : $_("set.login.open")}</button>
+              <button type="button" class="btn sm" onclick={copyLink}>{copied ? $_("set.login.copied") : $_("set.login.copy")}</button>
+            </div>
+          {:else}{$_("set.login.starting")}{/if}
+          {#if login.needs_code}
+            <div class="rw"><b>{$_("set.login.code")}</b>
+              <div class="rr"><label class="fld"><input aria-label={$_("set.login.code")} type="password" autocomplete="off" spellcheck="false" bind:value={pasted} /></label>
+                <button type="button" class="btn sm primary" disabled={!pasted.trim() || login.phase === "code_sent"} onclick={sendCode}>{$_("set.login.verify")}</button></div></div>
+          {/if}
+          <p>{remainingText(login.remaining_secs)}</p>
+        {/if}
+      </div>
+    {/if}
+    {:else if p === "antigravity_cli"}
+    <p class="hint" data-testid="agy-signin-note">{$_("set.cli.signin.agy")}</p>
+    {/if}
+    <details class="adv" data-testid="cli-adv-{p}">
+      <summary>{$_("set.cli.adv")}</summary>
+      <div class="rw"><b>{$_(api.cliKey("set.cli.path", p))}</b>
+        <div class="rr"><label class="fld {pathOk(cliPaths[p] ?? '') ? '' : 'err'}"><input aria-label={$_(api.cliKey("set.cli.path", p))} aria-invalid={!pathOk(cliPaths[p] ?? "")} autocomplete="off" spellcheck="false" bind:value={cliPaths[p]} /></label></div></div>
+      <p class="hint">{$_(api.cliKey("set.cli.path.hint", p))}</p>
+      <div class="rr" style="padding-top:6px">
+        <button type="button" class="btn sm" disabled={!pathOk(cliPaths[p] ?? "") || test[p] === "running"} onclick={() => runTest(p)}>{$_("set.test")}</button>
+        <span class="hint" role="status">{testText(p)}</span>
+      </div>
+    </details>
+    {#if !pathOk(cliPaths[p] ?? "")}<p class="hint" role="alert">{$_("set.cli.path.bad")}</p>{/if}
     <p class="hint">{$_(api.cliKey("set.cli.need", p))}</p>
-    <p class="hint" data-testid="cli-risk-{p}">{$_("set.cli.risk")}</p>
   </div>
   {/each}
 

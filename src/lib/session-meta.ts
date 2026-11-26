@@ -12,3 +12,8 @@ export function sessionSubline(base: string, attachedImages: number, t: Translat
   const img = imagesLabel(attachedImages, t);
   return img ? `${base} · ${img}` : base;
 }
+
+/** Nhan "N line(s)" theo so it/nhieu (1 -> khoa .one, con lai -> khoa so nhieu co san). */
+export function linesLabel(n: number, t: Translate): string {
+  return t(n === 1 ? "ses.lines.one" : "ses.lines", { n });
+}

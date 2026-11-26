@@ -11,7 +11,9 @@
   import { app, fmtClock, openAsk, type Level } from "../lib/app.svelte.ts";
   import { AUTO } from "../lib/langs.ts";
   import * as api from "../lib/api.ts";
-  import { openPermWelcome, remindMissingOnStart } from "../lib/perm-welcome.svelte.ts";
+  import { openPermWelcome, remindMissingOnStart, openPane, permWelcome, refreshPerms } from "../lib/perm-welcome.svelte.ts";
+  import { paneForStartError, missingRequired } from "../lib/perm-welcome.ts";
+  import { isWindows } from "../lib/platform.ts";
   import type { LineDto, StatusCode } from "../lib/api.ts";
   import { Follow } from "../lib/follow.svelte.ts";
   import { rec, resetForNewSession, openChannel, sync } from "../lib/rec.svelte.ts";
@@ -60,6 +62,9 @@
     status ? STATUS_KEY[status] : state === "paused" ? "status.paused" : state === "stopping" ? "status.stopping"
       : state === "recording" ? (level > 0.03 ? "status.listening" : "status.silent") : "status.ready",
   );
+  const permPane = $derived(errCode ? paneForStartError(errCode, isWindows()) : null);
+  const permsOk = $derived(permWelcome.loaded && missingRequired(permWelcome.states).length === 0);
+  const ready = $derived(hasKey && permsOk && !!mode);
   const errKey = (c: string) => api.errKeyOf(c, k => $_(k) !== k);
 
   onMount(() => {
@@ -71,6 +76,7 @@
         app.sysOn = p.mode !== "mic";
         app.micOn = p.mode !== "system";
         hasKey = k; consent = c;
+        if (!permWelcome.loaded) void refreshPerms();
         await sync(); // phien dang chay (chuyen man roi ve): nap lai trang thai that + dong chot tu backend
       } catch (e) { errCode = api.errCode(e); }
       loaded = true;
@@ -200,7 +206,13 @@
 {#if errCode}
   <div class="card" role="alert" style="margin:8px 18px"><span class="bd rec"><Icon name="warn" />{$_(errKey(errCode))}</span>
     {#if errTech}<div data-testid="err-tech" style="margin-top:6px;font-size:12px;opacity:.85;word-break:break-word">{$_("err.tech")}: {errTech}</div>{/if}
-    {#if errCode.startsWith("permission")}<button type="button" class="btn sm" data-testid="perm-review" style="margin-left:8px" onclick={() => openPermWelcome(errCode === "permission_mic" ? "mic" : "screen")}><Icon name="shield" />{$_("pw.review")}</button>{/if}</div>
+    {#if permPane}
+      <div data-testid="perm-todo" style="margin-top:6px;font-size:12px">{$_(isWindows() ? "rec.perm.todo.win" : "rec.perm.todo")}</div>
+      <div class="tl2" style="margin-top:8px">
+        <button type="button" class="btn sm primary" data-testid="perm-open-settings" onclick={() => openPane(permPane === "microphone" ? "mic" : "screen")}><Icon name="link" />{$_("set.perm.opensys")}</button>
+        <button type="button" class="btn sm" data-testid="perm-review" onclick={() => openPermWelcome(errCode === "permission_mic" ? "mic" : "screen")}><Icon name="shield" />{$_("pw.review")}</button>
+      </div>
+    {/if}</div>
 {/if}
 
 {#if askConsent}
@@ -268,11 +280,22 @@
   {#if follow.away}<button type="button" class="jump" onclick={follow.jump}>{$_("rec.jump.latest")}</button>{/if}
   </div>
 {:else}
-  <div class="empty"><Icon name="mic" /><b>{$_("rec.empty.title")}</b><span>{$_(!mode ? "rec.empty.nosrc" : "rec.empty.hint")}</span></div>
+  <div class="empty" data-testid="rec-empty"><Icon name="mic" /><b>{$_("rec.empty.title")}</b><span>{$_(!mode ? "rec.empty.nosrc" : "rec.empty.hint")}</span>
+    {#if loaded}
+      <ol class="cl" data-testid="checklist" aria-label={$_("cl.title")}>
+        <li class={hasKey ? "done" : ""} data-testid="cl-key"><Icon name={hasKey ? "check" : "dot"} /><span>{hasKey ? $_("cl.key") + ": " + $_("cl.key.ok") : $_("rec.key.missing")}</span>
+          {#if !hasKey}<button type="button" class="btn sm" onclick={() => (askKey = true)}>{$_("cl.key.add")}</button>{/if}</li>
+        <li class={permsOk ? "done" : ""} data-testid="cl-perm"><Icon name={permsOk ? "check" : "dot"} /><span>{$_("cl.perm")}: {permsOk ? $_("cl.perm.ok") : ""}</span>
+          {#if !permsOk && permWelcome.loaded}<button type="button" class="btn sm" onclick={() => openPermWelcome()}>{$_("pw.review")}</button>{/if}</li>
+        <li class={mode ? "done" : ""} data-testid="cl-src"><Icon name={mode ? "check" : "dot"} /><span>{$_("cl.src")}: {mode ? $_("cl.src.ok") : $_("cl.src.off")}</span></li>
+      </ol>
+      <button type="button" class="btn primary" data-testid="cl-go" disabled={!ready || busy} onclick={toggle}>{$_("cl.go")}</button>
+      {#if !ready}<span class="hint">{$_("cl.wait")}</span>{/if}
+    {/if}
+  </div>
 {/if}
 
 <div class="foot">
   <span class="sb {state === 'recording' && !status ? 'ok' : ''}"><Icon name={active ? "mic" : "dot"} /><b>{$_(statusKey)}</b></span>
-  {#if !hasKey && loaded}<span class="fs">{$_("rec.key.missing")}</span>{/if}
   <TranscriptPrefs bind:prefs={tp} bind:view={app.view} {dark} />
 </div>

@@ -25,3 +25,12 @@ test("nhieu anh: so nhieu", () => {
   assert.equal(sessionSubline(BASE, 3, en), `${BASE} · 3 images`);
   assert.equal(imagesLabel(12, pt), "12 imagens");
 });
+
+test("linesLabel: 1 dong dung khoa so it, 0 va nhieu dong dung khoa so nhieu (en va pt-PT)", async () => {
+  const { linesLabel } = await import("./session-meta.ts");
+  assert.equal(linesLabel(1, en), "1 line");
+  assert.equal(linesLabel(0, en), "0 lines");
+  assert.equal(linesLabel(3, en), "3 lines");
+  assert.equal(linesLabel(1, pt), "1 linha");
+  assert.equal(linesLabel(2, pt), "2 linhas");
+});

@@ -847,9 +847,10 @@ async fn compat_khong_dung_cho_ocr_anh() {
     assert!(svc.ocr_target().is_ok(), "Ollama van dung duoc cho OCR nhu truoc");
 }
 
-// ---------- Codex: TAT mac dinh (RV 🔴-2); Claude van bat (US-58, US-60) ----------
+// ---------- Codex: BAT mac dinh tu 3.0.6 (chu quyet 2026-11-26, thay RV 🔴-2); Claude van bat (US-58, US-60) ----------
 
-// Chi chay khi co tinh nang `codex-cli` (spike co chu dich); ban mac dinh dung test "mac dinh tat" ben duoi.
+// Chay trong ban mac dinh (tinh nang `codex-cli` nam trong `default`). Test "tat" ben duoi chi chay khi build
+// `--no-default-features` (giu de tat lai van dung).
 #[cfg(feature = "codex-cli")]
 #[test]
 fn codex_cli_hien_trong_cai_dat_can_dong_y_va_chon_lam_mac_dinh_duoc() {
@@ -881,16 +882,16 @@ fn codex_cli_hien_trong_cai_dat_can_dong_y_va_chon_lam_mac_dinh_duoc() {
     assert!(svc.save_settings(&input).is_err());
 }
 
-/// Khoa mac dinh TAT: tinh nang `codex-cli` KHONG nam trong `default` cua rlt-ai va src-tauri (doc thang Cargo.toml,
-/// nen van bat duoc loi khi ai do them vao `default` du build hien tai co bat tinh nang hay khong).
+/// Khoa mac dinh BAT (3.0.6): tinh nang `codex-cli` nam trong `default` cua rlt-ai va src-tauri (doc thang Cargo.toml,
+/// nen bat duoc loi khi ai do lo tay bo khoi `default`).
 #[test]
-fn co_codex_mac_dinh_tat_trong_cargo_toml() {
+fn co_codex_bat_mac_dinh_trong_cargo_toml() {
     for f in ["Cargo.toml", "../../src-tauri/Cargo.toml"] {
         let t = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(f)).unwrap();
-        for l in t.lines().map(str::trim).filter(|l| l.starts_with("default") && l.contains('=')) {
-            assert!(!l.contains("codex-cli"), "{f}: `codex-cli` khong duoc nam trong default: {l}");
-        }
+        let d: Vec<&str> = t.lines().map(str::trim).filter(|l| l.starts_with("default") && l.contains('=')).collect();
+        assert!(d.iter().any(|l| l.contains("\"codex-cli\"")), "{f}: `codex-cli` phai nam trong default: {d:?}");
     }
+    assert!(ProviderKind::CodexCli.is_enabled(), "ban build mac dinh phai bat Codex");
 }
 
 #[cfg(not(feature = "codex-cli"))]

@@ -60,10 +60,10 @@
       <Icon name="gear" /><span>{$_("nav.settings")}</span><kbd>{platformize("⌘,")}</kbd>
     </button>
     <div class="ntools">
-      <button type="button" class="btn sm" aria-label={$_("ui.lang.aria")} title={$_("ui.lang.btn")} onclick={() => api.setUiLocale(setLocale, isPt ? "en" : "pt-PT")}>
+      <button type="button" class="btn sm" aria-label={$_(isPt ? "ui.lang.to.en" : "ui.lang.to.pt")} title={$_("ui.lang.btn")} onclick={() => api.setUiLocale(setLocale, isPt ? "en" : "pt-PT")}>
         <Icon name="globe" />{isPt ? "PT" : "EN"}
       </button>
-      <button type="button" class="btn sm icon" aria-label={$_(dark ? "theme.dark.hint" : "theme.light.hint")} title={$_(dark ? "theme.dark.hint" : "theme.light.hint")}
+      <button type="button" class="btn sm icon" aria-label={$_(dark ? "theme.to.light" : "theme.to.dark")} title={$_(dark ? "theme.dark.hint" : "theme.light.hint")}
         onclick={() => applyTheme(dark ? "light" : "dark")}>
         <Icon name={dark ? "moon" : "sun"} />
       </button>
