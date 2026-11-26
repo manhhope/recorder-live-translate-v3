@@ -1,6 +1,7 @@
 {
   "name": "recorder-live-translate-v3",
   "private": true,
+  "license": "MIT",
   "version": "3.0.5",
   "type": "module",
   "scripts": {

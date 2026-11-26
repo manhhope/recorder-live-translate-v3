@@ -5,7 +5,7 @@ members = ["crates/rlt-core", "crates/rlt-platform", "crates/rlt-store", "crates
 [workspace.package]
 version = "3.0.5"
 edition = "2021"
-license = "UNLICENSED"
+license = "MIT"
 
 [workspace.dependencies]
 rlt-core = { path = "crates/rlt-core" }
