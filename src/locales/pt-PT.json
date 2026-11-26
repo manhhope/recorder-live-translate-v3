@@ -518,7 +518,7 @@
   "rec.key.body": "Cole a sua chave API do Soniox. Fica guardada no cofre de chaves do sistema e nunca volta a ser mostrada.",
   "rec.key.placeholder": "Chave API do Soniox",
   "rec.key.save": "Guardar chave",
-  "rec.key.missing": "Chave Soniox por definir",
+  "rec.key.missing": "Sem chave Soniox",
   "rec.empty.nosrc": "Ative pelo menos uma fonte de áudio na barra acima.",
   "rec.stopped": "{n} linhas guardadas.",
   "rec.stopped.partial": "Podem faltar algumas das últimas palavras.",
@@ -1002,5 +1002,16 @@
   "rec.perm.todo.win": "Abra as Definições, ative o acesso ao microfone para as aplicações de ambiente de trabalho e clique em Iniciar novamente.",
   "ses.lines.one": "{n} linha",
   "ses.meta.label": "Data, duração, idioma de destino, linhas",
-  "ses.empty.cta": "Iniciar a primeira sessão"
+  "ses.empty.cta": "Iniciar a primeira sessão",
+  "cl.title": "Prepare-se em 3 passos",
+  "cl.key": "Chave Soniox",
+  "cl.key.ok": "Guardada",
+  "cl.key.add": "Adicionar chave",
+  "cl.perm": "Permissões",
+  "cl.perm.ok": "Concedidas",
+  "cl.src": "Fonte de áudio",
+  "cl.src.ok": "Ativa",
+  "cl.go": "Tudo pronto, vamos",
+  "cl.wait": "Conclua os passos acima para continuar.",
+  "cl.src.off": "Desligada"
 }

@@ -518,7 +518,7 @@
   "rec.key.body": "Paste your Soniox API key. It is stored in the operating system key store and never shown again.",
   "rec.key.placeholder": "Soniox API key",
   "rec.key.save": "Save key",
-  "rec.key.missing": "Soniox key not set",
+  "rec.key.missing": "No Soniox key",
   "rec.empty.nosrc": "Turn on at least one audio source in the bar above.",
   "rec.stopped": "Saved {n} lines.",
   "rec.stopped.partial": "Some of the last words may be missing.",
@@ -1002,5 +1002,16 @@
   "rec.perm.todo.win": "Open Settings, switch on microphone access for desktop apps, then click Start again.",
   "ses.lines.one": "{n} line",
   "ses.meta.label": "Date, duration, target language, lines",
-  "ses.empty.cta": "Start your first session"
+  "ses.empty.cta": "Start your first session",
+  "cl.title": "Get ready in 3 steps",
+  "cl.key": "Soniox key",
+  "cl.key.ok": "Saved",
+  "cl.key.add": "Add key",
+  "cl.perm": "Permissions",
+  "cl.perm.ok": "Granted",
+  "cl.src": "Audio source",
+  "cl.src.ok": "On",
+  "cl.go": "Ready, let us go",
+  "cl.wait": "Finish the steps above to continue.",
+  "cl.src.off": "Off"
 }
