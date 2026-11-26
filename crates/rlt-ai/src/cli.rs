@@ -510,11 +510,27 @@ impl CliStatus {
     }
 }
 
+/// PATH cho tien trinh con: thu muc chua chinh CLI dung dau, roi cac thu muc thong dung (`candidate_dirs`, da gom PATH
+/// cua app). Can vi `codex` la script `#!/usr/bin/env node`: app mo tu Finder chi co PATH toi gian nen khong tim thay
+/// `node` (thoat 127, thanh "Unknown") du `codex` o /opt/homebrew/bin; `claude` va `agy` la binary goc nen khong bi.
+pub(crate) fn child_path(bin: &Path) -> Option<std::ffi::OsString> {
+    let mut dirs: Vec<PathBuf> = bin.parent().map(|d| d.to_path_buf()).into_iter().collect();
+    for d in candidate_dirs(Os::current(), &Env::from_process()) {
+        if !dirs.contains(&d) {
+            dirs.push(d);
+        }
+    }
+    std::env::join_paths(dirs).ok()
+}
+
 pub(crate) fn base_command(bin: &Path, cwd: &Path) -> Command {
     let mut c = Command::new(bin);
     c.current_dir(cwd).kill_on_drop(true);
     for k in SCRUBBED_ENV {
         c.env_remove(k);
+    }
+    if let Some(path) = child_path(bin) {
+        c.env("PATH", path);
     }
     #[cfg(windows)]
     {
@@ -1096,6 +1112,27 @@ case "$IN" in *"cau hoi"*) echo "TRA LOI: da nhan stdin";; *) echo "KHONG-CO-STD
             assert_eq!(check_status_at(CliKind::Claude, &bin).await, CliStatus::NotLoggedIn);
             assert_eq!(check_status(CliKind::Claude, Some("/khong/co")).await, CliStatus::NotInstalled);
             assert!(matches!(CliStatus::NotLoggedIn.into_result(), Err(AiError::CliNotLoggedIn)));
+            let _ = std::fs::remove_dir_all(&d);
+        }
+
+        /// Codex that (codex-cli 0.166.0): `login status` thoat 0, in "Logged in using ChatGPT" ra STDERR; la script
+        /// `#!/usr/bin/env <runtime>`. Runtime gia chi nam canh script, khong co trong PATH: phai Ready nho `child_path`.
+        #[cfg(unix)]
+        #[tokio::test]
+        async fn codex_script_tim_duoc_runtime_canh_minh_du_path_khong_co() {
+            use std::os::unix::fs::PermissionsExt;
+            let d = holder();
+            let rt = format!("rlt-fake-node-{}", std::process::id());
+            std::fs::write(d.join(&rt), "#!/bin/sh\nexec /bin/sh \"$@\"\n").unwrap();
+            std::fs::set_permissions(d.join(&rt), std::fs::Permissions::from_mode(0o755)).unwrap();
+            let body = format!("#!/usr/bin/env {rt}\ncase \"$1\" in --version) echo 'codex-cli 0.166.0'; exit 0;; login) echo 'Logged in using ChatGPT' >&2; exit 0;; esac\n");
+            let bin = d.join("codex");
+            std::fs::write(&bin, body).unwrap();
+            std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+            assert_eq!(check_status_at(CliKind::Codex, &bin).await, CliStatus::Ready);
+            let body = format!("#!/usr/bin/env {rt}\ncase \"$1\" in --version) echo 'codex-cli 0.166.0'; exit 0;; login) echo 'Not logged in' >&2; exit 1;; esac\n");
+            std::fs::write(&bin, body).unwrap();
+            assert_eq!(check_status_at(CliKind::Codex, &bin).await, CliStatus::NotLoggedIn);
             let _ = std::fs::remove_dir_all(&d);
         }
 
