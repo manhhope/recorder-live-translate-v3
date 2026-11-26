@@ -1,6 +1,32 @@
 {
   "entries": [
     {
+      "version": "3.0.5",
+      "date": "2026-11-26",
+      "groups": {
+        "new": {
+          "en": [
+            "Ask AI can now use your Claude CLI sign-in as a fallback when no other AI connection is available.",
+            "AI summary of a recording: generate a summary of a finished recording.",
+            "The summary can be translated into another language."
+          ],
+          "pt-PT": [
+            "O Pergunte à IA pode agora usar o seu início de sessão do Claude CLI como alternativa quando não há outra ligação de IA disponível.",
+            "Resumo com IA de uma gravação: gere um resumo de uma gravação concluída.",
+            "O resumo pode ser traduzido para outro idioma."
+          ]
+        },
+        "improved": {
+          "en": [
+            "Codex is not enabled yet."
+          ],
+          "pt-PT": [
+            "O Codex ainda não está ativado."
+          ]
+        }
+      }
+    },
+    {
       "version": "3.0.4",
       "date": "2026-11-17",
       "groups": {
