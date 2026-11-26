@@ -8,6 +8,10 @@ description = "Recorder Live Translate v3 (Tauri 2)"
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+# Chuyen tiep co Codex cua rlt-ai (mac dinh TAT; chi bat co chu dich cho spike, xem rlt-ai/Cargo.toml).
+codex-cli = ["rlt-ai/codex-cli"]
+
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
 tauri-plugin-single-instance = "2"

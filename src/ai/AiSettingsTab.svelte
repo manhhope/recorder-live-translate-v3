@@ -22,6 +22,7 @@
   let models = $state<Record<string, string>>({});
   let ollamaUrl = $state("");
   let compatUrl = $state("");
+  let cliPaths = $state<Record<string, string>>({ claude_cli: "", codex_cli: "" });
   let compatModels = $state<string[]>([]);
   let compatList = $state<"idle" | "running" | "ok" | "manual">("idle");
   let chars = $state(60000);
@@ -35,9 +36,15 @@
   let loading = $state(true);
   let loadErr = $state<string | null>(null);
 
+  // Nha cung cap hien/chon duoc do backend quyet; Codex TAT mac dinh nen khong nam trong cac danh sach nay (RV 🔴-2).
+  const provs = $derived(api.enabledProviders(api.PROVIDERS, s));
+  const cliProvs = $derived(api.enabledProviders(api.CLI_PROVIDERS, s));
   const hasKey = (p: Provider) => s?.providers.find(x => x.provider === p)?.has_key ?? false;
   // Endpoint tuong thich khong co model mac dinh gia (AC-57.5): ten model do nguoi dung nhap hoac chon.
-  const defModel = (p: Provider) => ({ gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "" })[p];
+  const defModel = (p: Provider) => ({ gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "", claude_cli: "", codex_cli: "" })[p];
+  // Duong dan CLI nhu phia Rust (`rlt_ai::cli::validate_path_override`): rong la tu do; con lai la duong dan tuyet doi, khong xuong dong.
+  const pathOk = (raw: string) => { const t = raw.trim(); return !t || (t.length <= 500 && !/[\u0000-\u001f\u007f]/.test(t) && (t.startsWith("/") || /^[A-Za-z]:[\\/]/.test(t))); };
+  const cliPathOk = $derived(cliProvs.every(p => pathOk(cliPaths[p] ?? "")));
   const compatUrlOk = $derived(api.validCompatUrl(compatUrl));
   const compatModelOk = $derived(!!models.compat?.trim());
   const compatHint = $derived(
@@ -52,6 +59,7 @@
     for (const p of v.providers) models[p.provider] = p.model_name;
     ollamaUrl = v.providers.find(p => p.provider === "ollama")?.base_url ?? "";
     compatUrl = v.providers.find(p => p.provider === "compat")?.base_url ?? api.COMPAT_DEFAULT_URL;
+    for (const p of api.CLI_PROVIDERS) cliPaths[p] = v.providers.find(x => x.provider === p)?.base_url ?? "";
     for (const c of v.chip_prompts) prompts[c.chip] = c.prompt ?? defPrompt(c.chip);
   }
   async function refresh() { load(await withTimeout(api.getSettings())); }
@@ -80,10 +88,10 @@
     const input: api.AiSettingsInput = {
       default_provider: defaultProvider,
       context_max_chars: Number(chars), context_max_turns: Number(turns),
-      providers: api.PROVIDERS.map(p => ({
+      providers: provs.map(p => ({
         provider: p,
         model_name: models[p]?.trim() && models[p].trim() !== defModel(p) ? models[p].trim() : null,
-        base_url: p === "ollama" ? (ollamaUrl.trim() || null) : p === "compat" ? (compatUrl.trim() || null) : null,
+        base_url: p === "ollama" ? (ollamaUrl.trim() || null) : p === "compat" ? (compatUrl.trim() || null) : api.isCli(p) ? (cliPaths[p]?.trim() || null) : null,
       })),
       chip_prompts: CHIPS.map(c => ({ chip: c.kind, prompt: prompts[c.kind]?.trim() && prompts[c.kind].trim() !== defPrompt(c.kind) ? prompts[c.kind].trim() : null })),
     };
@@ -95,9 +103,10 @@
   }
   function resetTab() {
     defaultProvider = null; chars = 60000; turns = 10;
-    for (const p of api.PROVIDERS) models[p] = defModel(p);
+    for (const p of provs) models[p] = defModel(p);
     ollamaUrl = "http://localhost:11434";
     compatUrl = api.COMPAT_DEFAULT_URL; compatModels = []; compatList = "idle";
+    for (const p of cliProvs) cliPaths[p] = "";
     for (const c of CHIPS) prompts[c.kind] = defPrompt(c.kind);
   }
   const testText = (p: Provider) => {
@@ -127,7 +136,7 @@
     <div class="rr">
       <select class="sel" aria-label={$_("ask.model.pick")} bind:value={defaultProvider}>
         <option value={null}>{$_("ask.model.none")}</option>
-        {#each api.PROVIDERS as p (p)}<option value={p}>{$_(api.providerLabelKey(p))}</option>{/each}
+        {#each provs as p (p)}<option value={p}>{$_(api.providerLabelKey(p))}</option>{/each}
       </select>
     </div>
   </div>
@@ -195,6 +204,21 @@
     <p class="hint">{$_("set.compat.privacy")}</p>
   </div>
 
+  {#each cliProvs as p (p)}
+  <div class="card" style="margin-top:14px" data-testid="cli-card-{p}">
+    <h4><Icon name="warn" /> {$_(api.cliKey("set.cli.title", p))}</h4>
+    <div class="rw"><b>{$_(api.cliKey("set.cli.path", p))}</b>
+      <div class="rr"><label class="fld {pathOk(cliPaths[p] ?? '') ? '' : 'err'}"><input aria-label={$_(api.cliKey("set.cli.path", p))} aria-invalid={!pathOk(cliPaths[p] ?? "")} autocomplete="off" spellcheck="false" bind:value={cliPaths[p]} /></label></div></div>
+    <p class="hint" role={pathOk(cliPaths[p] ?? "") ? undefined : "alert"}>{pathOk(cliPaths[p] ?? "") ? $_(api.cliKey("set.cli.path.hint", p)) : $_("set.cli.path.bad")}</p>
+    <div class="rr" style="padding-top:6px">
+      <button type="button" class="btn sm" disabled={!pathOk(cliPaths[p] ?? "") || test[p] === "running"} onclick={() => runTest(p)}>{$_("set.test")}</button>
+      <span class="hint" role="status">{testText(p)}</span>
+    </div>
+    <p class="hint">{$_(api.cliKey("set.cli.need", p))}</p>
+    <p class="hint" data-testid="cli-risk-{p}">{$_("set.cli.risk")}</p>
+  </div>
+  {/each}
+
   <div class="card" style="margin-top:14px">
     <h4>{$_("set.ollama.local")}</h4>
     <div class="rw"><b>{"URL"}</b><div class="rr"><label class="fld"><input aria-label={"URL"} bind:value={ollamaUrl} /></label></div></div>
@@ -225,7 +249,7 @@
 </div>
 
 <div class="tl2">
-  <button type="button" class="btn primary" disabled={!compatUrlOk} onclick={save}>{$_("ai.settings.save")}</button>
+  <button type="button" class="btn primary" disabled={!compatUrlOk || !cliPathOk} onclick={save}>{$_("ai.settings.save")}</button>
   <button type="button" class="btn" onclick={resetTab}><Icon name="refresh" />{$_("set.reset.tab")}</button>
   <span class="hint">{$_("set.reset.nokey")}</span>
   {#if saved}<span class="bd ok" role="status">{$_("ai.settings.saved")}</span>{/if}

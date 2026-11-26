@@ -36,6 +36,18 @@ pub enum AiError {
     InvalidInput(String),
     /// Loi luu tru.
     Store(String),
+    /// Khong tim thay binary `claude` / `codex` (US-58, AC-62.6).
+    CliNotInstalled,
+    /// CLI co nhung chua dang nhap (AC-62.7).
+    CliNotLoggedIn,
+    /// Dang nhap het han giua chung (AC-62.8).
+    CliLoginExpired,
+    /// Het han muc hoac goi khong du quyen (AC-62.9).
+    CliQuotaExhausted,
+    /// CLI treo qua han (AC-62.4).
+    CliTimeout,
+    /// CLI thoat khac 0 khong khop mau nao; chi giu ma thoat, KHONG giu dau ra (AC-62.13).
+    CliUnknown(i32),
     /// Mo hinh duoc chon khong nhan anh (Ollama khong co vision).
     VisionUnsupported,
 }
@@ -59,6 +71,12 @@ impl AiError {
             AiError::InvalidInput(_) => "invalid_input",
             AiError::Store(_) => "store_error",
             AiError::VisionUnsupported => "provider_no_vision",
+            AiError::CliNotInstalled => "cli_not_installed",
+            AiError::CliNotLoggedIn => "cli_not_logged_in",
+            AiError::CliLoginExpired => "cli_login_expired",
+            AiError::CliQuotaExhausted => "cli_quota_exhausted",
+            AiError::CliTimeout => "cli_timeout",
+            AiError::CliUnknown(_) => "cli_unknown",
         }
     }
 }

@@ -198,7 +198,7 @@ async fn stream_toi_dan_truoc_khi_ket_thuc() {
 
 #[tokio::test]
 async fn loi_401_ca_ba_nha_cung_cap() {
-    for kind in ProviderKind::ALL {
+    for kind in ProviderKind::ALL.into_iter().filter(|k| !k.is_cli()) {
         let f = fake(vec![Reply::Status(401, "{\"error\":\"bad\"}".into())]).await;
         let key = kind.needs_key().then_some(KEY);
         let (r, d) = run(kind, &f.url, key, 5000).await;
@@ -209,7 +209,7 @@ async fn loi_401_ca_ba_nha_cung_cap() {
 
 #[tokio::test]
 async fn loi_429_ca_ba_nha_cung_cap() {
-    for kind in ProviderKind::ALL {
+    for kind in ProviderKind::ALL.into_iter().filter(|k| !k.is_cli()) {
         let f = fake(vec![Reply::Status(429, "{}".into())]).await;
         let key = kind.needs_key().then_some(KEY);
         let (r, _) = run(kind, &f.url, key, 5000).await;
@@ -221,7 +221,7 @@ async fn loi_429_ca_ba_nha_cung_cap() {
 
 #[tokio::test]
 async fn timeout_ca_ba_nha_cung_cap() {
-    for kind in ProviderKind::ALL {
+    for kind in ProviderKind::ALL.into_iter().filter(|k| !k.is_cli()) {
         let f = fake(vec![Reply::Hang]).await;
         let key = kind.needs_key().then_some(KEY);
         let t = std::time::Instant::now();
@@ -845,4 +845,87 @@ async fn compat_khong_dung_cho_ocr_anh() {
     input.default_provider = Some(ProviderKind::Ollama);
     svc.save_settings(&input).unwrap();
     assert!(svc.ocr_target().is_ok(), "Ollama van dung duoc cho OCR nhu truoc");
+}
+
+// ---------- Codex: TAT mac dinh (RV 🔴-2); Claude van bat (US-58, US-60) ----------
+
+// Chi chay khi co tinh nang `codex-cli` (spike co chu dich); ban mac dinh dung test "mac dinh tat" ben duoi.
+#[cfg(feature = "codex-cli")]
+#[test]
+fn codex_cli_hien_trong_cai_dat_can_dong_y_va_chon_lam_mac_dinh_duoc() {
+    let (svc, _) = service(Endpoints::default());
+    let s = svc.get_settings().unwrap();
+    assert_eq!(s.providers.len(), ProviderKind::ALL.len());
+    let codex = s.providers.iter().find(|p| p.provider == ProviderKind::CodexCli).expect("Codex phai co trong cai dat");
+    assert!(!codex.consented, "lan dau phai dong y roi moi gui");
+    assert!(codex.has_key, "CLI khong dung khoa API");
+    assert!(s.providers.iter().any(|p| p.provider == ProviderKind::ClaudeCli));
+    svc.accept_consent(ProviderKind::CodexCli).unwrap();
+    // Duong dan tuyet doi hop le theo tung he dieu hanh (tren Windows "/usr/..." khong tuyet doi).
+    let abs = if cfg!(windows) { "C:\\tools\\codex.exe" } else { "/usr/local/bin/codex" };
+    let mut input = AiSettingsInput {
+        default_provider: Some(ProviderKind::CodexCli),
+        context_max_chars: s.context_max_chars,
+        context_max_turns: s.context_max_turns,
+        providers: vec![ProviderInput { provider: ProviderKind::CodexCli, model_name: None, base_url: Some(abs.into()) }],
+        chip_prompts: s.chip_prompts.clone(),
+    };
+    svc.save_settings(&input).unwrap();
+    let s2 = svc.get_settings().unwrap();
+    assert_eq!(s2.default_provider, Some(ProviderKind::CodexCli));
+    let c2 = s2.providers.iter().find(|p| p.provider == ProviderKind::CodexCli).unwrap();
+    assert!(c2.consented);
+    assert_eq!(c2.base_url.as_deref(), Some(abs));
+    // Duong dan tuong doi bi tu choi nhu voi Claude.
+    input.providers[0].base_url = Some("codex".into());
+    assert!(svc.save_settings(&input).is_err());
+}
+
+/// Khoa mac dinh TAT: tinh nang `codex-cli` KHONG nam trong `default` cua rlt-ai va src-tauri (doc thang Cargo.toml,
+/// nen van bat duoc loi khi ai do them vao `default` du build hien tai co bat tinh nang hay khong).
+#[test]
+fn co_codex_mac_dinh_tat_trong_cargo_toml() {
+    for f in ["Cargo.toml", "../../src-tauri/Cargo.toml"] {
+        let t = std::fs::read_to_string(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(f)).unwrap();
+        for l in t.lines().map(str::trim).filter(|l| l.starts_with("default") && l.contains('=')) {
+            assert!(!l.contains("codex-cli"), "{f}: `codex-cli` khong duoc nam trong default: {l}");
+        }
+    }
+}
+
+#[cfg(not(feature = "codex-cli"))]
+#[test]
+fn codex_tat_mac_dinh_an_khoi_cai_dat_va_khong_chon_duoc_nhung_claude_van_bat() {
+    assert!(!ProviderKind::CodexCli.is_enabled());
+    assert!(ProviderKind::ClaudeCli.is_enabled());
+    let (svc, _) = service(Endpoints::default());
+    let s = svc.get_settings().unwrap();
+    assert!(s.providers.iter().all(|p| p.provider != ProviderKind::CodexCli), "Codex khong duoc hien");
+    assert!(s.providers.iter().any(|p| p.provider == ProviderKind::ClaudeCli), "Claude van hien");
+    // Khong chon lam mac dinh, khong luu cau hinh, khong dong y, khong thu ket noi.
+    let mut input = AiSettingsInput {
+        default_provider: Some(ProviderKind::CodexCli),
+        context_max_chars: s.context_max_chars,
+        context_max_turns: s.context_max_turns,
+        providers: vec![],
+        chip_prompts: s.chip_prompts.clone(),
+    };
+    assert!(svc.save_settings(&input).is_err());
+    input.default_provider = None;
+    input.providers = vec![ProviderInput { provider: ProviderKind::CodexCli, model_name: None, base_url: None }];
+    assert!(svc.save_settings(&input).is_err());
+    assert!(svc.accept_consent(ProviderKind::CodexCli).is_err());
+    // Claude van luu va chon duoc.
+    svc.accept_consent(ProviderKind::ClaudeCli).unwrap();
+    input.providers = vec![];
+    input.default_provider = Some(ProviderKind::ClaudeCli);
+    svc.save_settings(&input).unwrap();
+    assert_eq!(svc.get_settings().unwrap().default_provider, Some(ProviderKind::ClaudeCli));
+}
+
+#[cfg(not(feature = "codex-cli"))]
+#[tokio::test]
+async fn codex_tat_thi_thu_ket_noi_va_hoi_deu_bi_tu_choi() {
+    let (svc, _) = service(Endpoints::default());
+    assert_eq!(svc.test_connection(ProviderKind::CodexCli).await.unwrap_err(), AiError::NotConfigured);
 }

@@ -18,10 +18,35 @@ pub enum ProviderKind {
     Ollama,
     /// Endpoint tuong thich OpenAI do nguoi dung chon (LM Studio, llama.cpp, vLLM...). Chi cho Hoi AI (US-57).
     Compat,
+    /// Dang nhap san co cua CLI `claude` (phuong an DU PHONG canh khoa API, US-58). App khong doc token.
+    #[serde(rename = "claude_cli")]
+    ClaudeCli,
+    /// Dang nhap san co cua CLI `codex` (US-58). TAT mac dinh (tinh nang Cargo `codex-cli`, xem `is_enabled`); ten co `codex exec` chua kiem chung voi CLI that (cho spike cua chu).
+    #[serde(rename = "codex_cli")]
+    CodexCli,
 }
 
 impl ProviderKind {
-    pub const ALL: [ProviderKind; 4] = [ProviderKind::Gemini, ProviderKind::OpenAi, ProviderKind::Ollama, ProviderKind::Compat];
+    pub const ALL: [ProviderKind; 6] = [
+        ProviderKind::Gemini,
+        ProviderKind::OpenAi,
+        ProviderKind::Ollama,
+        ProviderKind::Compat,
+        ProviderKind::ClaudeCli,
+        ProviderKind::CodexCli,
+    ];
+
+    /// Nha cung cap co duoc bat trong ban nay khong. `CodexCli` chi bat khi build voi tinh nang Cargo `codex-cli`
+    /// (mac dinh TAT, RV 🔴-2). Khi tat: khong hien trong cai dat, khong luu, khong chon lam mac dinh, khong dong y/hoi/thu.
+    /// `Self::ALL` van liet ke du de enum day du; moi duong vao nguoi dung phai qua ham nay.
+    pub fn is_enabled(self) -> bool {
+        self != ProviderKind::CodexCli || cfg!(feature = "codex-cli")
+    }
+
+    /// Chay qua binary CLI cua nguoi dung thay vi HTTP.
+    pub fn is_cli(self) -> bool {
+        matches!(self, ProviderKind::ClaudeCli | ProviderKind::CodexCli)
+    }
 
     pub fn as_str(self) -> &'static str {
         match self {
@@ -29,6 +54,8 @@ impl ProviderKind {
             ProviderKind::OpenAi => "openai",
             ProviderKind::Ollama => "ollama",
             ProviderKind::Compat => "compat",
+            ProviderKind::ClaudeCli => "claude_cli",
+            ProviderKind::CodexCli => "codex_cli",
         }
     }
 
@@ -38,6 +65,8 @@ impl ProviderKind {
             "openai" => Some(ProviderKind::OpenAi),
             "ollama" => Some(ProviderKind::Ollama),
             "compat" => Some(ProviderKind::Compat),
+            "claude_cli" => Some(ProviderKind::ClaudeCli),
+            "codex_cli" => Some(ProviderKind::CodexCli),
             _ => None,
         }
     }
@@ -49,6 +78,8 @@ impl ProviderKind {
             ProviderKind::Ollama => "qwen2.5:1.5b",
             // Khong co model mac dinh: ten model phu thuoc may chu cua nguoi dung (AC-57.5).
             ProviderKind::Compat => "",
+            // Ten model do CLI tu chon theo goi cua nguoi dung; app khong ep tham so model (GD-4).
+            ProviderKind::ClaudeCli | ProviderKind::CodexCli => "",
         }
     }
 
@@ -58,17 +89,19 @@ impl ProviderKind {
             ProviderKind::OpenAi => "https://api.openai.com",
             ProviderKind::Ollama => "http://localhost:11434",
             ProviderKind::Compat => "http://localhost:1234/v1",
+            // Khong co URL: `base_url` cua CLI la duong dan tuy chon toi binary.
+            ProviderKind::ClaudeCli | ProviderKind::CodexCli => "",
         }
     }
 
     /// Ollama chay tren may nguoi dung, endpoint tuong thich co the khong can khoa (AC-57.3).
     pub fn needs_key(self) -> bool {
-        !matches!(self, ProviderKind::Ollama | ProviderKind::Compat)
+        !matches!(self, ProviderKind::Ollama | ProviderKind::Compat | ProviderKind::ClaudeCli | ProviderKind::CodexCli)
     }
 
     /// Loai co URL do nguoi dung dat (luu o `ai_provider_settings.base_url`).
     pub fn has_custom_url(self) -> bool {
-        matches!(self, ProviderKind::Ollama | ProviderKind::Compat)
+        matches!(self, ProviderKind::Ollama | ProviderKind::Compat | ProviderKind::ClaudeCli | ProviderKind::CodexCli)
     }
 }
 
@@ -205,12 +238,17 @@ pub trait LlmProvider: Send + Sync {
 
 /// Tao nha cung cap theo loai.
 pub fn make_provider(kind: ProviderKind, cfg: ProviderConfig) -> Result<Box<dyn LlmProvider>> {
+    if kind.is_cli() {
+        // `base_url` cua CLI la duong dan tuy chon (rong = tu do).
+        return Ok(Box::new(crate::cli::CliProvider::new(kind, cfg.base_url, cfg.timeout)));
+    }
     let http = crate::http::build_client(cfg.timeout)?;
     Ok(match kind {
         ProviderKind::Gemini => Box::new(crate::gemini::Gemini::new(http, cfg)),
         ProviderKind::OpenAi => Box::new(crate::openai::OpenAi::new(http, cfg)),
         ProviderKind::Ollama => Box::new(crate::ollama::Ollama::new(http, cfg)),
         ProviderKind::Compat => Box::new(crate::openai::OpenAi::compat(http, cfg)),
+        ProviderKind::ClaudeCli | ProviderKind::CodexCli => unreachable!("CLI duoc xu ly o tren"),
     })
 }
 
