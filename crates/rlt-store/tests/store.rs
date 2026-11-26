@@ -500,6 +500,19 @@ fn nang_cap_tu_user_version_13_giu_du_lieu_cu_va_nhan_antigravity_cli() {
             [SID],
         )
         .unwrap();
+        // m3: dong con trong ai_messages phai song qua lan dung lai bang ai_conversations o v14.
+        conn.execute(
+            "INSERT INTO ai_messages (ai_message_id, ai_conversation_id, session_id, role, content, message_status, created_at, completed_at)
+             SELECT 1, ai_conversation_id, session_id, 'user', 'cau hoi cu', 'completed', 'x', 'x' FROM ai_conversations",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO ai_messages (ai_message_id, ai_conversation_id, session_id, role, reply_to_message_id, content, message_status, created_at, completed_at)
+             SELECT 2, ai_conversation_id, session_id, 'assistant', 1, 'tra loi cu', 'completed', 'x', 'x' FROM ai_conversations",
+            [],
+        )
+        .unwrap();
         conn.execute("UPDATE settings SET ai_default_provider = 'claude_cli'", []).unwrap();
         conn.execute("UPDATE ai_provider_settings SET model_name = 'm-cu', consent_version = '1', consent_accepted_at = 'x' WHERE provider = 'gemini'", []).unwrap();
         conn.execute("INSERT INTO ai_provider_settings (provider, updated_at) VALUES ('antigravity_cli', 'x')", []).unwrap_err();
@@ -514,6 +527,15 @@ fn nang_cap_tu_user_version_13_giu_du_lieu_cu_va_nhan_antigravity_cli() {
     assert_eq!(t("SELECT ai_default_provider FROM settings"), "claude_cli");
     assert_eq!(t("SELECT model_name FROM ai_provider_settings WHERE provider = 'gemini'"), "m-cu");
     assert_eq!(n("SELECT count(*) FROM ai_provider_settings"), 7);
+    // m3: 2 dong con con du, van tro dung cuoc chat cu, noi dung va lien ket tra loi giu nguyen, tim FTS van ra.
+    assert_eq!(n("SELECT count(*) FROM ai_messages"), 2);
+    assert_eq!(
+        n("SELECT count(*) FROM ai_messages m JOIN ai_conversations c USING (ai_conversation_id) WHERE c.provider = 'claude_cli'"),
+        2
+    );
+    assert_eq!(t("SELECT content FROM ai_messages WHERE ai_message_id = 1"), "cau hoi cu");
+    assert_eq!(n("SELECT reply_to_message_id FROM ai_messages WHERE ai_message_id = 2"), 1);
+    assert_eq!(n("SELECT count(*) FROM ai_messages_fts WHERE ai_messages_fts MATCH 'tra'"), 1);
     c.execute("UPDATE settings SET ai_default_provider = 'antigravity_cli'", []).unwrap();
     c.execute(
         "INSERT INTO ai_conversations (session_id, provider, created_at, updated_at) VALUES (?1, 'antigravity_cli', 'x', 'x')",
@@ -522,6 +544,9 @@ fn nang_cap_tu_user_version_13_giu_du_lieu_cu_va_nhan_antigravity_cli() {
     .unwrap();
     c.execute("UPDATE ai_provider_settings SET provider = 'khac' WHERE provider = 'gemini'", []).unwrap_err();
     assert_eq!(n("SELECT count(*) FROM pragma_foreign_key_check"), 0);
+    // Khoa ngoai van CASCADE sau khi dung lai: xoa cuoc chat cu thi xoa ca dong con.
+    c.execute("DELETE FROM ai_conversations WHERE provider = 'claude_cli'", []).unwrap();
+    assert_eq!(n("SELECT count(*) FROM ai_messages"), 0);
     drop(s);
     let _ = std::fs::remove_dir_all(&dir);
 }
