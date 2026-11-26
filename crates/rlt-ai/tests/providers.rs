@@ -859,11 +859,13 @@ fn codex_cli_hien_trong_cai_dat_can_dong_y_va_chon_lam_mac_dinh_duoc() {
     assert!(codex.has_key, "CLI khong dung khoa API");
     assert!(s.providers.iter().any(|p| p.provider == ProviderKind::ClaudeCli));
     svc.accept_consent(ProviderKind::CodexCli).unwrap();
+    // Duong dan tuyet doi hop le theo tung he dieu hanh (tren Windows "/usr/..." khong tuyet doi).
+    let abs = if cfg!(windows) { "C:\\tools\\codex.exe" } else { "/usr/local/bin/codex" };
     let mut input = AiSettingsInput {
         default_provider: Some(ProviderKind::CodexCli),
         context_max_chars: s.context_max_chars,
         context_max_turns: s.context_max_turns,
-        providers: vec![ProviderInput { provider: ProviderKind::CodexCli, model_name: None, base_url: Some("/usr/local/bin/codex".into()) }],
+        providers: vec![ProviderInput { provider: ProviderKind::CodexCli, model_name: None, base_url: Some(abs.into()) }],
         chip_prompts: s.chip_prompts.clone(),
     };
     svc.save_settings(&input).unwrap();
@@ -871,7 +873,7 @@ fn codex_cli_hien_trong_cai_dat_can_dong_y_va_chon_lam_mac_dinh_duoc() {
     assert_eq!(s2.default_provider, Some(ProviderKind::CodexCli));
     let c2 = s2.providers.iter().find(|p| p.provider == ProviderKind::CodexCli).unwrap();
     assert!(c2.consented);
-    assert_eq!(c2.base_url.as_deref(), Some("/usr/local/bin/codex"));
+    assert_eq!(c2.base_url.as_deref(), Some(abs));
     // Duong dan tuong doi bi tu choi nhu voi Claude.
     input.providers[0].base_url = Some("codex".into());
     assert!(svc.save_settings(&input).is_err());
