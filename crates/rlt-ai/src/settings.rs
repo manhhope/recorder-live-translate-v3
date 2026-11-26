@@ -93,7 +93,7 @@ pub fn load(st: &Store, has_key: impl Fn(ProviderKind) -> bool) -> Result<AiSett
         |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
     )?;
     let mut providers = Vec::new();
-    for kind in ProviderKind::ALL {
+    for kind in ProviderKind::ALL.into_iter().filter(|k| k.is_enabled()) {
         let (model, url, consent): (Option<String>, Option<String>, Option<String>) = st.conn().query_row(
             "SELECT model_name, base_url, consent_version FROM ai_provider_settings WHERE provider = ?1",
             [kind.as_str()],
@@ -129,7 +129,7 @@ pub fn load(st: &Store, has_key: impl Fn(ProviderKind) -> bool) -> Result<AiSett
         chip_prompts.push(ChipPrompt { chip, prompt: p });
     }
     Ok(AiSettings {
-        default_provider: dp.as_deref().and_then(ProviderKind::parse),
+        default_provider: dp.as_deref().and_then(ProviderKind::parse).filter(|k| k.is_enabled()),
         context_max_chars: chars,
         context_max_turns: turns,
         providers,
@@ -147,6 +147,9 @@ pub fn save(st: &Store, input: &AiSettingsInput) -> Result<()> {
     }
     if !(0..=20).contains(&input.context_max_turns) {
         return Err(AiError::InvalidInput("context_max_turns_out_of_range".into()));
+    }
+    if input.default_provider.is_some_and(|k| !k.is_enabled()) || input.providers.iter().any(|p| !p.provider.is_enabled()) {
+        return Err(AiError::InvalidInput("provider_disabled".into()));
     }
     for p in &input.providers {
         if let Some(u) = p.base_url.as_deref().filter(|u| !u.is_empty()) {
@@ -195,6 +198,9 @@ pub fn save(st: &Store, input: &AiSettingsInput) -> Result<()> {
 }
 
 pub fn accept_consent(st: &Store, kind: ProviderKind) -> Result<()> {
+    if !kind.is_enabled() {
+        return Err(AiError::InvalidInput("provider_disabled".into()));
+    }
     st.conn().execute(
         &format!(
             "UPDATE ai_provider_settings SET consent_version = ?2, consent_accepted_at = {NOW}, updated_at = {NOW} \

@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { CLI_PROVIDERS, PROVIDERS, cliKey, errKey, isCli, providerLabelKey } from "./api.ts";
+import { CLI_PROVIDERS, PROVIDERS, cliKey, enabledProviders, errKey, isCli, providerLabelKey } from "./api.ts";
 
 const load = (l: string) => JSON.parse(readFileSync(new URL(`../locales/${l}.json`, import.meta.url), "utf8")) as Record<string, string>;
 
-test("Codex va Claude deu la nha cung cap CLI va deu hien trong danh sach", () => {
+test("Codex va Claude deu la nha cung cap CLI (Codex chi hien khi backend bat co)", () => {
   assert.deepEqual(CLI_PROVIDERS, ["claude_cli", "codex_cli"]);
   for (const p of CLI_PROVIDERS) { assert.ok(PROVIDERS.includes(p)); assert.ok(isCli(p)); }
   assert.ok(!isCli("openai") && !isCli(null));
@@ -29,4 +29,16 @@ test("moi chuoi CLI cua Codex co du trong en va pt-PT", () => {
     providerLabelKey("codex_cli"),
   ];
   for (const l of ["en", "pt-PT"]) { const m = load(l); for (const k of keys) assert.ok(m[k], `${l}: ${k}`); }
+});
+
+test("Codex TAT mac dinh: giao dien chi liet ke nha cung cap ma backend tra ve, Claude van co", () => {
+  const backend = { providers: (["gemini", "openai", "ollama", "compat", "claude_cli"] as const).map(provider => ({ provider })) };
+  assert.ok(!enabledProviders(PROVIDERS, backend).includes("codex_cli"));
+  assert.ok(!enabledProviders(CLI_PROVIDERS, backend).includes("codex_cli"));
+  assert.deepEqual(enabledProviders(CLI_PROVIDERS, backend), ["claude_cli"]);
+  // Chua co du lieu backend: van khong lo Codex.
+  assert.ok(!enabledProviders(PROVIDERS, null).includes("codex_cli"));
+  // Spike (build co `codex-cli`): backend tra ve Codex thi moi hien.
+  const spike = { providers: [...backend.providers, { provider: "codex_cli" as const }] };
+  assert.deepEqual(enabledProviders(CLI_PROVIDERS, spike), ["claude_cli", "codex_cli"]);
 });

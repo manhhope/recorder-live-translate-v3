@@ -15,5 +15,12 @@ serde_json = "1"
 async-trait = "0.1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 
+[features]
+# CO TINH NANG CODEX (mac dinh TAT). Codex CLI chua duoc xac minh (spike Q-1, AC-60.2, RV 🔴-2): `--sandbox read-only`
+# van cho doc ca he tep. Chi bat co chu dich cho spike: `cargo test -p rlt-ai --features codex-cli`, hoac bo nhi phan
+# app qua `cargo tauri build --features codex-cli` (src-tauri chuyen tiep sang day). Ban phat hanh KHONG bat.
+default = []
+codex-cli = []
+
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net", "io-util"] }

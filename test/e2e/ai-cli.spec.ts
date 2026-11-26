@@ -27,6 +27,17 @@ for (const loc of ["en", "pt-PT"] as const) {
       await expect(page.getByTestId("cli-risk")).toBeVisible();
     });
 
+    test("Codex TAT mac dinh: khong co the Codex trong cai dat va khong co trong o chon mac dinh, Claude van co", async ({ page, rlt }) => {
+      await rlt.open({ locale: loc });
+      await rlt.nav("nav.settings").click();
+      await page.getByRole("navigation", { name: rlt.t("nav.settings") }).getByRole("button", { name: rlt.t("set.tab.translate") }).click();
+      await expect(page.getByTestId("cli-card-claude_cli")).toBeVisible();
+      await expect(page.getByTestId("cli-card-codex_cli")).toHaveCount(0);
+      const sel = page.getByRole("combobox", { name: rlt.t("ask.model.pick") }).first();
+      await expect(sel.locator("option", { hasText: rlt.t("ai.provider.claudecli") })).toHaveCount(1);
+      await expect(sel.locator("option", { hasText: rlt.t("ai.provider.codexcli") })).toHaveCount(0);
+    });
+
     test("cai dat: the Claude CLI co ghi chu rui ro, duong dan tuong doi bi chan Luu, thu ket noi chay", async ({ page, rlt }) => {
       await rlt.open({ locale: loc });
       await rlt.nav("nav.settings").click();

@@ -21,7 +21,7 @@ pub enum ProviderKind {
     /// Dang nhap san co cua CLI `claude` (phuong an DU PHONG canh khoa API, US-58). App khong doc token.
     #[serde(rename = "claude_cli")]
     ClaudeCli,
-    /// Dang nhap san co cua CLI `codex` (US-58). Hien trong cai dat; ten co `codex exec` chua kiem chung voi CLI that (cho spike cua chu).
+    /// Dang nhap san co cua CLI `codex` (US-58). TAT mac dinh (tinh nang Cargo `codex-cli`, xem `is_enabled`); ten co `codex exec` chua kiem chung voi CLI that (cho spike cua chu).
     #[serde(rename = "codex_cli")]
     CodexCli,
 }
@@ -35,6 +35,13 @@ impl ProviderKind {
         ProviderKind::ClaudeCli,
         ProviderKind::CodexCli,
     ];
+
+    /// Nha cung cap co duoc bat trong ban nay khong. `CodexCli` chi bat khi build voi tinh nang Cargo `codex-cli`
+    /// (mac dinh TAT, RV 🔴-2). Khi tat: khong hien trong cai dat, khong luu, khong chon lam mac dinh, khong dong y/hoi/thu.
+    /// `Self::ALL` van liet ke du de enum day du; moi duong vao nguoi dung phai qua ham nay.
+    pub fn is_enabled(self) -> bool {
+        self != ProviderKind::CodexCli || cfg!(feature = "codex-cli")
+    }
 
     /// Chay qua binary CLI cua nguoi dung thay vi HTTP.
     pub fn is_cli(self) -> bool {

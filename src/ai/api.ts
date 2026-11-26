@@ -26,10 +26,15 @@ export interface StreamUpdate { assistant_message_id: number; text: string }
 export interface AskOutcome { conversation_id: number; user_message_id: number; assistant_message_id: number; status: "completed" | "failed"; error_code: string | null; text: string }
 export interface AskParams { session_id: string; conversation_id: number | null; text: string | null; chip: ChipKind | null; provider: Provider | null; ui_lang: string }
 
+// Danh sach DAY DU cac gia tri co the co. Nha cung cap nao that su hien/chon duoc do BACKEND quyet (`AiSettings.providers`):
+// `codex_cli` TAT mac dinh (tinh nang Cargo `codex-cli`, RV 🔴-2), nen giao dien luon loc qua `enabledProviders`.
 export const PROVIDERS: Provider[] = ["gemini", "openai", "ollama", "compat", "claude_cli", "codex_cli"];
 export const CLI_PROVIDERS: Provider[] = ["claude_cli", "codex_cli"];
 // Nha cung cap chay qua CLI da dang nhap: khong co khoa, gui ban ghi ra dich vu cua nha cung cap CLI (US-58..US-62).
 export const isCli = (p: Provider | null | undefined): boolean => p === "claude_cli" || p === "codex_cli";
+// Chi giu nha cung cap ma backend tra ve trong cai dat (nguon su that duy nhat cho viec bat/tat).
+export const enabledProviders = (list: Provider[], s: { providers: { provider: Provider }[] } | null | undefined): Provider[] =>
+  s ? list.filter(p => s.providers.some(x => x.provider === p)) : list.filter(p => p !== "codex_cli");
 export const COMPAT_DEFAULT_URL = "http://localhost:1234/v1";
 
 // Kiem URL nhu phia Rust (`rlt_ai::compat::validate_base_url`, AC-57.1): http/https, khong user:pw, query, fragment, khoang trang.

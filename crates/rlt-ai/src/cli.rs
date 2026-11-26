@@ -838,9 +838,10 @@ mod tests {
     }
 
     #[test]
-    fn codex_la_nha_cung_cap_cli_hien_trong_cai_dat() {
+    fn codex_la_nha_cung_cap_cli_nhung_tat_mac_dinh() {
         assert!(ProviderKind::CodexCli.is_cli());
         assert!(ProviderKind::ALL.contains(&ProviderKind::CodexCli));
+        assert_eq!(ProviderKind::CodexCli.is_enabled(), cfg!(feature = "codex-cli"));
         assert_eq!(CliKind::of(ProviderKind::CodexCli), Some(CliKind::Codex));
         assert_eq!(CliKind::of(ProviderKind::ClaudeCli), Some(CliKind::Claude));
     }
