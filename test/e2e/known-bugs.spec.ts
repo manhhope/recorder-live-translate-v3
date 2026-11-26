@@ -57,7 +57,6 @@ test.describe("Loi da biet", () => {
   }
 
   test("P-05 so it: '1 lines' phai la '1 line'", async ({ page, rlt }) => {
-    test.fail(true, "P-05: ses.lines khong co dang so it (ICU plural)");
     await rlt.open();
     await rlt.nav("nav.sessions").click();
     const text = await page.locator(".sesrow").nth(1).innerText(); // phien co dung 1 dong

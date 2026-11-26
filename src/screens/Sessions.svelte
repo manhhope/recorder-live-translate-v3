@@ -9,7 +9,7 @@
   import { DEFAULT_DST } from "../lib/langs.ts";
   import { app, fmtClock, openAiSettings } from "../lib/app.svelte.ts";
   import * as api from "../lib/api.ts";
-  import { sessionSubline } from "../lib/session-meta.ts";
+  import { sessionSubline, linesLabel } from "../lib/session-meta.ts";
   import type { SessionRow, SessionDetail, SearchOut } from "../lib/api.ts";
 
   let rows = $state<SessionRow[]>([]);
@@ -29,7 +29,7 @@
 
   const loc = $derived(($locale as "en" | "pt-PT") ?? currentLocale());
   const errKey = (c: string) => api.errKeyOf(c, k => $_(k) !== k);
-  const linesLbl = (n: number) => $_("ses.lines", { values: { n } });
+  const linesLbl = (n: number) => linesLabel(n, (k, v) => $_(k, { values: v }));
   const driveLbl = (st: string) => { const k = api.driveKeyOf(st); return $_(k) === k ? $_("ses.drive.unknown") : $_(k); };
   const dur = (ms: number | null) => (ms == null ? "--:--:--" : fmtClock(Math.floor(ms / 1000)));
   const when = (iso: string) => formatDate(Date.parse(iso), loc, { day: "2-digit", month: "2-digit" });
@@ -216,7 +216,7 @@
               onkeydown={(e) => { if (e.key === "Enter") void rename(s.sessionId, e.currentTarget.value); if (e.key === "Escape") renaming = null; }} /></label>
           {:else}
             <button type="button" style="background:none;border:0;text-align:left;cursor:pointer;color:inherit;font:inherit" onclick={() => open(s.sessionId)}>
-              <b>{s.title}</b><small>{subline(s)}</small>
+              <b>{s.title}</b><small title={$_("ses.meta.label")}><span class="vh">{$_("ses.meta.label")}: </span>{subline(s)}</small>
             </button>
           {/if}
           <div class="rr">
@@ -233,7 +233,8 @@
       {/each}
     </div>
   {:else}
-    <div class="empty"><Icon name="clock" /><span>{$_("ses.empty")}</span></div>
+    <div class="empty"><Icon name="clock" /><span>{$_("ses.empty")}</span>
+      <button type="button" class="btn primary" data-testid="ses-empty-start" onclick={() => (app.screen = "rec")}><Icon name="play" />{$_("ses.empty.cta")}</button></div>
   {/if}
 {/if}
 

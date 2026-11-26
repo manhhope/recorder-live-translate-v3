@@ -1,7 +1,7 @@
 <script lang="ts">
   // The Cap nhat (US-33): cong tat tu kiem tra, nut Check, phien ban hien tai/moi, ghi chu, tien do tai, "Cai va khoi dong lai".
   // Trang thai nam o lib/update.svelte.ts (kiem/tai chay nen khi khong mo man nay).
-  import { _ } from "../i18n/index.ts";
+  import { _, formatTime, currentLocale, locale } from "../i18n/index.ts";
   import Icon from "../lib/Icon.svelte";
   import * as api from "../lib/api.ts";
   import { upd, checkNow, download, install, setAutoUpdate, installBlocked } from "../lib/update.svelte.ts";
@@ -13,7 +13,8 @@
   const blocked = $derived(installBlocked());
   const pct = $derived(upd.total ? Math.min(100, Math.round((upd.downloaded / upd.total) * 100)) : null);
   const mb = (n: number) => (n / 1048576).toFixed(1) + " MB";
-  const last = $derived(upd.lastCheck ? new Date(upd.lastCheck).toLocaleTimeString() : "");
+  const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const last = $derived(upd.lastCheck ? formatTime(upd.lastCheck, ($locale as "en" | "pt-PT") ?? currentLocale(), localTz) : "");
   const tDownloading = $derived(pct !== null ? $_("set.upd.downloading", { values: { pct: pct + "%" } }) : $_("set.upd.downloadingnototal", { values: { size: mb(upd.downloaded) } }));
   const tReady = $derived($_("set.upd.ready", { values: { version: upd.info?.version ?? "" } }));
   const tLast = $derived($_("set.upd.lastcheck", { values: { time: last } }));
