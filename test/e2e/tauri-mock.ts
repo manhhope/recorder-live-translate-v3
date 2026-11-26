@@ -334,7 +334,29 @@ export function installTauriMock(seed: MockSeed): void {
     ai_list_messages: (a) => clone(state.msgs[a.conversationId] ?? []),
     ai_clear_history: (a) => { const n = (state.msgs[a.conversationId] ?? []).length; state.msgs[a.conversationId] = []; return n; },
     ai_delete_conversation: (a) => { state.convs = state.convs.filter((c: any) => c.conversation_id !== a.conversationId); return true; },
-    ai_cancel: () => undefined,
+    ai_cancel: () => { rlt.sum?.release?.(); },
+    // Tom tat (US-63/64): ke hoach va ket qua do test cau hinh qua rlt.sum; huy giai phong lenh dang treo.
+    ai_summary_plan: (a) => {
+      const base = { total_chars: 12_000, sent_chars: 12_000, input_cut: false, dropped_head: false, cap_chars: 200_000, chunks: 1, calls: 1, ...(rlt.sum?.plan ?? {}) };
+      return { ...base, calls: base.calls + (a.translate ? 1 : 0), translate: !!a.translate };
+    },
+    ai_summarize: async (a) => {
+      const cfg = rlt.sum ?? (rlt.sum = {});
+      rlt.sumRuns = (rlt.sumRuns ?? []).concat([{ session_id: a.sessionId, provider: a.provider, ui_lang: a.uiLang, translate_to: a.translateTo }]);
+      const plan = { total_chars: 12_000, sent_chars: 12_000, input_cut: false, dropped_head: false, cap_chars: 200_000, chunks: 1, calls: 1, ...(cfg.plan ?? {}), translate: !!a.translateTo };
+      const out = (status: string, parts: any, translated: any, failed_at: number | null = null, error_code: string | null = null) => ({ status, error_code, failed_at, parts, translated, plan });
+      const send = (stage: string, index: number, total: number) => { const ch = a.onProgress?.id; if (ch !== undefined) callbacks.get(ch)?.({ index: 0, message: { stage, index, total } }); };
+      send("map", 1, plan.chunks);
+      if (cfg.hold) {
+        await new Promise<void>(r => { cfg.release = () => { cfg.release = undefined; r(); }; });
+        return out("cancelled", null, null, 1);
+      }
+      if (cfg.fail) return out("failed", null, null, cfg.failAt ?? 1, cfg.fail);
+      const parts = cfg.parts ?? { summary: "The team agreed to ship on Friday. <b>not bold</b>", key_points: ["Ship Friday", "Budget approved"], action_items: ["Ana sends the release notes"] };
+      let translated: any = null;
+      if (a.translateTo) { send("translate", 1, 1); translated = cfg.translated ?? { summary: "TRANSLATED " + parts.summary, key_points: ["T1"], action_items: ["T2"] }; }
+      return out("completed", parts, translated);
+    },
     ai_ask: (a) => {
       const p = a.params;
       let conv = state.convs.find((c: any) => c.conversation_id === p.conversation_id);

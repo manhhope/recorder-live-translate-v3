@@ -6,10 +6,12 @@
   import Icon from "../lib/Icon.svelte";
   import { dismiss } from "../lib/dismiss.ts";
   import * as api from "./api.ts";
+  import SummaryCard from "./SummaryCard.svelte";
   import type { AiSettings, ChipKind, Conversation, Message, Provider } from "./api.ts";
 
-  let { sessionId, onOpenSettings = () => {}, onClose = () => {} }: {
-    sessionId: string; onOpenSettings?: () => void; onClose?: () => void;
+  // `summary` (nut Tom tat o man chi tiet, US-63): true thi hien the Tom tat thay cho cuoc chat.
+  let { sessionId, onOpenSettings = () => {}, onClose = () => {}, summary = $bindable(false) }: {
+    sessionId: string; onOpenSettings?: () => void; onClose?: () => void; summary?: boolean;
   } = $props();
 
   const CHIPS: { kind: ChipKind; label: string }[] = [
@@ -175,6 +177,9 @@
     </div>
   {/if}
 
+  {#if summary}
+    <SummaryCard {sessionId} {provider} {lang} canRun={ready && !needConsent} onBack={() => (summary = false)} />
+  {:else}
   <div class="log" bind:this={scroller} aria-live="polite">
     {#if msgs.length === 0}<p class="hint greet">{$_("ask.greet")}</p>{/if}
     {#each msgs as m (m.message_id)}
@@ -206,6 +211,7 @@
     <textarea class="ta" rows="2" maxlength={MAX} placeholder={$_("ask.input")} aria-label={$_("ask.input")} bind:value={input} onkeydown={onKey} disabled={!ready || needConsent}></textarea>
     <button type="button" class="btn primary" disabled={busy || !ready || needConsent || !input.trim()} onclick={() => startAsk(null)}>{$_("common.send")}</button>
   </div>
+  {/if}
 </section>
 
 <style>

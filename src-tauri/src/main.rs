@@ -86,6 +86,8 @@ fn main() {
             ai::ai_ask,
             ai::ai_retry,
             ai::ai_cancel,
+            ai::ai_summary_plan,
+            ai::ai_summarize,
             ai::ai_clear_history,
             ai::ai_delete_conversation,
             shell::settings_pane::open_system_settings,
