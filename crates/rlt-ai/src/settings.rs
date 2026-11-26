@@ -154,7 +154,7 @@ pub fn save(st: &Store, input: &AiSettingsInput) -> Result<()> {
     for p in &input.providers {
         if let Some(u) = p.base_url.as_deref().filter(|u| !u.is_empty()) {
             let ok = match p.provider {
-                ProviderKind::ClaudeCli | ProviderKind::CodexCli => crate::cli::validate_path_override(u).is_ok(),
+                ProviderKind::ClaudeCli | ProviderKind::CodexCli | ProviderKind::AntigravityCli => crate::cli::validate_path_override(u).is_ok(),
                 ProviderKind::Ollama => valid_base_url(u),
                 ProviderKind::Compat => crate::compat::validate_base_url(u).is_ok(),
                 _ => false,

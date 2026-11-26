@@ -24,16 +24,20 @@ pub enum ProviderKind {
     /// Dang nhap san co cua CLI `codex` (US-58). TAT mac dinh (tinh nang Cargo `codex-cli`, xem `is_enabled`); ten co `codex exec` chua kiem chung voi CLI that (cho spike cua chu).
     #[serde(rename = "codex_cli")]
     CodexCli,
+    /// Dang nhap san co cua Antigravity CLI (`agy`, 3.0.6). Phien nam trong keyring cua he dieu hanh; app khong doc.
+    #[serde(rename = "antigravity_cli")]
+    AntigravityCli,
 }
 
 impl ProviderKind {
-    pub const ALL: [ProviderKind; 6] = [
+    pub const ALL: [ProviderKind; 7] = [
         ProviderKind::Gemini,
         ProviderKind::OpenAi,
         ProviderKind::Ollama,
         ProviderKind::Compat,
         ProviderKind::ClaudeCli,
         ProviderKind::CodexCli,
+        ProviderKind::AntigravityCli,
     ];
 
     /// Nha cung cap co duoc bat trong ban nay khong. `CodexCli` chi bat khi build voi tinh nang Cargo `codex-cli`
@@ -45,7 +49,7 @@ impl ProviderKind {
 
     /// Chay qua binary CLI cua nguoi dung thay vi HTTP.
     pub fn is_cli(self) -> bool {
-        matches!(self, ProviderKind::ClaudeCli | ProviderKind::CodexCli)
+        matches!(self, ProviderKind::ClaudeCli | ProviderKind::CodexCli | ProviderKind::AntigravityCli)
     }
 
     pub fn as_str(self) -> &'static str {
@@ -56,6 +60,7 @@ impl ProviderKind {
             ProviderKind::Compat => "compat",
             ProviderKind::ClaudeCli => "claude_cli",
             ProviderKind::CodexCli => "codex_cli",
+            ProviderKind::AntigravityCli => "antigravity_cli",
         }
     }
 
@@ -67,6 +72,7 @@ impl ProviderKind {
             "compat" => Some(ProviderKind::Compat),
             "claude_cli" => Some(ProviderKind::ClaudeCli),
             "codex_cli" => Some(ProviderKind::CodexCli),
+            "antigravity_cli" => Some(ProviderKind::AntigravityCli),
             _ => None,
         }
     }
@@ -79,7 +85,7 @@ impl ProviderKind {
             // Khong co model mac dinh: ten model phu thuoc may chu cua nguoi dung (AC-57.5).
             ProviderKind::Compat => "",
             // Ten model do CLI tu chon theo goi cua nguoi dung; app khong ep tham so model (GD-4).
-            ProviderKind::ClaudeCli | ProviderKind::CodexCli => "",
+            ProviderKind::ClaudeCli | ProviderKind::CodexCli | ProviderKind::AntigravityCli => "",
         }
     }
 
@@ -90,18 +96,18 @@ impl ProviderKind {
             ProviderKind::Ollama => "http://localhost:11434",
             ProviderKind::Compat => "http://localhost:1234/v1",
             // Khong co URL: `base_url` cua CLI la duong dan tuy chon toi binary.
-            ProviderKind::ClaudeCli | ProviderKind::CodexCli => "",
+            ProviderKind::ClaudeCli | ProviderKind::CodexCli | ProviderKind::AntigravityCli => "",
         }
     }
 
     /// Ollama chay tren may nguoi dung, endpoint tuong thich co the khong can khoa (AC-57.3).
     pub fn needs_key(self) -> bool {
-        !matches!(self, ProviderKind::Ollama | ProviderKind::Compat | ProviderKind::ClaudeCli | ProviderKind::CodexCli)
+        !matches!(self, ProviderKind::Ollama | ProviderKind::Compat | ProviderKind::ClaudeCli | ProviderKind::CodexCli | ProviderKind::AntigravityCli)
     }
 
     /// Loai co URL do nguoi dung dat (luu o `ai_provider_settings.base_url`).
     pub fn has_custom_url(self) -> bool {
-        matches!(self, ProviderKind::Ollama | ProviderKind::Compat | ProviderKind::ClaudeCli | ProviderKind::CodexCli)
+        matches!(self, ProviderKind::Ollama | ProviderKind::Compat | ProviderKind::ClaudeCli | ProviderKind::CodexCli | ProviderKind::AntigravityCli)
     }
 }
 
@@ -248,7 +254,7 @@ pub fn make_provider(kind: ProviderKind, cfg: ProviderConfig) -> Result<Box<dyn 
         ProviderKind::OpenAi => Box::new(crate::openai::OpenAi::new(http, cfg)),
         ProviderKind::Ollama => Box::new(crate::ollama::Ollama::new(http, cfg)),
         ProviderKind::Compat => Box::new(crate::openai::OpenAi::compat(http, cfg)),
-        ProviderKind::ClaudeCli | ProviderKind::CodexCli => unreachable!("CLI duoc xu ly o tren"),
+        ProviderKind::ClaudeCli | ProviderKind::CodexCli | ProviderKind::AntigravityCli => unreachable!("CLI duoc xu ly o tren"),
     })
 }
 

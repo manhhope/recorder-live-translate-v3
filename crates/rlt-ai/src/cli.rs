@@ -42,6 +42,8 @@ const SCRUBBED_ENV: [&str; 3] = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "O
 pub enum CliKind {
     Claude,
     Codex,
+    /// Antigravity CLI (`agy`). Phien dang nhap nam trong keyring cua he dieu hanh; app khong doc.
+    Antigravity,
 }
 
 impl CliKind {
@@ -49,6 +51,7 @@ impl CliKind {
         match kind {
             ProviderKind::ClaudeCli => Some(CliKind::Claude),
             ProviderKind::CodexCli => Some(CliKind::Codex),
+            ProviderKind::AntigravityCli => Some(CliKind::Antigravity),
             _ => None,
         }
     }
@@ -57,6 +60,7 @@ impl CliKind {
         match self {
             CliKind::Claude => "claude",
             CliKind::Codex => "codex",
+            CliKind::Antigravity => "agy",
         }
     }
 }
@@ -115,7 +119,7 @@ pub fn candidate_dirs(os: Os, env: &Env) -> Vec<PathBuf> {
         Os::Mac | Os::Other => {
             v.push(PathBuf::from("/opt/homebrew/bin"));
             v.push(PathBuf::from("/usr/local/bin"));
-            for rel in [".local/bin", ".claude/local", ".npm-global/bin", ".bun/bin", ".volta/bin", "Library/pnpm", ".yarn/bin"] {
+            for rel in [".local/bin", ".antigravity/bin", ".claude/local", ".npm-global/bin", ".bun/bin", ".volta/bin", "Library/pnpm", ".yarn/bin"] {
                 v.extend(under(home, rel));
             }
             // nvm: moi phien ban node mot thu muc bin.
@@ -130,6 +134,9 @@ pub fn candidate_dirs(os: Os, env: &Env) -> Vec<PathBuf> {
         }
         Os::Windows => {
             v.extend(under(home, ".local\\bin"));
+            v.extend(under(home, ".antigravity\\bin"));
+            v.extend(under(env.local_appdata.as_deref(), "agy\\bin"));
+            v.extend(under(env.local_appdata.as_deref(), "Programs\\antigravity"));
             v.extend(under(home, ".claude\\local"));
             v.extend(under(env.appdata.as_deref(), "npm"));
             v.extend(under(env.local_appdata.as_deref(), "npm"));
@@ -247,10 +254,23 @@ pub fn codex_args() -> Vec<String> {
     ["exec", "--skip-git-repo-check", "--sandbox", "read-only", "--ephemeral", "-"].iter().map(|s| s.to_string()).collect()
 }
 
+/// Doi so cho `agy` (3.0.6). `--print ""` + prompt qua stdin la cach Javis da do cho agy (`server/antigravity_cli.py`).
+/// agy KHONG co co "tat het cong cu" nhu `claude --tools ""`: chi co `--mode plan` (khong tu sua file) va `--sandbox`
+/// (han che terminal). Do do muc khoa YEU HON claude; bu bang: cwd tam rong, khong `--dangerously-skip-permissions`
+/// (nen moi cong cu can duyet se khong duoc duyet trong che do khong tuong tac), khong them `--add-dir`.
+/// CHUA kiem chung voi dang nhap that.
+pub fn agy_args() -> Vec<String> {
+    ["--print", "", "--mode", "plan", "--sandbox", "--output-format", "text", "--disable-slash-commands"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+}
+
 pub fn run_args(kind: CliKind) -> Vec<String> {
     match kind {
         CliKind::Claude => claude_args(),
         CliKind::Codex => codex_args(),
+        CliKind::Antigravity => agy_args(),
     }
 }
 
@@ -259,6 +279,8 @@ pub fn auth_args(kind: CliKind) -> Vec<&'static str> {
     match kind {
         CliKind::Claude => vec!["auth", "status"],
         CliKind::Codex => vec!["login", "status"],
+        // agy khong co lenh trang thai: `models` can phien dang nhap nen dung lam phep thu (xem `check_status_at`).
+        CliKind::Antigravity => vec!["models"],
     }
 }
 
@@ -518,6 +540,37 @@ async fn probe(bin: &Path, cwd: &Path, args: &[&str]) -> Option<i32> {
     }
 }
 
+/// Nhu `probe` nhung cho biet CO in ra chu hay khong (khong giu noi dung, khong ghi log). Dung cho agy: ban chua dang
+/// nhap co the thoat 0 ma khong in gi, hoac mo menu dang nhap roi cho (het han -> `None`).
+async fn probe_has_output(bin: &Path, cwd: &Path, args: &[&str]) -> Option<(i32, bool)> {
+    let mut c = base_command(bin, cwd);
+    c.args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
+    let mut child = c.spawn().ok()?;
+    let mut stdout = child.stdout.take()?;
+    let reader = tokio::spawn(async move {
+        let mut seen = false;
+        let mut tmp = [0u8; 1024];
+        while let Ok(n) = stdout.read(&mut tmp).await {
+            if n == 0 {
+                break;
+            }
+            seen |= tmp[..n].iter().any(|b| !b.is_ascii_whitespace());
+        }
+        seen
+    });
+    match tokio::time::timeout(PROBE_LIMIT, child.wait()).await {
+        Ok(Ok(st)) => {
+            let seen = tokio::time::timeout(Duration::from_secs(1), reader).await.ok().and_then(|r| r.ok()).unwrap_or(false);
+            Some((st.code().unwrap_or(-1), seen))
+        }
+        _ => {
+            kill_tree(&mut child).await;
+            reader.abort();
+            None
+        }
+    }
+}
+
 /// Dò CLI, chay `--version`, roi kiem dang nhap bang MA THOAT (khong doc token). <= ~10 giay.
 pub async fn check_status(kind: CliKind, override_path: Option<&str>) -> CliStatus {
     let Some(bin) = locate(kind, override_path) else { return CliStatus::NotInstalled };
@@ -529,6 +582,14 @@ pub async fn check_status_at(kind: CliKind, bin: &Path) -> CliStatus {
     match probe(bin, work.path(), &["--version"]).await {
         Some(0) => {}
         Some(_) | None => return CliStatus::Unknown,
+    }
+    if kind == CliKind::Antigravity {
+        // Ready chi khi `agy models` thoat 0 VA co in ra danh sach (phien da co). Het han/treo o menu = Unknown.
+        return match probe_has_output(bin, work.path(), &auth_args(kind)).await {
+            Some((0, true)) => CliStatus::Ready,
+            Some((0, false)) | Some((1, _)) => CliStatus::NotLoggedIn,
+            _ => CliStatus::Unknown,
+        };
     }
     match probe(bin, work.path(), &auth_args(kind)).await {
         Some(0) => CliStatus::Ready,
@@ -957,5 +1018,41 @@ case "$IN" in *"cau hoi"*) echo "TRA LOI: da nhan stdin";; *) echo "KHONG-CO-STD
             assert!(matches!(CliStatus::NotLoggedIn.into_result(), Err(AiError::CliNotLoggedIn)));
             let _ = std::fs::remove_dir_all(&d);
         }
+
+        #[tokio::test]
+        async fn agy_san_sang_chi_khi_models_thoat_0_va_co_in_danh_sach() {
+            let d = holder();
+            // Ban agy gia: `models` in mot dong ten model (khong co dang nhap that nao o day).
+            let bin = script(&d, r#"case "$1" in --version) exit 0;; models) echo fake-model; exit 0;; esac"#);
+            assert_eq!(check_status_at(CliKind::Antigravity, &bin).await, CliStatus::Ready);
+            // Thoat 0 nhung khong in gi: coi nhu chua co phien.
+            let bin = script(&d, r#"case "$1" in --version) exit 0;; models) exit 0;; esac"#);
+            assert_eq!(check_status_at(CliKind::Antigravity, &bin).await, CliStatus::NotLoggedIn);
+            let bin = script(&d, r#"case "$1" in --version) exit 0;; models) echo x >&2; exit 1;; esac"#);
+            assert_eq!(check_status_at(CliKind::Antigravity, &bin).await, CliStatus::NotLoggedIn);
+            let _ = std::fs::remove_dir_all(&d);
+        }
+
+        #[tokio::test]
+        async fn agy_treo_o_menu_dang_nhap_thi_het_han_thanh_unknown() {
+            let d = holder();
+            let bin = script(&d, r#"case "$1" in --version) exit 0;; models) sleep 30;; esac"#);
+            assert_eq!(check_status_at(CliKind::Antigravity, &bin).await, CliStatus::Unknown);
+            let _ = std::fs::remove_dir_all(&d);
+        }
+    }
+
+    #[test]
+    fn agy_la_nha_cung_cap_cli_va_doi_so_khong_co_co_nguy_hiem() {
+        assert!(ProviderKind::AntigravityCli.is_cli() && ProviderKind::AntigravityCli.is_enabled());
+        assert_eq!(CliKind::of(ProviderKind::AntigravityCli), Some(CliKind::Antigravity));
+        assert_eq!(CliKind::Antigravity.stem(), "agy");
+        let a = agy_args();
+        assert!(!a.iter().any(|x| x.contains("dangerously") || x == "--add-dir" || x == "--continue" || x == "--conversation"));
+        assert!(a.windows(2).any(|w| w == ["--mode", "plan"]) && a.contains(&"--sandbox".to_string()));
+        assert_eq!(a.first().map(String::as_str), Some("--print"));
+        assert_eq!(a.get(1).map(String::as_str), Some(""), "prompt di qua stdin, khong qua doi so");
+        assert_eq!(run_args(CliKind::Antigravity), a);
+        assert_eq!(binary_names(Os::Windows, CliKind::Antigravity)[0], "agy.exe");
     }
 }

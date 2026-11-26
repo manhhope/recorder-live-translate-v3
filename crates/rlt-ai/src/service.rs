@@ -93,7 +93,7 @@ fn secret_kind(k: ProviderKind) -> Option<SecretKind> {
         ProviderKind::Ollama => None,
         ProviderKind::Compat => Some(SecretKind::CompatAi),
         // CLI dung dang nhap san co cua CLI: app khong giu va khong doc token.
-        ProviderKind::ClaudeCli | ProviderKind::CodexCli => None,
+        ProviderKind::ClaudeCli | ProviderKind::CodexCli | ProviderKind::AntigravityCli => None,
     }
 }
 
@@ -229,7 +229,7 @@ impl AiService {
             ProviderKind::Ollama => self.endpoints.ollama.clone().or(ollama_url),
             ProviderKind::Compat => self.endpoints.compat.clone().or(ollama_url),
             // base_url cua CLI la duong dan binary tuy chon.
-            ProviderKind::ClaudeCli | ProviderKind::CodexCli => ollama_url,
+            ProviderKind::ClaudeCli | ProviderKind::CodexCli | ProviderKind::AntigravityCli => ollama_url,
         }
         .unwrap_or_else(|| kind.default_base_url().to_string())
     }
