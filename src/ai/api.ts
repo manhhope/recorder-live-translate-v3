@@ -2,7 +2,7 @@
 // `setApiKey` chi gui khoa di, khong lay lai. Moi DTO chi co `has_key`.
 import { Channel, invoke } from "@tauri-apps/api/core";
 
-export type Provider = "gemini" | "openai" | "ollama" | "compat" | "claude_cli" | "codex_cli";
+export type Provider = "gemini" | "openai" | "ollama" | "compat" | "claude_cli" | "codex_cli" | "antigravity_cli";
 export type ChipKind = "summary" | "explain" | "action_items";
 
 export interface ProviderSettings { provider: Provider; model_name: string; base_url: string | null; has_key: boolean; consented: boolean }
@@ -28,10 +28,10 @@ export interface AskParams { session_id: string; conversation_id: number | null;
 
 // Danh sach DAY DU cac gia tri co the co. Nha cung cap nao that su hien/chon duoc do BACKEND quyet (`AiSettings.providers`):
 // `codex_cli` TAT mac dinh (tinh nang Cargo `codex-cli`, RV 🔴-2), nen giao dien luon loc qua `enabledProviders`.
-export const PROVIDERS: Provider[] = ["gemini", "openai", "ollama", "compat", "claude_cli", "codex_cli"];
-export const CLI_PROVIDERS: Provider[] = ["claude_cli", "codex_cli"];
+export const PROVIDERS: Provider[] = ["gemini", "openai", "ollama", "compat", "claude_cli", "codex_cli", "antigravity_cli"];
+export const CLI_PROVIDERS: Provider[] = ["claude_cli", "codex_cli", "antigravity_cli"];
 // Nha cung cap chay qua CLI da dang nhap: khong co khoa, gui ban ghi ra dich vu cua nha cung cap CLI (US-58..US-62).
-export const isCli = (p: Provider | null | undefined): boolean => p === "claude_cli" || p === "codex_cli";
+export const isCli = (p: Provider | null | undefined): boolean => p === "claude_cli" || p === "codex_cli" || p === "antigravity_cli";
 // Chi giu nha cung cap ma backend tra ve trong cai dat (nguon su that duy nhat cho viec bat/tat).
 export const enabledProviders = (list: Provider[], s: { providers: { provider: Provider }[] } | null | undefined): Provider[] =>
   s ? list.filter(p => s.providers.some(x => x.provider === p)) : list.filter(p => p !== "codex_cli");
@@ -100,8 +100,36 @@ const ERR_KEY: Record<string, string> = {
 export const errKey = (code: string | null | undefined, provider?: Provider | null): string => {
   if (code === "provider_unreachable" && provider === "compat") return "ai.err.unreachable.compat";
   const k = (code && ERR_KEY[code]) || "ai.err.generic";
-  return provider === "codex_cli" && k.startsWith("ai.err.cli.") ? k + ".codex" : k;
+  return k.startsWith("ai.err.cli.") ? k + cliSuffix(provider) : k;
 };
 export const providerLabelKey = (p: Provider) => `ai.provider.${p.replace("_", "")}`;
 // Chuoi giao dien cua CLI theo nha cung cap: "claude_cli" -> "...cli", "codex_cli" -> "...cli.codex".
-export const cliKey = (base: string, p: Provider | null | undefined) => (p === "codex_cli" ? `${base}.codex` : base);
+export const cliKey = (base: string, p: Provider | null | undefined) => base + cliSuffix(p);
+function cliSuffix(p: Provider | null | undefined): string {
+  return p === "codex_cli" ? ".codex" : p === "antigravity_cli" ? ".agy" : "";
+}
+
+// Dang nhap CLI trong app (3.0.6). Chi Claude (va Codex khi bat tinh nang) co nut dang nhap; agy khong co.
+// Backend giu link va ma; giao dien chi hien link (de mo/chep), nhap ma dan, va khong bao gio ghi nhat ky.
+export type LoginPhase = "starting" | "waiting_user" | "code_sent" | "verifying" | "done" | "failed" | "cancelled";
+export interface LoginSnapshot {
+  phase: LoginPhase; url: string | null; device_code: string | null; error: string | null; needs_code: boolean; remaining_secs: number;
+}
+export const loginStart = (provider: Provider) => invoke<void>("ai_login_start", { provider });
+export const loginCode = (value: string) => invoke<void>("ai_login_code", { value });
+export const loginPoll = () => invoke<LoginSnapshot | null>("ai_login_poll");
+export const loginCancel = () => invoke<void>("ai_login_cancel");
+export const loginOpen = () => invoke<void>("ai_login_open");
+export const canLogin = (p: Provider): boolean => p === "claude_cli" || p === "codex_cli";
+export const loginActive = (s: LoginSnapshot | null): boolean =>
+  !!s && ["starting", "waiting_user", "code_sent", "verifying"].includes(s.phase);
+// Ma loi cua dang nhap -> khoa i18n.
+const LOGIN_ERR: Record<string, string> = {
+  cli_not_installed: "ai.err.cli.notinstalled", login_no_link: "set.login.err.nolink", login_expired: "set.login.err.expired",
+  login_timeout: "set.login.err.timeout", login_not_saved: "set.login.err.notsaved", login_already_running: "set.login.err.busy",
+  login_invalid_code: "set.login.err.code", login_unsupported: "set.login.err.unsupported", login_spawn_failed: "set.login.err.spawn",
+};
+export const loginErrKey = (code: string | null | undefined, provider?: Provider | null): string => {
+  const k = (code && LOGIN_ERR[code]) || "set.login.err.unknown";
+  return k.startsWith("ai.err.cli.") ? k + cliSuffix(provider) : k;
+};

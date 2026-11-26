@@ -1,7 +1,7 @@
 <script lang="ts">
   // Tab "Tro ly AI" trong Cai dat (phuong an A, US-47). Khoa API chi NHAP VAO: o nhap la mat khau, bi xoa ngay sau khi
   // luu, va giao dien chi biet "da co khoa / chua co" (`has_key`). Khong co duong nao doc khoa tu Keychain ve day.
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { _, locale } from "svelte-i18n";
   import Icon from "../lib/Icon.svelte";
   import LoadError from "../lib/LoadError.svelte";
@@ -22,7 +22,7 @@
   let models = $state<Record<string, string>>({});
   let ollamaUrl = $state("");
   let compatUrl = $state("");
-  let cliPaths = $state<Record<string, string>>({ claude_cli: "", codex_cli: "" });
+  let cliPaths = $state<Record<string, string>>({ claude_cli: "", codex_cli: "", antigravity_cli: "" });
   let compatModels = $state<string[]>([]);
   let compatList = $state<"idle" | "running" | "ok" | "manual">("idle");
   let chars = $state(60000);
@@ -41,7 +41,7 @@
   const cliProvs = $derived(api.enabledProviders(api.CLI_PROVIDERS, s));
   const hasKey = (p: Provider) => s?.providers.find(x => x.provider === p)?.has_key ?? false;
   // Endpoint tuong thich khong co model mac dinh gia (AC-57.5): ten model do nguoi dung nhap hoac chon.
-  const defModel = (p: Provider) => ({ gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "", claude_cli: "", codex_cli: "" })[p];
+  const defModel = (p: Provider) => ({ gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "", claude_cli: "", codex_cli: "", antigravity_cli: "" })[p];
   // Duong dan CLI nhu phia Rust (`rlt_ai::cli::validate_path_override`): rong la tu do; con lai la duong dan tuyet doi, khong xuong dong.
   const pathOk = (raw: string) => { const t = raw.trim(); return !t || (t.length <= 500 && !/[\u0000-\u001f\u007f]/.test(t) && (t.startsWith("/") || /^[A-Za-z]:[\\/]/.test(t))); };
   const cliPathOk = $derived(cliProvs.every(p => pathOk(cliPaths[p] ?? "")));
@@ -84,6 +84,41 @@
     try { await persist(); await api.testConnection(p); test[p] = "ok"; }
     catch (e) { test[p] = String(e); }
   }
+  // Dang nhap CLI trong app. Backend giu link/ma; day chi hien, mo, chep va nhap ma dan. Khong ghi nhat ky, khong luu.
+  let login = $state<api.LoginSnapshot | null>(null);
+  let loginFor = $state<Provider | null>(null);
+  let loginErr = $state<string | null>(null);
+  let pasted = $state("");
+  let copied = $state(false);
+  let timer: ReturnType<typeof setInterval> | null = null;
+  const busy = $derived(api.loginActive(login));
+  function stopPoll() { if (timer) { clearInterval(timer); timer = null; } }
+  async function poll() {
+    try {
+      login = await api.loginPoll();
+      if (!api.loginActive(login)) {
+        stopPoll();
+        if (login?.phase === "done") { test[loginFor ?? "claude_cli"] = "idle"; }
+      }
+    } catch { stopPoll(); }
+  }
+  async function startLogin(p: Provider) {
+    loginErr = null; pasted = ""; copied = false; loginFor = p; login = null;
+    try { await persist(); await api.loginStart(p); } catch (e) { loginErr = String(e); return; }
+    await poll(); stopPoll(); timer = setInterval(poll, 1000);
+  }
+  async function sendCode() {
+    const v = pasted.trim(); if (!v) return;
+    try { await api.loginCode(v); pasted = ""; loginErr = null; await poll(); } catch (e) { loginErr = String(e); }
+  }
+  async function cancelLogin() { try { await api.loginCancel(); } catch { /* da dung */ } await poll(); }
+  async function openLogin() { try { await api.loginOpen(); } catch (e) { loginErr = String(e); } }
+  async function copyLink() {
+    if (!login?.url) return;
+    try { await navigator.clipboard.writeText(login.url); copied = true; setTimeout(() => (copied = false), 2000); } catch { loginErr = "login_copy_failed"; }
+  }
+  const remainingText = (n: number) => $_("set.login.remaining", { values: { time: `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}` } });
+  onDestroy(stopPoll);
   async function persist() {
     const input: api.AiSettingsInput = {
       default_provider: defaultProvider,
@@ -214,6 +249,41 @@
       <button type="button" class="btn sm" disabled={!pathOk(cliPaths[p] ?? "") || test[p] === "running"} onclick={() => runTest(p)}>{$_("set.test")}</button>
       <span class="hint" role="status">{testText(p)}</span>
     </div>
+    {#if api.canLogin(p)}
+    <div class="rr" style="padding-top:6px" data-testid="login-{p}">
+      <button type="button" class="btn sm primary" disabled={busy || !pathOk(cliPaths[p] ?? "")} onclick={() => startLogin(p)}>{$_("set.login.btn")}</button>
+      {#if busy && loginFor === p}<button type="button" class="btn sm" onclick={cancelLogin}>{$_("set.login.cancel")}</button>{/if}
+    </div>
+    {#if loginFor === p && (login || loginErr)}
+      <div class="hint" role="status" data-testid="login-state-{p}">
+        {#if loginErr}<span role="alert">{$_(api.loginErrKey(loginErr, p))}</span>
+        {:else if login?.phase === "starting"}{$_("set.login.starting")}
+        {:else if login?.phase === "done"}{$_("set.login.done")}
+        {:else if login?.phase === "cancelled"}{$_("set.login.cancelled")}
+        {:else if login?.phase === "failed"}<span role="alert">{$_(api.loginErrKey(login.error, p))}</span>
+        {:else if login?.phase === "verifying"}{$_("set.login.verifying")}
+        {:else if login}
+          {#if login.url}
+            <p>{$_("set.login.link")}</p>
+            <code class="mono" style="word-break:break-all" data-testid="login-url">{login.url}</code>
+            <div class="rr" style="padding-top:6px">
+              <button type="button" class="btn sm" onclick={openLogin}>{$_("set.login.open")}</button>
+              <button type="button" class="btn sm" onclick={copyLink}>{copied ? $_("set.login.copied") : $_("set.login.copy")}</button>
+            </div>
+          {:else}{$_("set.login.starting")}{/if}
+          {#if login.device_code}<p>{$_("set.login.devicecode")} <b class="mono" data-testid="login-device-code">{login.device_code}</b></p>{/if}
+          {#if login.needs_code}
+            <div class="rw"><b>{$_("set.login.code")}</b>
+              <div class="rr"><label class="fld"><input aria-label={$_("set.login.code")} type="password" autocomplete="off" spellcheck="false" bind:value={pasted} /></label>
+                <button type="button" class="btn sm primary" disabled={!pasted.trim() || login.phase === "code_sent"} onclick={sendCode}>{$_("set.login.send")}</button></div></div>
+          {/if}
+          <p>{remainingText(login.remaining_secs)}</p>
+        {/if}
+      </div>
+    {/if}
+    {:else if p === "antigravity_cli"}
+    <p class="hint" data-testid="agy-signin-note">{$_("set.cli.signin.agy")}</p>
+    {/if}
     <p class="hint">{$_(api.cliKey("set.cli.need", p))}</p>
     <p class="hint" data-testid="cli-risk-{p}">{$_("set.cli.risk")}</p>
   </div>

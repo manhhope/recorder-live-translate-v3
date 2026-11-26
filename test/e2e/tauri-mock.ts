@@ -69,11 +69,14 @@ export function installTauriMock(seed: MockSeed): void {
     aiKeys: { ...seed.aiKeys },
     ai: {
       default_provider: null, context_max_chars: 60000, context_max_turns: 10,
-      models: { gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "", claude_cli: "" } as Record<string, string>,
+      models: { gemini: "gemini-2.5-flash", openai: "gpt-4.1-mini", ollama: "qwen2.5:1.5b", compat: "", claude_cli: "", antigravity_cli: "" } as Record<string, string>,
       compatUrl: "http://localhost:1234/v1",
       compatModels: ["qwen2.5-7b-instruct", "llama-3.1-8b"] as string[],
       chips: { summary: null, explain: null, action_items: null },
     },
+    // Dang nhap CLI gia: chi du lieu gia, KHONG BAO GIO dung link/ma that.
+    login: null as null | { phase: string; url: string | null; device_code: string | null; error: string | null; needs_code: boolean; remaining_secs: number; provider: string },
+    loginCalls: [] as string[],
     usageCleared: false,
     aiConsent: {} as Record<string, boolean>,
     convs: [] as any[],
@@ -115,8 +118,8 @@ export function installTauriMock(seed: MockSeed): void {
     default_provider: state.ai.default_provider,
     context_max_chars: state.ai.context_max_chars,
     context_max_turns: state.ai.context_max_turns,
-    providers: (["gemini", "openai", "ollama", "compat", "claude_cli"] as const).map(p => ({
-      provider: p, model_name: state.ai.models[p], has_key: p === "claude_cli" ? true : p === "ollama" ? false : !!(state.aiKeys as any)[p],
+    providers: (["gemini", "openai", "ollama", "compat", "claude_cli", "antigravity_cli"] as const).map(p => ({
+      provider: p, model_name: state.ai.models[p], has_key: p === "claude_cli" || p === "antigravity_cli" ? true : p === "ollama" ? false : !!(state.aiKeys as any)[p],
       base_url: p === "ollama" ? "http://localhost:11434" : p === "compat" ? state.ai.compatUrl : null,
       // Loopback (LM Studio tren may nay) coi nhu da dong y (AC-57.10); dia chi khac can dong y.
       consented: p === "compat" ? (!!state.aiConsent[p] || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(state.ai.compatUrl)) : !!state.aiConsent[p],
@@ -325,6 +328,16 @@ export function installTauriMock(seed: MockSeed): void {
     ai_set_api_key: (a) => { state.aiKeys[a.provider] = true; },
     ai_clear_api_key: (a) => { state.aiKeys[a.provider] = false; },
     ai_test_connection: () => undefined,
+    ai_login_start: (a) => {
+      state.loginCalls.push("start:" + a.provider);
+      state.login = a.provider === "codex_cli"
+        ? { phase: "waiting_user", url: "https://auth.openai.com/codex/device", device_code: "ABCD-1234", error: null, needs_code: false, remaining_secs: 600, provider: a.provider }
+        : { phase: "waiting_user", url: "https://claude.ai/oauth/authorize?fake=1", device_code: null, error: null, needs_code: true, remaining_secs: 600, provider: a.provider };
+    },
+    ai_login_code: (a) => { state.loginCalls.push("code:" + String(a.value).length); if (state.login) { state.login.phase = "done"; state.login.needs_code = false; } },
+    ai_login_poll: () => (state.login ? { ...state.login, provider: undefined } : null),
+    ai_login_cancel: () => { state.loginCalls.push("cancel"); if (state.login) state.login.phase = "cancelled"; },
+    ai_login_open: () => { state.loginCalls.push("open"); },
     ai_list_models: () => clone(state.ai.compatModels),
     "plugin:event|listen": (a) => { const id = state.listeners.length + 1; state.listeners.push({ event: a.event, id, cb: a.handler }); return id; },
     "plugin:window|start_dragging": () => undefined,

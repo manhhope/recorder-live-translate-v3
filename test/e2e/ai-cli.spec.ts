@@ -55,5 +55,42 @@ for (const loc of ["en", "pt-PT"] as const) {
       await c.getByRole("button", { name: rlt.t("set.test") }).click();
       await expect(c.getByRole("status").filter({ hasText: rlt.t("ai.test.ok") })).toBeVisible();
     });
+
+    test("dang nhap Claude trong app: hien link gia, mo/chep, dan ma, xong; ma khong hien lai; Huy duoc", async ({ page, rlt }) => {
+      await rlt.open({ locale: loc });
+      await rlt.nav("nav.settings").click();
+      await page.getByRole("navigation", { name: rlt.t("nav.settings") }).getByRole("button", { name: rlt.t("set.tab.translate") }).click();
+      const c = page.getByTestId("cli-card-claude_cli");
+      await c.getByRole("button", { name: rlt.t("set.login.btn") }).click();
+      await expect(c.getByTestId("login-url")).toHaveText("https://claude.ai/oauth/authorize?fake=1");
+      await c.getByRole("button", { name: rlt.t("set.login.open") }).click();
+      expect((await rlt.calls("ai_login_open")).length).toBe(1);
+      // Huy: dung va bao da huy.
+      await c.getByRole("button", { name: rlt.t("set.login.cancel") }).click();
+      await expect(c.getByText(rlt.t("set.login.cancelled"))).toBeVisible();
+      expect((await rlt.calls("ai_login_cancel")).length).toBe(1);
+      // Lam lai va dan ma gia.
+      await c.getByRole("button", { name: rlt.t("set.login.btn") }).click();
+      const box = c.getByLabel(rlt.t("set.login.code"));
+      await expect(box).toHaveAttribute("type", "password");
+      await box.fill("FAKE-CODE-0000");
+      await c.getByRole("button", { name: rlt.t("set.login.send") }).click();
+      await expect(c.getByText(rlt.t("set.login.done"))).toBeVisible();
+      expect((await rlt.calls("ai_login_code")).length).toBe(1);
+      await expect(page.getByText("FAKE-CODE-0000")).toHaveCount(0);
+    });
+
+    test("the Antigravity (agy) co mat, khong co nut dang nhap trong app, co ghi chu dang nhap o terminal", async ({ page, rlt }) => {
+      await rlt.open({ locale: loc });
+      await rlt.nav("nav.settings").click();
+      await page.getByRole("navigation", { name: rlt.t("nav.settings") }).getByRole("button", { name: rlt.t("set.tab.translate") }).click();
+      const c = page.getByTestId("cli-card-antigravity_cli");
+      await expect(c).toBeVisible();
+      await expect(c.getByRole("button", { name: rlt.t("set.login.btn") })).toHaveCount(0);
+      await expect(c.getByTestId("agy-signin-note")).toHaveText(rlt.t("set.cli.signin.agy"));
+      await expect(c.getByTestId("cli-risk-antigravity_cli")).toHaveText(rlt.t("set.cli.risk"));
+      await c.getByRole("button", { name: rlt.t("set.test") }).click();
+      await expect(c.getByRole("status").filter({ hasText: rlt.t("ai.test.ok") })).toBeVisible();
+    });
   });
 }
