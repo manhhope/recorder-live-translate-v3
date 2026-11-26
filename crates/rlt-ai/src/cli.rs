@@ -508,7 +508,7 @@ impl CliStatus {
     }
 }
 
-fn base_command(bin: &Path, cwd: &Path) -> Command {
+pub(crate) fn base_command(bin: &Path, cwd: &Path) -> Command {
     let mut c = Command::new(bin);
     c.current_dir(cwd).kill_on_drop(true);
     for k in SCRUBBED_ENV {
@@ -598,7 +598,7 @@ pub async fn check_status_at(kind: CliKind, bin: &Path) -> CliStatus {
     }
 }
 
-async fn kill_tree(child: &mut tokio::process::Child) {
+pub(crate) async fn kill_tree(child: &mut tokio::process::Child) {
     if let Some(pid) = child.id() {
         #[cfg(windows)]
         {

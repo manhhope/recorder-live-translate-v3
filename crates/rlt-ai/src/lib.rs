@@ -11,6 +11,7 @@ pub mod compat;
 pub mod error;
 pub mod gemini;
 pub mod history;
+pub mod login;
 mod http;
 pub mod ollama;
 pub mod openai;
