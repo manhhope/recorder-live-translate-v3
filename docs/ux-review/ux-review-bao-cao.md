@@ -133,3 +133,24 @@ Vấn đề: người dùng qua 3 màn chặn liên tiếp mà không biết cò
 - Xem trực quan trên Mac/Windows thật (cảm giác native, hộp thoại quyền, thứ tự Tab, VoiceOver/NVDA).
 - Thử đăng nhập/cài CLI với claude, codex, agy thật; chụp trạng thái "npm thiếu".
 - Quyết các mục chạm câu chữ chủ đã chốt: U-20, U-27.
+
+## 8. Kết quả sửa (cập nhật 2026-11-26, nhánh `feat/ai-login-in-app`, PR #14)
+
+Ảnh chụp lại sau khi sửa (en và pt-PT, sáng/tối, 1100 và 720 px): `docs/ux-review/img-sau/`. Ảnh trước khi sửa vẫn ở `img/`.
+
+| Mục | Trạng thái | Commit | Ghi chú |
+|---|---|---|---|
+| U-01 | Đã sửa | af6f362 | Thẻ lỗi cạnh nút Bắt đầu có câu hướng dẫn và nút "Mở Cài đặt hệ thống" (macOS: micro, ghi màn hình; Windows: micro). Lỗi không phải quyền thì không hiện. |
+| U-02 | Đã sửa | b5c5c27, 768a315 | Danh sách 3 bước (khoá Soniox, quyền, nguồn âm) và một nút chính chỉ bật khi đủ. Chữ pt-PT bị cắt ở chân màn nay hiện đủ trong danh sách. Nút Bắt đầu trên thanh công cụ giữ nguyên, luồng ghi không đổi. |
+| U-03, U-25 | Đã sửa | 96f168b | Cảnh báo rủi ro CLI gộp thành một dòng (nội dung giữ nguyên), bỏ biểu tượng cảnh báo lặp ở tiêu đề thẻ, lỗi cài đặt có khung lỗi riêng. Đăng nhập, tự dò, Nâng cao, nút cài đặt giữ nguyên. |
+| U-04 | Đã sửa | e3c3a7f | Vòng focus 2 px đậm hơn, dùng chung cho mọi điều khiển. |
+| U-08 | Đã sửa | e3c3a7f | Nhãn ngắn "Âm thanh hệ thống"/"Micro" khi đủ chỗ; `aria-label` ngắn kèm trạng thái. |
+| U-09 | Đã sửa một phần | e3c3a7f | 12 ô màu thật ra đã có vai radio và `aria-label` (báo cáo ghi sai). Đã thêm dấu tích ô đang chọn. |
+| U-18 | Đã sửa | e3c3a7f | Nút EN/PT và sáng/tối có tên theo hành động ("Chuyển sang English", "Chuyển sang chế độ sáng"). |
+| U-06 | Đã sửa | 1876495 | "1 dòng" / "1 linha" (khoá số ít), nhãn cho dòng meta của phiên. |
+| U-21 | Đã sửa | 1876495 | Giờ kiểm tra cập nhật theo ngôn ngữ giao diện (24 giờ ở pt-PT, không AM/PM). |
+| U-14 | Đã sửa | 1876495 | Danh sách phiên rỗng có nút "Bắt đầu phiên đầu tiên" chuyển sang màn Ghi. |
+| U-12 | Đã xác minh, không sửa | không có | Bản dựng thật lấy cả hai số từ `workspace.package.version` (3.0.5). Số `0.1.0` chỉ có trong lớp giả của test (`test/e2e/tauri-mock.ts`), nên đây là dữ liệu giả, không phải lỗi bản thật. |
+| U-20, U-07, U-10, U-13, U-15, U-16, U-17, U-19 | Không làm | không có | Chủ để "sau" hoặc "chủ quyết" (chạm câu chữ chủ đã chốt hoặc đổi bố cục lớn), không thuộc phạm vi lượt này. |
+
+Công cụ chụp ảnh `test/e2e/ux-shots.spec.ts` nay mặc định bỏ qua (chạy bằng `UX_SHOTS=1`, thư mục ra chọn bằng `UX_SHOTS_DIR`). Hai ca của công cụ này (`quick`, `hoi-ai-tab-npm-thieu`) vốn lỗi vì lớp giả thiếu lệnh hoặc nút cài bị khoá khi thiếu npm, chỉ ảnh hưởng ảnh chụp, không phải sản phẩm.
