@@ -9,7 +9,8 @@ description = "Recorder Live Translate v3 (Tauri 2)"
 tauri-build = { version = "2", features = [] }
 
 [features]
-# Chuyen tiep co Codex cua rlt-ai (mac dinh TAT; chi bat co chu dich cho spike, xem rlt-ai/Cargo.toml).
+# Chuyen tiep co Codex cua rlt-ai. BAT MAC DINH tu 3.0.6 (chu quyet 2026-11-26), xem rlt-ai/Cargo.toml.
+default = ["codex-cli"]
 codex-cli = ["rlt-ai/codex-cli"]
 
 [dependencies]

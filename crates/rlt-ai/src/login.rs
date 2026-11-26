@@ -14,7 +14,7 @@
 //! CHUA kiem chung voi CLI that: dinh dang dong in ra cua `claude auth login` va `codex login --device-auth` la
 //! suy tu tai lieu; bo loc chap nhan nhieu hinh dang va bo test dung CLI gia.
 
-use crate::cli::{base_command, check_status_at, kill_tree, locate, CliKind, CliStatus, TempWorkDir};
+use crate::cli::{base_command, check_status_at, kill_pid_tree, kill_tree, locate, CliKind, CliStatus, TempWorkDir};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -230,6 +230,8 @@ struct Shared {
     code: Option<String>,
     kind: CliKind,
     total: Duration,
+    /// Pid cua CLI dang chay (de `shutdown` giet dong bo khi app thoat). Xoa khi tien trinh da xong.
+    pid: Option<u32>,
 }
 
 struct Session {
@@ -279,6 +281,7 @@ impl LoginManager {
             code: None,
             kind,
             total: limits.total,
+            pid: None,
         }));
         *slot = Some(Session { shared: shared.clone() });
         drop(slot);
@@ -327,6 +330,27 @@ impl LoginManager {
             if !is_terminal(g.phase) {
                 g.cancel = true;
             }
+        }
+    }
+
+    /// Dung khi app thoat (RV M1): danh dau huy VA giet ngay ca cay tien trinh CLI, dong bo, khong cho runtime
+    /// tokio (luc `RunEvent::Exit` cac task nen co the khong con duoc chay). Goi nhieu lan vo hai.
+    pub fn shutdown(&self) {
+        let slot = self.session.lock().unwrap_or_else(|e| e.into_inner());
+        let Some(s) = slot.as_ref() else { return };
+        let pid = {
+            let mut g = lock(&s.shared);
+            if is_terminal(g.phase) {
+                return;
+            }
+            g.cancel = true;
+            let pid = g.pid.take();
+            drop(g);
+            finish(&s.shared, LoginPhase::Cancelled, None);
+            pid
+        };
+        if let Some(pid) = pid {
+            kill_pid_tree(pid);
         }
     }
 }
@@ -414,6 +438,7 @@ async fn run_login(kind: CliKind, bin: PathBuf, args: Vec<String>, shared: Arc<M
             return;
         }
     };
+    lock(&shared).pid = child.id();
     let mut stdin = child.stdin.take();
     if let Some(o) = child.stdout.take() {
         spawn_reader(o, kind, shared.clone());
@@ -471,9 +496,39 @@ async fn run_login(kind: CliKind, bin: PathBuf, args: Vec<String>, shared: Arc<M
     drop(stdin);
     match outcome {
         Ok(_) => {
+            lock(&shared).pid = None;
             // Ma thoat cua `login` KHONG du tin: chay lai lenh trang thai.
-            finish(&shared, LoginPhase::Verifying, None);
-            let st = check_status_at(kind, &bin).await;
+            {
+                // Huy den dung luc CLI vua thoat thi ton trong huy, khong chuyen sang Verifying.
+                let mut g = lock(&shared);
+                if g.cancel {
+                    drop(g);
+                    finish(&shared, LoginPhase::Cancelled, None);
+                    return;
+                }
+                g.phase = LoginPhase::Verifying;
+                g.url = None;
+                g.device_code = None;
+                g.code = None;
+            }
+            // Huy van co tac dung o pha Verifying (RV m2): bo do trang thai (tien trinh kiem bi giet nho kill_on_drop).
+            let verify = check_status_at(kind, &bin);
+            tokio::pin!(verify);
+            let st = loop {
+                tokio::select! {
+                    st = &mut verify => break st,
+                    _ = tokio::time::sleep(SLICE) => {
+                        if lock(&shared).cancel {
+                            finish(&shared, LoginPhase::Cancelled, None);
+                            return;
+                        }
+                    }
+                }
+            };
+            if lock(&shared).cancel {
+                finish(&shared, LoginPhase::Cancelled, None);
+                return;
+            }
             match st {
                 CliStatus::Ready => finish(&shared, LoginPhase::Done, None),
                 CliStatus::NotLoggedIn => finish(&shared, LoginPhase::Failed, Some("login_not_saved")),

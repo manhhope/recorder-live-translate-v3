@@ -95,6 +95,7 @@ fn main() {
             ai::ai_login_poll,
             ai::ai_login_cancel,
             ai::ai_login_open,
+            ai::ai_cli_status,
             shell::settings_pane::open_system_settings,
             quick::quick_translate,
             quick::quick_cancel,

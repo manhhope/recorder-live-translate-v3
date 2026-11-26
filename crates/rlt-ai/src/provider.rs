@@ -21,7 +21,7 @@ pub enum ProviderKind {
     /// Dang nhap san co cua CLI `claude` (phuong an DU PHONG canh khoa API, US-58). App khong doc token.
     #[serde(rename = "claude_cli")]
     ClaudeCli,
-    /// Dang nhap san co cua CLI `codex` (US-58). TAT mac dinh (tinh nang Cargo `codex-cli`, xem `is_enabled`); ten co `codex exec` chua kiem chung voi CLI that (cho spike cua chu).
+    /// Dang nhap san co cua CLI `codex` (US-58). BAT mac dinh tu 3.0.6 (tinh nang Cargo `codex-cli` nam trong `default`, xem `is_enabled`); co `codex exec` da doi chieu voi codex-cli 0.166.0.
     #[serde(rename = "codex_cli")]
     CodexCli,
     /// Dang nhap san co cua Antigravity CLI (`agy`, 3.0.6). Phien nam trong keyring cua he dieu hanh; app khong doc.

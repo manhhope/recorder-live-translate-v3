@@ -36,6 +36,15 @@ fn ma_thiet_bi_can_dung_dang_va_chu_goi_y() {
 }
 
 #[test]
+fn dong_phien_ban_chi_lay_dong_dau_da_loc() {
+    use crate::cli::clean_version;
+    assert_eq!(clean_version("\n  2.1.332 (Claude Code)\nmore").as_deref(), Some("2.1.332 (Claude Code)"));
+    assert_eq!(clean_version("codex-cli 0.166.0\u{1b}[0m").as_deref(), Some("codex-cli 0.166.0"));
+    assert_eq!(clean_version("   \n"), None);
+    assert_eq!(clean_version(&"9".repeat(200)).map(|v| v.len()), Some(64));
+}
+
+#[test]
 fn ma_dan_vao_chi_ky_tu_an_toan() {
     assert_eq!(validate_code("  abc-DEF_123#xyz~ \n").as_deref(), Ok("abc-DEF_123#xyz~"));
     for bad in ["", "   ", "a b", "a\nb", "a;rm", "a$(x)", "a`x`", "a|b", &"x".repeat(MAX_CODE_LEN + 1)] {
@@ -169,6 +178,141 @@ esac"#,
         let alive = std::process::Command::new("/bin/kill").args(["-0", &pid.to_string()]).stderr(Stdio::null()).status().unwrap().success();
         assert!(!alive, "tien trinh CLI phai chet sau khi huy");
         let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// RV M1: app thoat -> `shutdown()` dat Cancelled NGAY (dong bo) va giet tien trinh CLI.
+    #[tokio::test]
+    async fn shutdown_khi_thoat_app_giet_tien_trinh_ngay() {
+        let d = holder();
+        let pidf = d.join("pid");
+        let bin = script(
+            &d,
+            "claude",
+            &format!(r#"case "$1" in --version) exit 0;; auth) echo $$ > {pid}; echo "{FAKE_URL}"; exec sleep 60;; esac"#, pid = pidf.display()),
+        );
+        let m = LoginManager::new();
+        m.start_with(CliKind::Claude, bin.to_str(), quick()).unwrap();
+        wait_for(&m, |s| s.phase == LoginPhase::WaitingUser).await;
+        let pid: i32 = std::fs::read_to_string(&pidf).unwrap().trim().parse().unwrap();
+        m.shutdown();
+        let s = m.snapshot().unwrap();
+        assert_eq!(s.phase, LoginPhase::Cancelled, "shutdown dat trang thai dong bo");
+        assert!(s.url.is_none());
+        m.shutdown(); // goi lan nua vo hai
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let alive = std::process::Command::new("/bin/kill").args(["-0", &pid.to_string()]).stderr(Stdio::null()).status().unwrap().success();
+        assert!(!alive, "tien trinh CLI phai chet khi app thoat");
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// RV m2: Huy o pha Verifying (CLI login da thoat, dang chay `auth status`) phai co tac dung, ket qua Cancelled.
+    #[tokio::test]
+    async fn huy_o_pha_kiem_trang_thai_co_tac_dung() {
+        let d = holder();
+        let bin = script(
+            &d,
+            "claude",
+            &format!(
+                r#"case "$1" in --version) exit 0;; auth) if [ "$2" = status ]; then exec sleep 30; fi; echo "{FAKE_URL}"; sleep 0.3; exit 0;; esac"#
+            ),
+        );
+        let m = LoginManager::new();
+        m.start_with(CliKind::Claude, bin.to_str(), quick()).unwrap();
+        wait_for(&m, |s| s.phase == LoginPhase::Verifying).await;
+        let t = std::time::Instant::now();
+        m.cancel();
+        let s = wait_for(&m, |s| is_terminal(s.phase)).await;
+        assert_eq!(s.phase, LoginPhase::Cancelled, "{s:?}");
+        assert!(t.elapsed() < Duration::from_secs(2), "huy phai co tac dung ngay, mat {:?}", t.elapsed());
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// Dau ra THAT (dinh dang chep tu `codex login --device-auth` cua codex-cli 0.166.0, ma va mau ANSI giu nguyen
+    /// hinh dang, gia tri la gia): ma 9 ky tu dang XXXX-XXXXX tren dong rieng, link https://auth.openai.com/codex/device.
+    #[tokio::test]
+    async fn codex_dau_ra_that_0_166_rut_duoc_ma_9_ky_tu_va_link() {
+        let d = holder();
+        let body = r#"case "$1" in
+--version) echo "codex-cli 0.166.0"; exit 0;;
+login) if [ "$2" = status ]; then echo "Not logged in"; exit 1; fi
+  printf '
+Welcome to Codex [v[90m0.166.0[0m]
+[90mOpenAI'"'"'s command-line coding agent[0m
+
+'
+  printf 'Follow these steps to sign in with ChatGPT using device code authorization:
+
+'
+  printf '1. Open this link in your browser and sign in to your account
+   [94mhttps://auth.openai.com/codex/device[0m
+
+'
+  printf '2. Enter this one-time code [90m(expires in 15 minutes)[0m
+   [94mFAKE-C0DE9[0m
+
+'
+  sleep 60;;
+esac"#;
+        let bin = script(&d, "codex", body);
+        let m = LoginManager::new();
+        m.start_with(CliKind::Codex, bin.to_str(), quick()).unwrap();
+        let s = wait_for(&m, |s| s.phase == LoginPhase::WaitingUser).await;
+        assert_eq!(s.url.as_deref(), Some("https://auth.openai.com/codex/device"));
+        assert_eq!(s.device_code.as_deref(), Some("FAKE-C0DE9"));
+        assert_eq!(s.device_code.as_deref().map(|c| c.replace('-', "").len()), Some(9));
+        m.cancel();
+        wait_for(&m, |s| is_terminal(s.phase)).await;
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// Dau ra THAT cua `claude auth login --claudeai` (Claude Code 2.1.332, khong TTY): link tren dong rieng roi loi
+    /// nhac "Paste code here if prompted >" khong xuong dong.
+    #[tokio::test]
+    async fn claude_dau_ra_that_2_1_rut_duoc_link_oauth() {
+        let d = holder();
+        let body = r#"case "$1" in
+--version) echo "2.1.332 (Claude Code)"; exit 0;;
+auth) if [ "$2" = status ]; then exit 1; fi
+  printf 'Opening browser to sign inâ¦
+If the browser didn'"'"'t open, visit:
+https://claude.ai/oauth/authorize?code=true&client_id=fake&state=fake
+Paste code here if prompted > '
+  sleep 60;;
+esac"#;
+        let bin = script(&d, "claude", body);
+        let m = LoginManager::new();
+        m.start_with(CliKind::Claude, bin.to_str(), quick()).unwrap();
+        let s = wait_for(&m, |s| s.phase == LoginPhase::WaitingUser).await;
+        assert_eq!(s.url.as_deref(), Some("https://claude.ai/oauth/authorize?code=true&client_id=fake&state=fake"));
+        assert!(s.needs_code);
+        m.cancel();
+        wait_for(&m, |s| is_terminal(s.phase)).await;
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// Tu do khi mo tab AI: duong dan, dong phien ban, trang thai theo ma thoat.
+    #[tokio::test]
+    async fn inspect_tra_duong_dan_phien_ban_va_trang_thai() {
+        let d = holder();
+        let ok = script(&d, "claude", r#"case "$1" in --version) echo "2.1.332 (Claude Code)"; exit 0;; auth) exit 0;; esac"#);
+        let info = crate::cli::inspect(CliKind::Claude, ok.to_str()).await;
+        assert_eq!(info.path.as_deref(), ok.to_str());
+        assert_eq!(info.version.as_deref(), Some("2.1.332 (Claude Code)"));
+        assert_eq!(info.status, CliStatus::Ready);
+        let d2 = holder();
+        let no = script(&d2, "codex", r#"case "$1" in --version) echo "codex-cli 0.166.0"; exit 0;; login) echo "Not logged in"; exit 1;; esac"#);
+        let info = crate::cli::inspect(CliKind::Codex, no.to_str()).await;
+        assert_eq!((info.version.as_deref(), info.status), (Some("codex-cli 0.166.0"), CliStatus::NotLoggedIn));
+        let d3 = holder();
+        // agy that khi chua dang nhap: `agy models` in loi va thoat 1.
+        let agy = script(&d3, "agy", r#"case "$1" in --version) echo "1.5.18"; exit 0;; models) echo "Fetching available models..."; echo "Error: Please sign in to view available models." >&2; exit 1;; esac"#);
+        let info = crate::cli::inspect(CliKind::Antigravity, agy.to_str()).await;
+        assert_eq!((info.version.as_deref(), info.status), (Some("1.5.18"), CliStatus::NotLoggedIn));
+        let info = crate::cli::inspect(CliKind::Claude, Some("/khong/co/claude")).await;
+        assert_eq!(info, crate::cli::CliInfo { path: None, version: None, status: CliStatus::NotInstalled });
+        for x in [d, d2, d3] {
+            let _ = std::fs::remove_dir_all(&x);
+        }
     }
 
     #[tokio::test]

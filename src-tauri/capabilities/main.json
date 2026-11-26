@@ -68,6 +68,7 @@
     "allow-ai-login-poll",
     "allow-ai-login-cancel",
     "allow-ai-login-open",
+    "allow-ai-cli-status",
     "allow-session-start",
     "allow-session-pause",
     "allow-session-resume",

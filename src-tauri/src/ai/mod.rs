@@ -36,6 +36,7 @@ pub const AI_COMMANDS: &[&str] = &[
     "ai_login_poll",
     "ai_login_cancel",
     "ai_login_open",
+    "ai_cli_status",
 ];
 
 /// Kho khoa dung chung toan app: MOT cache duy nhat boc Keychain (macOS) / Credential Manager (Windows) nen moi khoa chi hoi Keychain toi da
@@ -61,6 +62,11 @@ pub struct AiState {
 }
 
 impl AiState {
+    /// App thoat (RV M1): huy va giet ngay tien trinh dang nhap CLI con chay, dong bo.
+    pub fn shutdown_login(&self) {
+        self.login.shutdown();
+    }
+
     pub fn new(svc: AiService) -> Self {
         Self { svc: Arc::new(svc), cancel: Mutex::new(None), login: rlt_ai::login::LoginManager::new() }
     }
@@ -215,6 +221,23 @@ fn login_kind(p: ProviderKind) -> Result<rlt_ai::cli::CliKind, String> {
         ProviderKind::CodexCli if p.is_enabled() => Ok(rlt_ai::cli::CliKind::Codex),
         _ => Err(rlt_ai::login::LoginError::Unsupported.code().to_string()),
     }
+}
+
+fn cli_kind(p: ProviderKind) -> Result<rlt_ai::cli::CliKind, String> {
+    match p {
+        ProviderKind::ClaudeCli => Ok(rlt_ai::cli::CliKind::Claude),
+        ProviderKind::CodexCli if p.is_enabled() => Ok(rlt_ai::cli::CliKind::Codex),
+        ProviderKind::AntigravityCli => Ok(rlt_ai::cli::CliKind::Antigravity),
+        _ => Err(rlt_ai::login::LoginError::Unsupported.code().to_string()),
+    }
+}
+
+/// Tu do CLI khi mo tab AI (3.0.6): duong dan, phien ban, trang thai dang nhap theo ma thoat. Khong doc token.
+#[tauri::command]
+pub async fn ai_cli_status(s: State<'_, AiState>, provider: ProviderKind) -> Result<rlt_ai::cli::CliInfo, String> {
+    let kind = cli_kind(provider)?;
+    let path = code(s.svc.get_settings())?.providers.into_iter().find(|p| p.provider == provider).and_then(|p| p.base_url);
+    Ok(rlt_ai::cli::inspect(kind, path.as_deref()).await)
 }
 
 #[tauri::command]

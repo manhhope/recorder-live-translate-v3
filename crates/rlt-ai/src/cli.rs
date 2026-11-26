@@ -15,6 +15,7 @@
 use crate::error::{AiError, Result};
 use crate::provider::{CancelFlag, ChatRequest, LlmProvider, ProviderKind, Role, Usage};
 use async_trait::async_trait;
+use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -488,7 +489,8 @@ pub fn classify_failure(code: i32, output: &str) -> AiError {
 // Trang thai CLI (AC-58.3)
 // ---------------------------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum CliStatus {
     Ready,
     NotInstalled,
@@ -583,37 +585,115 @@ pub async fn check_status_at(kind: CliKind, bin: &Path) -> CliStatus {
         Some(0) => {}
         Some(_) | None => return CliStatus::Unknown,
     }
+    auth_status_in(kind, bin, work.path()).await
+}
+
+/// Ket qua do CLI cho man Cai dat (3.0.6, luong giong Javis): duong dan tim thay, dong phien ban, trang thai dang nhap.
+/// Khong chua token: phien ban chi la dong dau cua `--version` da loc ky tu.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct CliInfo {
+    pub path: Option<String>,
+    pub version: Option<String>,
+    pub status: CliStatus,
+}
+
+/// Dong phien ban hien cho nguoi dung: dong dau khong rong, chi ky tu in duoc, toi da 64 ky tu.
+pub fn clean_version(out: &str) -> Option<String> {
+    let out = crate::login::strip_ansi(out);
+    let line = out.lines().map(str::trim).find(|l| !l.is_empty())?;
+    let v: String = line.chars().filter(|c| c.is_ascii_graphic() || *c == ' ').take(64).collect();
+    let v = v.trim().to_string();
+    (!v.is_empty()).then_some(v)
+}
+
+/// Nhu `probe` nhung giu toi da 4 KB dau ra (de lay dong phien ban).
+async fn probe_text(bin: &Path, cwd: &Path, args: &[&str]) -> Option<(i32, String)> {
+    let mut c = base_command(bin, cwd);
+    c.args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::null());
+    let mut child = c.spawn().ok()?;
+    let mut stdout = child.stdout.take()?;
+    let reader = tokio::spawn(async move {
+        let mut buf = Vec::new();
+        let mut tmp = [0u8; 1024];
+        while let Ok(n) = stdout.read(&mut tmp).await {
+            if n == 0 {
+                break;
+            }
+            if buf.len() < 4096 {
+                buf.extend_from_slice(&tmp[..n]);
+            }
+        }
+        String::from_utf8_lossy(&buf).into_owned()
+    });
+    match tokio::time::timeout(PROBE_LIMIT, child.wait()).await {
+        Ok(Ok(st)) => {
+            let out = tokio::time::timeout(Duration::from_secs(1), reader).await.ok().and_then(|r| r.ok()).unwrap_or_default();
+            Some((st.code().unwrap_or(-1), out))
+        }
+        _ => {
+            kill_tree(&mut child).await;
+            reader.abort();
+            None
+        }
+    }
+}
+
+/// Tu do CLI khi mo tab AI: tim binary (duong dan tuy chinh neu co), doc phien ban, roi kiem dang nhap bang ma thoat.
+pub async fn inspect(kind: CliKind, override_path: Option<&str>) -> CliInfo {
+    let Some(bin) = locate(kind, override_path) else {
+        return CliInfo { path: None, version: None, status: CliStatus::NotInstalled };
+    };
+    let path = Some(bin.display().to_string());
+    let Ok(work) = TempWorkDir::create() else { return CliInfo { path, version: None, status: CliStatus::Unknown } };
+    let version = match probe_text(&bin, work.path(), &["--version"]).await {
+        Some((0, out)) => clean_version(&out),
+        _ => return CliInfo { path, version: None, status: CliStatus::Unknown },
+    };
+    let status = auth_status_in(kind, &bin, work.path()).await;
+    CliInfo { path, version, status }
+}
+
+/// Phan kiem dang nhap (sau khi `--version` da chay duoc), dung chung cho `check_status_at` va `inspect`.
+async fn auth_status_in(kind: CliKind, bin: &Path, work: &Path) -> CliStatus {
     if kind == CliKind::Antigravity {
         // Ready chi khi `agy models` thoat 0 VA co in ra danh sach (phien da co). Het han/treo o menu = Unknown.
-        return match probe_has_output(bin, work.path(), &auth_args(kind)).await {
+        return match probe_has_output(bin, work, &auth_args(kind)).await {
             Some((0, true)) => CliStatus::Ready,
             Some((0, false)) | Some((1, _)) => CliStatus::NotLoggedIn,
             _ => CliStatus::Unknown,
         };
     }
-    match probe(bin, work.path(), &auth_args(kind)).await {
+    match probe(bin, work, &auth_args(kind)).await {
         Some(0) => CliStatus::Ready,
         Some(1) => CliStatus::NotLoggedIn,
         _ => CliStatus::Unknown,
     }
 }
 
+/// Giet ca cay tien trinh theo pid, DONG BO (khong can runtime tokio): dung ca luc app thoat (RV M1).
+/// Unix: `base_command` dat `process_group(0)` nen pid cung la ma nhom tien trinh.
+pub(crate) fn kill_pid_tree(pid: u32) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .creation_flags(0x0800_0000)
+            .status();
+    }
+    #[cfg(unix)]
+    {
+        let _ = std::process::Command::new("/bin/kill").args(["-KILL", &format!("-{pid}")]).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    }
+    #[cfg(not(any(windows, unix)))]
+    let _ = pid;
+}
+
 pub(crate) async fn kill_tree(child: &mut tokio::process::Child) {
     if let Some(pid) = child.id() {
-        #[cfg(windows)]
-        {
-            let _ = std::process::Command::new("taskkill").args(["/PID", &pid.to_string(), "/T", "/F"]).stdout(Stdio::null()).stderr(Stdio::null()).status();
-        }
-        #[cfg(unix)]
-        {
-            let _ = std::process::Command::new("/bin/kill")
-                .args(["-KILL", &format!("-{pid}")])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status();
-        }
-        #[cfg(not(any(windows, unix)))]
-        let _ = pid;
+        kill_pid_tree(pid);
     }
     let _ = child.start_kill();
     let _ = tokio::time::timeout(Duration::from_secs(2), child.wait()).await;

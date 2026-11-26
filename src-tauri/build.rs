@@ -45,6 +45,7 @@ pub const APP_COMMANDS: &[&str] = &[
     "ai_login_poll",
     "ai_login_cancel",
     "ai_login_open",
+    "ai_cli_status",
     "shell_set_recording",
     "shell_set_keep_awake",
     "shell_set_locale",
